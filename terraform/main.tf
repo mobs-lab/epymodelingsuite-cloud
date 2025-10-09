@@ -126,7 +126,15 @@ resource "google_project_iam_member" "wf_batch_admin" {
   depends_on = [google_project_service.batch]
 }
 
-# Workflows runner: act as service account
+# Workflows runner: impersonate Batch service account specifically
+resource "google_service_account_iam_member" "wf_impersonate_batch" {
+  service_account_id = google_service_account.batch_runtime.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
+# Additional: Grant Service Account User at project level
+# Some GCP services require both project and resource-level permissions
 resource "google_project_iam_member" "wf_sa_user" {
   project = var.project_id
   role    = "roles/iam.serviceAccountUser"
@@ -156,6 +164,19 @@ resource "time_sleep" "wait_for_workflows_agent" {
   create_duration = "60s"
 }
 
+# Get project number for Workflows service agent
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
+# Allow Workflows service agent to act as the workflows-runner service account
+# This is required for Workflows to use the custom service account
+resource "google_service_account_iam_member" "workflows_agent_use_runner" {
+  service_account_id = google_service_account.workflows_runner.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-workflows.iam.gserviceaccount.com"
+}
+
 # Workflows (deploy from local YAML with variable substitution)
 resource "google_workflows_workflow" "pipeline" {
   name            = "epydemix-pipeline"
@@ -170,6 +191,7 @@ resource "google_workflows_workflow" "pipeline" {
 
   depends_on = [
     google_project_service.workflows,
-    time_sleep.wait_for_workflows_agent
+    time_sleep.wait_for_workflows_agent,
+    google_service_account_iam_member.workflows_agent_use_runner
   ]
 }
