@@ -3,7 +3,6 @@
 .terraform.lock.hcl
 *.tfstate
 *.tfstate.*
-*.tfvars
 !terraform.tfvars.example
 
 # Python
@@ -36,10 +35,11 @@ Thumbs.db
 !jobs/*.json.template
 jobs/stage-a.json
 jobs/stage-b.json
-.env
 .env.local
 
 # Logs
 *.log
 
 results/
+
+.claude/
