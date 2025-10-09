@@ -1,0 +1,22 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+      - '-f'
+      - 'docker/Dockerfile'
+      - '.'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+
+substitutions:
+  _REGION: 'us-central1'  # Override with --substitutions flag
+  _REPO_NAME: 'epymodelingsuite-repo'  # Override with --substitutions flag
+  _IMAGE_NAME: 'epymodelingsuite'  # Override with --substitutions flag
+  _IMAGE_TAG: 'latest'  # Override with --substitutions flag
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_MEDIUM
