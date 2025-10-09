@@ -69,6 +69,28 @@ brew tap hashicorp/tap
 brew install hashicorp/tap/terraform
  ```
 
+### Permissions
+
+To deploy this infrastructure with Terraform, you need the following IAM permissions:
+
+**Required roles for Terraform deployment:**
+- **Project IAM Admin** (`roles/resourcemanager.projectIamAdmin`) - To manage IAM bindings for service accounts
+- **Secret Manager Admin** (`roles/secretmanager.admin`) - To manage IAM policies for secrets
+
+**Grant permissions to your user account:**
+```bash
+# Project IAM Admin (required for service account role bindings)
+gcloud projects add-iam-policy-binding your-gcp-project-id \
+  --member="user:user@example.com" \
+  --role="roles/resourcemanager.projectIamAdmin"
+
+# Secret Manager Admin (required for secret IAM policies)
+gcloud projects add-iam-policy-binding your-gcp-project-id \
+  --member="user:user@example.com" \
+  --role="roles/secretmanager.admin"
+```
+
+**Note**: These permissions are needed in addition to the Editor role (`roles/editor`) to allow Terraform to create and manage IAM bindings. Ask your Google Cloud project administrator to grant these roles if you encounter "Policy update access denied" errors.
 
 Set these environment variables:
 
