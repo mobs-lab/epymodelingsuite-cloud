@@ -1,0 +1,175 @@
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.9"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+# Enable required APIs
+resource "google_project_service" "batch" {
+  service            = "batch.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "workflows" {
+  service            = "workflows.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "artifactregistry" {
+  service            = "artifactregistry.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "secretmanager" {
+  service            = "secretmanager.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Artifact Registry (Docker)
+resource "google_artifact_registry_repository" "repo" {
+  project       = var.project_id
+  location      = var.region
+  repository_id = var.repo_name
+  format        = "DOCKER"
+  description   = "Docker repository for epydemix pipeline"
+
+  depends_on = [google_project_service.artifactregistry]
+}
+
+# Use existing GCS bucket
+data "google_storage_bucket" "data" {
+  name = var.bucket_name
+}
+
+# Secret Manager: GitHub Fine-Grained Personal Access Token
+# Note: The actual secret value must be created manually via:
+# echo -n "your_pat_here" | gcloud secrets create github-pat --data-file=-
+# Required permissions: Contents (read) for epymodelingsuite and forecasting repositories
+resource "google_secret_manager_secret" "github_pat" {
+  secret_id = "github-pat"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.secretmanager]
+}
+
+# Service Account for Batch runtime
+resource "google_service_account" "batch_runtime" {
+  account_id   = "batch-runtime"
+  display_name = "Batch Runtime SA"
+  description  = "Service account for Cloud Batch jobs"
+}
+
+# Service Account for Workflows
+resource "google_service_account" "workflows_runner" {
+  account_id   = "workflows-runner"
+  display_name = "Workflows Runner SA"
+  description  = "Service account for Workflows orchestration"
+}
+
+# IAM: Batch runtime needs GCS write/read
+resource "google_storage_bucket_iam_member" "batch_sa_bucket_rw" {
+  bucket = data.google_storage_bucket.data.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.batch_runtime.email}"
+}
+
+# IAM: Batch runtime needs to write logs
+resource "google_project_iam_member" "batch_sa_logs_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.batch_runtime.email}"
+}
+
+# IAM: Batch runtime needs to pull Docker images from Artifact Registry
+resource "google_project_iam_member" "batch_sa_artifact_registry_reader" {
+  project = var.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.batch_runtime.email}"
+}
+
+# IAM: Batch runtime needs to report task status to Batch API
+resource "google_project_iam_member" "batch_sa_agent_reporter" {
+  project = var.project_id
+  role    = "roles/batch.agentReporter"
+  member  = "serviceAccount:${google_service_account.batch_runtime.email}"
+}
+
+# IAM: Batch runtime needs to access GitHub PAT from Secret Manager
+resource "google_secret_manager_secret_iam_member" "batch_sa_secret_accessor" {
+  secret_id = google_secret_manager_secret.github_pat.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.batch_runtime.email}"
+}
+
+# Workflows runner: manage Batch jobs
+resource "google_project_iam_member" "wf_batch_admin" {
+  project = var.project_id
+  role    = "roles/batch.jobsAdmin"
+  member  = "serviceAccount:${google_service_account.workflows_runner.email}"
+
+  depends_on = [google_project_service.batch]
+}
+
+# Workflows runner: act as service account
+resource "google_project_iam_member" "wf_sa_user" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountUser"
+  member  = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
+# Workflows runner: read bucket objects to count N
+resource "google_storage_bucket_iam_member" "wf_bucket_view" {
+  bucket = data.google_storage_bucket.data.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
+# Workflows runner: write logs
+resource "google_project_iam_member" "wf_logs_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
+# Wait for Workflows service agent to be created
+# The service agent is created automatically when the API is enabled,
+# but there's a delay before it's ready
+resource "time_sleep" "wait_for_workflows_agent" {
+  depends_on = [google_project_service.workflows]
+
+  create_duration = "60s"
+}
+
+# Workflows (deploy from local YAML with variable substitution)
+resource "google_workflows_workflow" "pipeline" {
+  name            = "epydemix-pipeline"
+  description     = "Stage A (gen) → list GCS → Stage B (array)"
+  region          = var.region
+  service_account = google_service_account.workflows_runner.email
+  source_contents = templatefile("${path.module}/workflow.yaml", {
+    repo_name  = var.repo_name
+    image_name = var.image_name
+    image_tag  = var.image_tag
+  })
+
+  depends_on = [
+    google_project_service.workflows,
+    time_sleep.wait_for_workflows_agent
+  ]
+}

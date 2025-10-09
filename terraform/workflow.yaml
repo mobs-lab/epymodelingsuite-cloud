@@ -1,0 +1,302 @@
+# Epydemix Pipeline Workflow
+
+main:
+  params: [input]
+  steps:
+    # ========== INITIALIZATION ==========
+    - initialize_workflow:
+        assign:
+          # Get environment info
+          - project: $${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - location: $${sys.get_env("GOOGLE_CLOUD_LOCATION")}
+          - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}:${image_tag}"}
+          - githubForecastRepo: $${default(map.get(input, "githubForecastRepo"), "")}
+
+          # Generate unique run ID from execution ID
+          - executionId: $${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
+          - runId: $${text.split(executionId, "/")[len(text.split(executionId, "/")) - 1]}
+
+          # Build GCS paths
+          - dirPrefixRaw: $${default(map.get(input, "dirPrefix"), "")}
+          - dirPrefix: $${if(dirPrefixRaw == "", "", if(text.substring(dirPrefixRaw, len(dirPrefixRaw) - 1, len(dirPrefixRaw)) == "/", dirPrefixRaw, dirPrefixRaw + "/"))}
+          - simId: $${input.sim_id}
+          - bucket: $${input.bucket}
+          - basePath: $${dirPrefix + simId + "/" + runId + "/"}
+          - outPrefix: $${basePath + "inputs/"}
+          - inPrefix: $${basePath + "inputs/"}
+          - resPrefix: $${basePath + "results/"}
+
+          # Job parameters
+          - count: $${input.count}
+          - seed: $${input.seed}
+          - batchSaEmail: $${input.batchSaEmail}
+          - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
+
+    # ========== STAGE A: Generate Input Files ==========
+    - create_stageA_job:
+        call: http.post
+        args:
+          url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+          auth:
+            type: OAuth2
+          body:
+            taskGroups:
+              - taskCount: 1
+                taskSpec:
+                  runnables:
+                    - container:
+                        imageUri: $${repoUri}
+                        entrypoint: "/bin/bash"
+                        commands:
+                          - "/scripts/run_dispatcher.sh"
+                          - "--count"
+                          - $${string(count)}
+                          - "--seed"
+                          - $${string(seed)}
+                  environment:
+                    variables:
+                      GCS_BUCKET: $${bucket}
+                      OUT_PREFIX: $${outPrefix}
+                      SIM_ID: $${simId}
+                      RUN_ID: $${runId}
+                      GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                      GCLOUD_PROJECT_ID: $${project}
+                      GITHUB_PAT_SECRET: "github-pat"
+                      REPO_DIR: "/tmp/forecast-repo"
+                  computeResource:
+                    cpuMilli: 2000
+                    memoryMib: 4096
+            logsPolicy:
+              destination: "CLOUD_LOGGING"
+            allocationPolicy:
+              serviceAccount:
+                email: $${batchSaEmail}
+          query:
+            jobId: $${"stagea-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+        result: jobA
+
+    - wait_for_stageA_creation:
+        call: sys.sleep
+        args:
+          seconds: 5
+
+    - wait_for_stageA_completion:
+        call: waitJob
+        args:
+          name: $${jobA.body.name}
+
+    - wait_for_file_upload:
+        call: sys.sleep
+        args:
+          seconds: 15
+
+    - wait_for_input_files:
+        call: waitForFiles
+        args:
+          bucket: $${bucket}
+          prefix: $${outPrefix}
+          maxRetries: 60
+          sleepSeconds: 5
+        result: inputFiles
+
+    - count_input_files:
+        assign:
+          - items: $${default(inputFiles, [])}
+          - N: $${len(items)}
+
+    - validate_inputs:
+        switch:
+          - condition: $${N <= 0}
+            raise: "No inputs produced by Stage A"
+
+    # ========== STAGE B: Run Simulations ==========
+    - calculate_parallelism:
+        assign:
+          - parallelism: $${if(N > maxParallelism, maxParallelism, N)}
+
+    - create_stageB_job:
+        call: http.post
+        args:
+          url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+          auth:
+            type: OAuth2
+          body:
+            taskGroups:
+              - taskCount: $${N}
+                parallelism: $${parallelism}
+                taskSpec:
+                  runnables:
+                    - container:
+                        imageUri: $${repoUri}
+                        entrypoint: "python"
+                        commands:
+                          - "/scripts/main_runner.py"
+                  environment:
+                    variables:
+                      GCS_BUCKET: $${bucket}
+                      IN_PREFIX: $${inPrefix}
+                      OUT_PREFIX: $${resPrefix}
+                  computeResource:
+                    cpuMilli: 2000
+                    memoryMib: 8192
+            logsPolicy:
+              destination: "CLOUD_LOGGING"
+            allocationPolicy:
+              serviceAccount:
+                email: $${batchSaEmail}
+          query:
+            jobId: $${"stageb-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+        result: jobB
+
+    - wait_for_stageB_creation:
+        call: sys.sleep
+        args:
+          seconds: 5
+
+    - wait_for_stageB_completion:
+        call: waitJob
+        args:
+          name: $${jobB.body.name}
+
+    # ========== COMPLETION ==========
+    - return_results:
+        return:
+          N: $${N}
+          stageA_job: $${jobA.body.name}
+          stageB_job: $${jobB.body.name}
+
+# ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
+waitJob:
+  params: [name]
+  steps:
+    - init_wait:
+        assign:
+          - waitCount: 0
+          - finalStatus: null
+
+    - poll_loop:
+        for:
+          value: i
+          range: $${[0, 999]}
+          steps:
+            - get_job_status:
+                try:
+                  call: http.get
+                  args:
+                    url: $${"https://batch.googleapis.com/v1/" + name}
+                    auth:
+                      type: OAuth2
+                  result: j
+                except:
+                  as: e
+                  steps:
+                    - log_error:
+                        call: sys.log
+                        args:
+                          text: $${"Failed to get job status. Retrying in 10s."}
+                          severity: WARNING
+                    - sleep_on_error:
+                        call: sys.sleep
+                        args:
+                          seconds: 10
+                    - continue_loop:
+                        next: continue
+
+            - extract_state:
+                assign:
+                  - currentState: $${if("status" in j.body and "state" in j.body.status, j.body.status.state, "NO_STATUS")}
+                  - waitCount: $${waitCount + 1}
+
+            - log_status:
+                call: sys.log
+                args:
+                  text: $${"Polling batch job status (iteration=" + string(waitCount) + "). State is " + currentState + "."}
+                  severity: INFO
+
+            - check_if_succeeded:
+                switch:
+                  - condition: $${currentState == "SUCCEEDED"}
+                    steps:
+                      - log_success:
+                          call: sys.log
+                          args:
+                            text: $${"Batch job succeeded after " + string(waitCount) + " polling attempts"}
+                            severity: INFO
+                      - save_status:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                      - exit_loop:
+                          next: break
+
+            - check_if_failed:
+                switch:
+                  - condition: $${currentState in ["FAILED", "DELETION_IN_PROGRESS"]}
+                    raise: '$${currentState}'
+
+            - sleep_before_retry:
+                call: sys.sleep
+                args:
+                  seconds: 10
+
+    - return_status:
+        return: $${finalStatus}
+
+# ========== SUBWORKFLOW: Wait for Files in GCS ==========
+waitForFiles:
+  params: [bucket, prefix, maxRetries, sleepSeconds]
+  steps:
+    - init_file_wait:
+        assign:
+          - foundFiles: null
+
+    - poll_for_files:
+        for:
+          value: attempt
+          range: $${[1, maxRetries]}
+          steps:
+            - list_files:
+                call: http.get
+                args:
+                  url: $${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o?prefix=" + prefix}
+                  auth:
+                    type: OAuth2
+                result: ls
+
+            - count_files:
+                assign:
+                  - items: $${default(map.get(ls.body, "items"), [])}
+                  - fileCount: $${len(items)}
+
+            - log_file_check:
+                call: sys.log
+                args:
+                  text: $${"File check attempt " + string(attempt) + " of " + string(maxRetries) + ". Found " + string(fileCount) + " files."}
+                  severity: INFO
+
+            - check_files_found:
+                switch:
+                  - condition: $${fileCount > 0}
+                    steps:
+                      - log_files_found:
+                          call: sys.log
+                          args:
+                            text: $${"Found " + string(fileCount) + " files at " + prefix}
+                            severity: INFO
+                      - save_files:
+                          assign:
+                            - foundFiles: $${items}
+                      - exit_file_loop:
+                          next: break
+
+            - check_timeout:
+                switch:
+                  - condition: $${attempt >= maxRetries}
+                    raise: "Timeout waiting for files"
+
+            - sleep_before_retry:
+                call: sys.sleep
+                args:
+                  seconds: $${sleepSeconds}
+
+    - return_files:
+        return: $${foundFiles}
