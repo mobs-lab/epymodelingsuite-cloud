@@ -110,7 +110,7 @@ cp .env.example .env
 
 # Edit .env with your project details
 # The examples are:
-export PROJECT_IDyour-gcp-project-id=your-gcp-project-id
+export PROJECT_ID=your-gcp-project-id
 export REGION=us-central1
 export REPO_NAME=epymodelingsuite-repo
 export BUCKET_NAME=your-bucket-name  # Assumes existing bucket
