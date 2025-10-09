@@ -39,6 +39,7 @@ main:
           url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
           auth:
             type: OAuth2
+            scopes: https://www.googleapis.com/auth/cloud-platform
           body:
             taskGroups:
               - taskCount: 1
