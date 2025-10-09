@@ -1,0 +1,43 @@
+{
+  "taskGroups": [
+    {
+      "taskCount": 1,
+      "taskSpec": {
+        "runnables": [
+          {
+            "container": {
+              "imageUri": "${IMAGE_URI}",
+              "entrypoint": "python",
+              "commands": [
+                "main_dispatcher.py",
+                "--count",
+                "${COUNT}",
+                "--seed",
+                "${SEED}"
+              ]
+            }
+          }
+        ],
+        "environment": {
+          "variables": {
+            "GCS_BUCKET": "${BUCKET_NAME}",
+            "OUT_PREFIX": "${OUT_PREFIX}",
+            "JOBID": "manual-test"
+          }
+        },
+        "computeResource": {
+          "cpuMilli": 2000,
+          "memoryMib": 4096
+        }
+      }
+    }
+  ],
+  "allocationPolicy": {
+    "serviceAccount": {
+      "email": "${BATCH_SA_EMAIL}"
+    }
+  },
+  "logsPolicy": {
+    "destination": "CLOUD_LOGGING"
+  }
+}

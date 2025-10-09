@@ -1,0 +1,40 @@
+{
+  "taskGroups": [
+    {
+      "taskCount": ${TASK_COUNT},
+      "parallelism": ${PARALLELISM},
+      "taskSpec": {
+        "runnables": [
+          {
+            "container": {
+              "imageUri": "${IMAGE_URI}",
+              "entrypoint": "python",
+              "commands": [
+                "main_runner.py"
+              ]
+            }
+          }
+        ],
+        "environment": {
+          "variables": {
+            "GCS_BUCKET": "${BUCKET_NAME}",
+            "IN_PREFIX": "${IN_PREFIX}",
+            "OUT_PREFIX": "${OUT_PREFIX}"
+          }
+        },
+        "computeResource": {
+          "cpuMilli": 2000,
+          "memoryMib": 8192
+        }
+      }
+    }
+  ],
+  "allocationPolicy": {
+    "serviceAccount": {
+      "email": "${BATCH_SA_EMAIL}"
+    }
+  },
+  "logsPolicy": {
+    "destination": "CLOUD_LOGGING"
+  }
+}
