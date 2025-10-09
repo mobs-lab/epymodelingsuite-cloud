@@ -71,26 +71,36 @@ brew install hashicorp/tap/terraform
 
 ### Permissions
 
-To deploy this infrastructure with Terraform, you need the following IAM permissions:
+To deploy and run this infrastructure, you need the following IAM permissions in addition to the Editor role (`roles/editor`):
 
-**Required roles for Terraform deployment:**
-- **Project IAM Admin** (`roles/resourcemanager.projectIamAdmin`) - To manage IAM bindings for service accounts
-- **Secret Manager Admin** (`roles/secretmanager.admin`) - To manage IAM policies for secrets
+**Required roles:**
+- **Project IAM Admin** (`roles/resourcemanager.projectIamAdmin`) - To manage IAM bindings for service accounts (Terraform)
+- **Secret Manager Admin** (`roles/secretmanager.admin`) - To manage IAM policies for secrets (Terraform)
+- **Cloud Build Editor** (`roles/cloudbuild.builds.editor`) - To submit and manage Cloud Build jobs (Docker builds)
 
 **Grant permissions to your user account:**
 ```bash
-# Project IAM Admin (required for service account role bindings)
+# Project IAM Admin (required for Terraform to create service account role bindings)
 gcloud projects add-iam-policy-binding your-gcp-project-id \
   --member="user:user@example.com" \
   --role="roles/resourcemanager.projectIamAdmin"
 
-# Secret Manager Admin (required for secret IAM policies)
+# Secret Manager Admin (required for Terraform to set IAM policies on secrets)
 gcloud projects add-iam-policy-binding your-gcp-project-id \
   --member="user:user@example.com" \
   --role="roles/secretmanager.admin"
+
+# Cloud Build Editor (required to build and push Docker images)
+gcloud projects add-iam-policy-binding your-gcp-project-id \
+  --member="user:user@example.com" \
+  --role="roles/cloudbuild.builds.editor"
 ```
 
-**Note**: These permissions are needed in addition to the Editor role (`roles/editor`) to allow Terraform to create and manage IAM bindings. Ask your Google Cloud project administrator to grant these roles if you encounter "Policy update access denied" errors.
+**Common permission errors:**
+- `Error 403: Policy update access denied` → Need Project IAM Admin and Secret Manager Admin roles
+- `The caller does not have permission` (Cloud Build) → Need Cloud Build Editor role
+
+**Note**: Ask your Google Cloud project administrator to grant these roles if you encounter permission errors during deployment.
 
 Set these environment variables:
 
@@ -200,7 +210,89 @@ See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 
 ---
 
-## 5) Docker image
+## 5) Compute Resources and Instance Types
+
+### Understanding cpuMilli
+
+In Google Cloud Batch, compute resources are specified using `cpuMilli` and `memoryMib` rather than predefined instance types (which are also available as options).
+
+**cpuMilli** represents thousandths of a vCPU:
+- `1000 cpuMilli = 1 vCPU`
+- `2000 cpuMilli = 2 vCPUs`
+- `500 cpuMilli = 0.5 vCPU`
+
+Google Cloud automatically provisions the appropriate machine type based on your resource requirements. You can optionally specify instances types. See [documentation](https://cloud.google.com/batch/docs/create-run-job#resources) for details.
+
+### Current Resource Allocation
+
+**Cloud Build** - [cloudbuild.yaml:22](../cloudbuild.yaml#L22)
+```yaml
+machineType: E2_MEDIUM
+```
+- [Predefined instance type](https://cloud.google.com/build/pricing?hl=en) for build operations. Note that the only options for CloudBuild are `e2-medium`, `e2-standard-2`, `e2-highcpu-8`, and `e2-highcpu-32`. See documentation for details.
+- `e2-medium`: 1 vCPU, 4 GB RAM
+
+**Stage A Job (Generator)** - [terraform/workflow.yaml:66-68](../terraform/workflow.yaml#L66-L68)
+```yaml
+computeResource:
+  cpuMilli: 2000    # 2 vCPUs
+  memoryMib: 4096   # 4 GB RAM
+```
+- Single task that generates input files
+- Resources allocated: 2 vCPUs, 4 GB RAM
+
+**Stage B Job (Runner)** - [terraform/workflow.yaml:139-141](../terraform/workflow.yaml#L139-L141)
+```yaml
+computeResource:
+  cpuMilli: 2000    # 2 vCPUs
+  memoryMib: 8192   # 8 GB RAM
+```
+- Parallel tasks processing individual simulations
+- Resources allocated: 2 vCPUs, 8 GB RAM per task
+- Higher memory allocation for simulation workload
+
+### Tuning Compute Resources
+
+To adjust resources for your workload, edit [terraform/workflow.yaml](../terraform/workflow.yaml):
+
+**Example configurations:**
+```yaml
+# Lightweight tasks
+computeResource:
+  cpuMilli: 1000    # 1 vCPU
+  memoryMib: 2048   # 2 GB
+
+# Standard tasks (current)
+computeResource:
+  cpuMilli: 2000    # 2 vCPUs
+  memoryMib: 8192   # 8 GB
+
+# Compute-intensive tasks
+computeResource:
+  cpuMilli: 4000    # 4 vCPUs
+  memoryMib: 16384  # 16 GB
+
+# High-memory tasks
+computeResource:
+  cpuMilli: 8000    # 8 vCPUs
+  memoryMib: 32768  # 32 GB
+```
+
+**Important notes:**
+- Resource limits depend on your project's regional quotas
+- Higher resources = higher costs per task
+- Monitor actual resource usage with Cloud Logging to optimize allocation
+- Google Cloud Batch supports up to 32 vCPUs and 128 GB per task
+
+**After modifying resources:**
+```bash
+make tf-plan    # Review changes
+make tf-apply   # Deploy updated configuration
+```
+
+---
+
+## 6) Docker image
 
 See [docker/Dockerfile](docker/Dockerfile) and [docker/requirements.txt](docker/requirements.txt).
 
@@ -263,7 +355,7 @@ availableSecrets:
 
 ---
 
-## 6) Scripts
+## 7) Scripts
 
 ### Stage A Wrapper: [scripts/run_dispatcher.sh](scripts/run_dispatcher.sh)
 
@@ -315,7 +407,7 @@ Processes individual tasks in parallel using `BATCH_TASK_INDEX`.
 
 ---
 
-## 7) Makefile
+## 8) Makefile
 
 See full implementation in [Makefile](Makefile).
 
@@ -346,7 +438,7 @@ make run-workflow
 
 ---
 
-## 8) Operational notes
+## 9) Operational notes
 
 * **Reproducibility**: tag images with immutable digests and store a `run_metadata.json` next to outputs (image digest, args, run time, counts).
 * **Quotas**: cap `parallelism` in Workflows (default: 100, configurable via `maxParallelism` parameter, Cloud Batch supports up to 5,000 parallel tasks per job); adjust CPU/Memory per task based on your region's vCPU quota.
@@ -368,7 +460,7 @@ make run-workflow
 
 ---
 
-## 9) Quick start
+## 10) Quick start
 
 ```bash
 # 1) Set up environment variables
@@ -405,7 +497,7 @@ gcloud logging read "resource.type=batch.googleapis.com/Job" --limit 50
 
 ---
 
-## 10) Implementation Summary
+## 11) Implementation Summary
 
 **✅ Completed:**
 - Full Terraform infrastructure in [terraform/](terraform/)
