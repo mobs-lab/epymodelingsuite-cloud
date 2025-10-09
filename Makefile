@@ -42,7 +42,7 @@ help:
 build:
 	@echo "Building and pushing image with Cloud Build..."
 	@echo "Image: $(IMAGE)"
-	gcloud builds submit --region $(REGION) --config cloudbuild.yaml \
+	gcloud builds submit --project=$(PROJECT_ID) --region $(REGION) --config cloudbuild.yaml \
 	  --substitutions=_REGION=$(REGION),_REPO_NAME=$(REPO_NAME),_IMAGE_NAME=$(IMAGE_NAME),_IMAGE_TAG=$(IMAGE_TAG)
 
 build-local:
