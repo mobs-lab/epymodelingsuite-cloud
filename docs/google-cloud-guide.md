@@ -74,13 +74,14 @@ brew install hashicorp/tap/terraform
 To deploy and run this infrastructure, you need the following IAM permissions in addition to the Editor role (`roles/editor`):
 
 **Required roles:**
-- **Project IAM Admin** (`roles/resourcemanager.projectIamAdmin`) - To manage IAM bindings for service accounts (Terraform)
+- **Project IAM Admin** (`roles/resourcemanager.projectIamAdmin`) - To manage project-level IAM bindings (Terraform)
 - **Secret Manager Admin** (`roles/secretmanager.admin`) - To manage IAM policies for secrets (Terraform)
+- **Service Account Admin** (`roles/iam.serviceAccountAdmin`) - To manage IAM policies on service accounts (Terraform)
 - **Cloud Build Editor** (`roles/cloudbuild.builds.editor`) - To submit and manage Cloud Build jobs (Docker builds)
 
 **Grant permissions to your user account:**
 ```bash
-# Project IAM Admin (required for Terraform to create service account role bindings)
+# Project IAM Admin (required for Terraform to create project-level role bindings)
 gcloud projects add-iam-policy-binding your-gcp-project-id \
   --member="user:user@example.com" \
   --role="roles/resourcemanager.projectIamAdmin"
@@ -90,6 +91,11 @@ gcloud projects add-iam-policy-binding your-gcp-project-id \
   --member="user:user@example.com" \
   --role="roles/secretmanager.admin"
 
+# Service Account Admin (required for Terraform to set IAM policies on service accounts)
+gcloud projects add-iam-policy-binding your-gcp-project-id \
+  --member="user:user@example.com" \
+  --role="roles/iam.serviceAccountAdmin"
+
 # Cloud Build Editor (required to build and push Docker images)
 gcloud projects add-iam-policy-binding your-gcp-project-id \
   --member="user:user@example.com" \
@@ -98,6 +104,7 @@ gcloud projects add-iam-policy-binding your-gcp-project-id \
 
 **Common permission errors:**
 - `Error 403: Policy update access denied` → Need Project IAM Admin and Secret Manager Admin roles
+- `Permission 'iam.serviceAccounts.setIamPolicy' denied` → Need Service Account Admin role
 - `The caller does not have permission` (Cloud Build) → Need Cloud Build Editor role
 
 **Note**: Ask your Google Cloud project administrator to grant these roles if you encounter permission errors during deployment.
