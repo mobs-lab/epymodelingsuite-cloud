@@ -42,4 +42,7 @@ jobs/stage-b.json
 
 results/
 
+# Directories to store files for local execution
+local/
+
 .claude/
