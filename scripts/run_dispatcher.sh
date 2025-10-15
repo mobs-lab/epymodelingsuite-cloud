@@ -99,12 +99,15 @@ main() {
         fi
     else
         echo "Local mode: Skipping forecast repository clone"
-        echo "Using local forecast data from mounted volume: /data/forecast"
+        echo "Using local forecast data from mounted volume (if present)"
 
         # Add local forecast directory to PYTHONPATH if it exists
+        # The forecast directory can be at /data/forecast
         if [ -d "/data/forecast" ]; then
             export PYTHONPATH="/data/forecast:${PYTHONPATH:-}"
             echo "✓ Added to PYTHONPATH: /data/forecast"
+        else
+            echo "Note: /data/forecast not found (optional)"
         fi
     fi
 
