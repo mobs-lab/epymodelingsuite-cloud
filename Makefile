@@ -1,4 +1,4 @@
-.PHONY: build build-local tf-init tf-plan tf-apply tf-destroy run-workflow clean help
+.PHONY: build build-local build-dev run-dispatcher-local run-runner-local tf-init tf-plan tf-apply tf-destroy run-workflow clean help
 
 # Default values - override with environment variables
 PROJECT_ID ?= your-project
@@ -8,6 +8,8 @@ BUCKET_NAME ?= your-bucket-name
 IMAGE_NAME ?= epymodelingsuite
 IMAGE_TAG ?= latest
 GITHUB_FORECAST_REPO ?= owner/flu-forecast-epydemix  # GitHub repo (format: owner/repo)
+GITHUB_MODELING_SUITE_REPO ?=  # Optional: GitHub modeling suite repo (format: owner/repo)
+GITHUB_MODELING_SUITE_REF ?= main  # Branch or commit to build from
 IMAGE := $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)
 
 # Workflow parameters
@@ -16,16 +18,23 @@ RUN_SEED ?= 1234
 DIR_PREFIX ?= pipeline/flu/
 SIM_ID ?= default-sim
 
+# Local execution parameters
+TASK_INDEX ?= 0
+NUM_RUNNERS ?= $(RUN_COUNT)
+
 help:
 	@echo "Available targets:"
-	@echo "  build          - Build and push Docker image using Cloud Build"
-	@echo "  build-local    - Build Docker image locally and push"
-	@echo "  tf-init        - Initialize Terraform"
-	@echo "  tf-plan        - Run Terraform plan"
-	@echo "  tf-apply       - Apply Terraform configuration"
-	@echo "  tf-destroy     - Destroy Terraform resources"
-	@echo "  run-workflow   - Execute the workflow with sample parameters"
-	@echo "  clean          - Clean local artifacts"
+	@echo "  build                - Build and push cloud image using Cloud Build (recommended)"
+	@echo "  build-local          - Build cloud image locally and push to Artifact Registry"
+	@echo "  build-dev            - Build local development image (no push, for docker-compose)"
+	@echo "  run-dispatcher-local - Run dispatcher locally with docker-compose"
+	@echo "  run-runner-local     - Run a single runner locally with docker-compose"
+	@echo "  tf-init              - Initialize Terraform"
+	@echo "  tf-plan              - Run Terraform plan"
+	@echo "  tf-apply             - Apply Terraform configuration"
+	@echo "  tf-destroy           - Destroy Terraform resources"
+	@echo "  run-workflow         - Execute the workflow on Google Cloud"
+	@echo "  clean                - Clean local artifacts"
 	@echo ""
 	@echo "Environment variables:"
 	@echo "  REGION                  - GCP region (current: $(REGION))"
@@ -33,22 +42,83 @@ help:
 	@echo "  BUCKET_NAME             - GCS bucket name (current: $(BUCKET_NAME))"
 	@echo "  IMAGE_NAME              - Docker image name (current: $(IMAGE_NAME))"
 	@echo "  IMAGE_TAG               - Docker image tag (current: $(IMAGE_TAG))"
-	@echo "  GITHUB_FORECAST_REPO    - GitHub repo (current: $(GITHUB_FORECAST_REPO))"
+	@echo "  GITHUB_FORECAST_REPO         - GitHub forecast repo (current: $(GITHUB_FORECAST_REPO))"
+	@echo "  GITHUB_MODELING_SUITE_REPO   - GitHub modeling suite repo (current: $(GITHUB_MODELING_SUITE_REPO))"
+	@echo "  GITHUB_MODELING_SUITE_REF    - Modeling suite branch/ref (current: $(GITHUB_MODELING_SUITE_REF))"
 	@echo "  RUN_COUNT               - Number of tasks (current: $(RUN_COUNT))"
 	@echo "  RUN_SEED                - Random seed (current: $(RUN_SEED))"
 	@echo "  DIR_PREFIX              - Base directory prefix (current: $(DIR_PREFIX))"
 	@echo "  SIM_ID                  - Simulation ID (current: $(SIM_ID))"
+	@echo "  TASK_INDEX              - Task index for local runner (current: $(TASK_INDEX))"
+	@echo "  NUM_RUNNERS             - Number of runners to spawn (current: $(NUM_RUNNERS))"
 
 build:
 	@echo "Building and pushing image with Cloud Build..."
 	@echo "Image: $(IMAGE)"
 	gcloud builds submit --project=$(PROJECT_ID) --region $(REGION) --config cloudbuild.yaml \
-	  --substitutions=_REGION=$(REGION),_REPO_NAME=$(REPO_NAME),_IMAGE_NAME=$(IMAGE_NAME),_IMAGE_TAG=$(IMAGE_TAG)
+	  --substitutions=_REGION=$(REGION),_REPO_NAME=$(REPO_NAME),_IMAGE_NAME=$(IMAGE_NAME),_IMAGE_TAG=$(IMAGE_TAG),_GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO),_GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF)
 
 build-local:
-	@echo "Building locally..."
+	@echo "Building cloud image locally and pushing to Artifact Registry..."
 	@echo "Image: $(IMAGE)"
-	docker buildx build --platform linux/amd64 -t $(IMAGE) -f docker/Dockerfile . --push
+	@if [ -n "$(GITHUB_MODELING_SUITE_REPO)" ]; then \
+		if [ -z "$$GITHUB_PAT" ]; then \
+			echo "Error: GITHUB_PAT environment variable must be set for builds with modeling suite"; \
+			exit 1; \
+		fi; \
+		docker buildx build --platform linux/amd64 -t $(IMAGE) \
+			--target cloud \
+			--build-arg GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO) \
+			--build-arg GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF) \
+			--build-arg GITHUB_PAT=$$GITHUB_PAT \
+			-f docker/Dockerfile . --push; \
+	else \
+		docker buildx build --platform linux/amd64 -t $(IMAGE) \
+			--target cloud \
+			-f docker/Dockerfile . --push; \
+	fi
+
+build-dev:
+	@echo "Building local development image..."
+	@echo "Target: local (no gcloud, smaller image)"
+	@if [ -n "$(GITHUB_MODELING_SUITE_REPO)" ]; then \
+		if [ -z "$$GITHUB_PAT" ]; then \
+			echo "Error: GITHUB_PAT environment variable must be set for builds with modeling suite"; \
+			echo "Run: source .env.local (after setting GITHUB_PAT in .env.local)"; \
+			exit 1; \
+		fi; \
+		docker build -t $(IMAGE_NAME):local \
+			--target local \
+			--build-arg GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO) \
+			--build-arg GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF) \
+			--build-arg GITHUB_PAT=$$GITHUB_PAT \
+			-f docker/Dockerfile .; \
+	else \
+		docker build -t $(IMAGE_NAME):local \
+			--target local \
+			-f docker/Dockerfile .; \
+	fi
+	@echo "✓ Local image built: $(IMAGE_NAME):local"
+	@echo "  Use with: docker-compose up or docker-compose run dispatcher"
+
+run-dispatcher-local:
+	@echo "Running dispatcher locally with docker-compose..."
+	@echo "  Count: $(RUN_COUNT)"
+	@echo "  Seed: $(RUN_SEED)"
+	@echo "  Sim ID: $(SIM_ID)"
+	@echo ""
+	@echo "Output will be in: ./local/bucket/$(SIM_ID)/<run_id>/inputs/"
+	docker-compose run --rm dispatcher --count $(RUN_COUNT) --seed $(RUN_SEED)
+	@echo ""
+	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
+
+run-runner-local:
+	@echo "Running single runner locally (TASK_INDEX=$(TASK_INDEX))..."
+	@echo "  Reading from: ./local/bucket/$(SIM_ID)/*/inputs/"
+	@echo "  Writing to: ./local/bucket/$(SIM_ID)/*/results/"
+	TASK_INDEX=$(TASK_INDEX) docker-compose run --rm runner
+	@echo ""
+	@echo "✓ Runner $(TASK_INDEX) complete."
 
 tf-init:
 	@echo "Initializing Terraform..."

@@ -121,7 +121,11 @@ export PROJECT_ID=your-gcp-project-id
 export REGION=us-central1
 export REPO_NAME=epymodelingsuite-repo
 export BUCKET_NAME=your-bucket-name  # Assumes existing bucket
-export GITHUB_FORECAST_REPO=owner/forecasting-repo  # GitHub repo (format: owner/repo)
+
+# GitHub Private Repositories
+export GITHUB_FORECAST_REPO=owner/forecasting-repo  # Forecast data (format: owner/repo)
+export GITHUB_MODELING_SUITE_REPO=owner/flumodelingsuite  # Modeling suite package (format: owner/repo)
+export GITHUB_MODELING_SUITE_REF=main  # Branch or commit to build from
 
 # After editing, load the variables
 source .env
@@ -138,8 +142,8 @@ The pipeline requires a GitHub Fine-Grained Personal Access Token (PAT) to clone
 2. Click "Generate new token"
 3. Set appropriate name and expiration
 4. Under "Repository access", select "Only select repositories" and add:
-   - `epymodelingsuite` repository
-   - `forecasting` repository (or whatever your forecast repo is named)
+   - `flumodelingsuite` repository (modeling suite package)
+   - `flu-forecast-epydemix` repository (forecast data)
 5. Under "Repository permissions", grant:
    - **Contents**: Read-only access
 6. Generate and copy the token
@@ -303,10 +307,25 @@ make tf-apply   # Deploy updated configuration
 
 See [docker/Dockerfile](docker/Dockerfile) and [docker/requirements.txt](docker/requirements.txt).
 
-**Current implementation:**
+**Multi-stage build architecture:**
+
+The Dockerfile uses multi-stage builds with three stages:
+1. **base** - Common dependencies (Python packages, uv, scripts, git, flumodelingsuite)
+2. **local** - Minimal image for local development (base + no gcloud)
+3. **cloud** - Full image with gcloud CLI for Secret Manager access
+
+**Stage comparison:**
+- **local**: ~300-400 MB, includes Python deps, git, scripts, and flumodelingsuite
+- **cloud**: ~500-700 MB, adds gcloud CLI for Secret Manager access
+
+Both stages include the flumodelingsuite package since it's needed for the actual modeling work.
+
+**Current implementation (cloud stage):**
 - Base: `python:3.11-slim`
+- Installs git and gcloud CLI for Secret Manager access
 - Uses `uv` for fast dependency management (10-100x faster than pip)
 - Installs `google-cloud-storage` and other dependencies
+- **Clones and installs flumodelingsuite package** from private GitHub repository (if configured)
 - Copies scripts from [scripts/](scripts/) directory
 - Default entrypoint: `main_dispatcher.py` (Stage A)
 
@@ -318,46 +337,114 @@ See [docker/Dockerfile](docker/Dockerfile) and [docker/requirements.txt](docker/
 **Build & push:**
 
 ```bash
-# Building on Google Cloud with make command (recommended)
+# Option 1: Cloud Build (recommended for production)
 make build
 
-# Building locally
-# You need to authentication for docker
-source .env && gcloud auth configure-docker ${REGION}-docker.pkg.dev --project=${PROJECT_ID} 
-make build-local    # Local build
+# Option 2: Build cloud image locally and push to Artifact Registry
+source .env && gcloud auth configure-docker ${REGION}-docker.pkg.dev --project=${PROJECT_ID}
+source .env.local  # For GITHUB_PAT
+make build-local
+
+# Option 3: Build local dev image (for docker-compose, no push)
+source .env.local  # For GITHUB_PAT
+make build-dev
 
 # Or manually with Cloud Build
 gcloud builds submit --region ${REGION} --config cloudbuild.yaml
 ```
 
+**Build target comparison:**
+- `make build` - Uses Cloud Build on GCP, builds `cloud` target, pushes to Artifact Registry
+- `make build-local` - Builds `cloud` target locally, pushes to Artifact Registry (requires auth)
+- `make build-dev` - Builds `local` target locally, tags as `epymodelingsuite:local`, no push
+
+**Local secrets management:**
+- Create [.env.local](.env.local) (gitignored) for sensitive values like `GITHUB_PAT`
+- Template available at [.env.local.example](.env.local.example)
+- Required for `build-local` and `build-dev` with private repositories
+- Cloud builds use Secret Manager instead
+
 Cloud Build configuration in [cloudbuild.yaml](cloudbuild.yaml):
 - Uses `E2_MEDIUM` machine type
 - Logs to Cloud Logging only
 - Automatically pushes to Artifact Registry
+- **Fetches GitHub PAT from Secret Manager** for private repository access
+- Passes `GITHUB_MODELING_SUITE_REPO` and `GITHUB_MODELING_SUITE_REF` as build arguments
 
-**Adding private epymodelingsuite dependency:**
+**How flumodelingsuite is installed:**
 
-The Dockerfile can be extended to install epymodelingsuite from a private GitHub repository using the PAT from Secret Manager:
+The [Dockerfile](docker/Dockerfile) includes logic to clone and install the flumodelingsuite package during build:
 
 ```dockerfile
+ARG GITHUB_MODELING_SUITE_REPO
+ARG GITHUB_MODELING_SUITE_REF=main
 ARG GITHUB_PAT
-RUN uv pip install --system --no-cache \
-    git+https://oauth2:${GITHUB_PAT}@github.com/owner/epymodelingsuite.git
+
+# Clone the flumodelingsuite repository and install it
+RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
+    git clone --branch ${GITHUB_MODELING_SUITE_REF} \
+        https://${GITHUB_PAT}@github.com/${GITHUB_MODELING_SUITE_REPO}.git /tmp/flumodelingsuite && \
+    cd /tmp/flumodelingsuite && \
+    uv pip install --system --no-cache . && \
+    cd /app && \
+    rm -rf /tmp/flumodelingsuite; \
+    fi
 ```
 
-Then build with Secret Manager:
+**Key features:**
+- Installs at **build time** (baked into the Docker image)
+- Uses GitHub PAT from Secret Manager (Cloud Build) or environment variable (local)
+- Supports specific branch/commit via `GITHUB_MODELING_SUITE_REF`
+- Repository is removed after installation to keep image clean
+- PAT is not persisted in image layers
+
+**Two repository patterns:**
+1. **flumodelingsuite** (`GITHUB_MODELING_SUITE_REPO`) - Installed at build time inside the Docker image
+2. **flu-forecast-epydemix** (`GITHUB_FORECAST_REPO`) - Cloned at runtime by [run_dispatcher.sh](scripts/run_dispatcher.sh)
+
+**Local development with docker-compose:**
+
+For local development, first build the local image, then use docker-compose:
+
 ```bash
-gcloud builds submit --region ${REGION} \
-  --config cloudbuild.yaml \
-  --substitutions=_GITHUB_PAT_SECRET=github-pat
+# Build local development image
+source .env.local  # For GITHUB_PAT if using private repos
+make build-dev
+
+# Run dispatcher with default args (--count 10 --seed 1234)
+docker-compose run dispatcher
+
+# Run dispatcher with custom arguments
+docker-compose run dispatcher --count 50 --seed 9999
+
+# Run a single runner locally
+TASK_INDEX=0 docker-compose run runner
+
+# Run multiple runners for different tasks
+for i in {0..9}; do
+  TASK_INDEX=$i docker-compose run -d runner
+done
+
+# Or build with docker-compose (slower)
+docker-compose build
 ```
 
-Update [cloudbuild.yaml](cloudbuild.yaml) to include:
-```yaml
-availableSecrets:
-  secretManager:
-  - versionName: projects/$PROJECT_ID/secrets/github-pat/versions/latest
-    env: 'GITHUB_PAT'
+The docker-compose setup:
+- Uses the `local` build target (smaller, no gcloud)
+- Mounts `./local/bucket` to `/data/bucket` for GCS bucket simulation
+- Mounts `./local/forecast` to `/data/forecast` for forecast data
+- Loads additional config from `.env.local` (optional)
+- Sets `EXECUTION_MODE=local` automatically (requires storage abstraction layer - see [local-docker-design.md](local-docker-design.md))
+
+**Local directory structure:**
+```
+./local/
+  bucket/           # Simulates GCS bucket (inputs/outputs)
+    {sim_id}/
+      {run_id}/
+        inputs/     # Generated input files
+        results/    # Simulation results
+  forecast/         # Forecast repository data (alternative to git clone)
 ```
 
 ---
@@ -366,19 +453,34 @@ availableSecrets:
 
 ### Stage A Wrapper: [scripts/run_dispatcher.sh](scripts/run_dispatcher.sh)
 
-Shell wrapper that handles private repository cloning before running the dispatcher.
+Shell wrapper that handles forecast repository setup before running the dispatcher.
 
 **Features:**
-- Fetches GitHub PAT from Secret Manager
-- Clones private forecasting repository via HTTPS
-- Environment variables: `GITHUB_FORECAST_REPO`, `GITHUB_PAT_SECRET`, `GCLOUD_PROJECT_ID`, `REPO_DIR`
-- Adds cloned repo to `PYTHONPATH`
-- Supports optional `GIT_REF` for branch/tag checkout
+- **Cloud mode**: Fetches GitHub PAT from Secret Manager and clones forecast repo
+- **Local mode**: Uses mounted forecast data from `/data/forecast`
+- Adds forecast data to `PYTHONPATH`
+- Supports optional `FORECAST_REPO_REF` for branch/tag checkout (cloud only)
 
-**Usage:**
+**Environment variables:**
+- `EXECUTION_MODE` - "cloud" or "local" (required)
+- `GITHUB_FORECAST_REPO` - Forecast repo to clone (cloud mode only)
+- `FORECAST_REPO_DIR` - Where to clone repo (default: `/tmp/forecast-repo`, cloud only)
+- `GCLOUD_PROJECT_ID` - GCP project for Secret Manager (cloud mode only)
+- `GITHUB_PAT_SECRET` - Secret Manager secret name (default: `github-pat`, cloud only)
+- `FORECAST_REPO_REF` - Optional branch/tag to checkout (cloud mode only)
+
+**Usage (cloud):**
 ```bash
+export EXECUTION_MODE=cloud
 export GITHUB_FORECAST_REPO=owner/repo
 export GCLOUD_PROJECT_ID=your-project
+./run_dispatcher.sh --count 10 --seed 1234
+```
+
+**Usage (local):**
+```bash
+export EXECUTION_MODE=local
+# Place forecast data in ./local/forecast/
 ./run_dispatcher.sh --count 10 --seed 1234
 ```
 
@@ -509,16 +611,17 @@ gcloud logging read "resource.type=batch.googleapis.com/Job" --limit 50
 **✅ Completed:**
 - Full Terraform infrastructure in [terraform/](terraform/)
 - Docker configuration with `uv` in [docker/](docker/)
+- **Private repository support** - flumodelingsuite installed at build time, forecast data cloned at runtime
 - Python scripts in [scripts/](scripts/)
 - Workflows orchestration in [terraform/workflow.yaml](terraform/workflow.yaml)
 - Makefile automation in [Makefile](Makefile)
 - Manual job templates in [jobs/](jobs/)
 - Environment configuration ([.env.example](.env.example), [.gitignore](.gitignore))
-- Documentation ([README.md](README.md))
+- Documentation ([README.md](README.md), [docs/variable-configuration.md](docs/variable-configuration.md))
+- GitHub authentication via Secret Manager
 - Replace placeholder in [scripts/main_runner.py](scripts/main_runner.py):62 with actual epydemix model code
 
 **📝 TODO (for production use):**
-- Add private `flumodelingsuite` dependency if needed (see section 5)
 - Tune compute resources in [terraform/workflow.yaml](terraform/workflow.yaml) based on actual workload
 - Set up result aggregation/analysis scripts
 - Configure monitoring and alerting for workflow failures
