@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  dispatcher:
+    image: epymodelingsuite:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: local
+    volumes:
+      - ./local/bucket:/data/bucket    # Local GCS bucket simulation
+      - ./local/forecast:/data/forecast  # Local forecast repository data
+    env_file:
+      - .env.local
+    environment:
+      - EXECUTION_MODE=local
+    entrypoint: ["/bin/bash", "/scripts/run_dispatcher.sh"]
+    # Default args (can be overridden with: docker-compose run dispatcher --count 20 --seed 5678)
+    command: ["--count", "10", "--seed", "1234"]
+
+  runner:
+    image: epymodelingsuite:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: local
+    volumes:
+      - ./local/bucket:/data/bucket    # Local GCS bucket simulation
+      - ./local/forecast:/data/forecast  # Local forecast repository data
+    env_file:
+      - .env.local
+    environment:
+      - EXECUTION_MODE=local
+      - TASK_INDEX=${TASK_INDEX:-0}
+    entrypoint: ["python", "/scripts/main_runner.py"]
+    # Additional args can be passed with: docker-compose run runner [args]
+    command: []

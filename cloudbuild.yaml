@@ -4,9 +4,16 @@ steps:
       - 'build'
       - '-t'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+      - '--build-arg'
+      - 'GITHUB_MODELING_SUITE_REPO=${_GITHUB_MODELING_SUITE_REPO}'
+      - '--build-arg'
+      - 'GITHUB_MODELING_SUITE_REF=${_GITHUB_MODELING_SUITE_REF}'
+      - '--build-arg'
+      - 'GITHUB_PAT=$$GITHUB_PAT'
       - '-f'
       - 'docker/Dockerfile'
       - '.'
+    secretEnv: ['GITHUB_PAT']
 
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
@@ -16,6 +23,13 @@ substitutions:
   _REPO_NAME: 'epymodelingsuite-repo'  # Override with --substitutions flag
   _IMAGE_NAME: 'epymodelingsuite'  # Override with --substitutions flag
   _IMAGE_TAG: 'latest'  # Override with --substitutions flag
+  _GITHUB_MODELING_SUITE_REPO: ''  # Override with --substitutions flag (optional)
+  _GITHUB_MODELING_SUITE_REF: 'main'  # Override with --substitutions flag (optional)
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/github-pat/versions/latest
+      env: 'GITHUB_PAT'
 
 options:
   logging: CLOUD_LOGGING_ONLY

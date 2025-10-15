@@ -18,19 +18,38 @@ For detailed setup instructions, see [/docs/google-cloud-guide.md](/docs/google-
 ```bash
 # 1. Set up environment
 cp .env.example .env
+# Edit .env with your project details
 source .env
+
+# For local Docker builds with private repos, set up secrets
+cp .env.local.example .env.local
+# Edit .env.local with your GitHub PAT
+source .env.local
 
 # 2. Deploy infrastructure
 make tf-init && make tf-apply
 
 # 3. Build Docker image
-make build
+make build        # Cloud build (recommended)
+# OR
+make build-local  # Build cloud image locally and push (requires .env.local with GITHUB_PAT)
+# OR
+make build-dev    # Build local dev image for docker-compose (requires .env.local with GITHUB_PAT)
 
-# 4. Run pipeline
+# 4a. Run pipeline on Google Cloud
 make run-workflow
 
-# Or customize:
+# Or customize cloud run:
 RUN_COUNT=50 SIM_ID=experiment-01 make run-workflow
+
+# 4b. OR run locally with docker-compose
+make build-dev                # Build local image first
+make run-dispatcher-local     # Run dispatcher with defaults (COUNT=10, SEED=1234)
+make run-runner-local         # Run single runner (TASK_INDEX=0)
+
+# Or customize local run:
+RUN_COUNT=50 RUN_SEED=9999 make run-dispatcher-local
+TASK_INDEX=5 make run-runner-local
 ```
 
 
@@ -45,9 +64,17 @@ RUN_COUNT=50 SIM_ID=experiment-01 make run-workflow
   - [main_runner.py](scripts/main_runner.py) - Stage B runner
   - [run_dispatcher.sh](scripts/run_dispatcher.sh) - Stage A wrapper for repo cloning
 - **[docker/](docker/)** - Container config
+  - [Dockerfile](docker/Dockerfile) - Multi-stage build (local and cloud targets)
+- **[docker-compose.yml](docker-compose.yml)** - Local development setup
 - **[Makefile](Makefile)** - Build/deploy automation
 - **[/docs/variable-configuration.md](/docs/variable-configuration.md)** - Environment variable reference
+- **[/docs/local-docker-design.md](/docs/local-docker-design.md)** - Local execution design
 
 ## Configuration
 
-See [.env](.env), [.env.example](.env.example), and [/docs/variable-configuration.md](/docs/variable-configuration.md) for required environment variables.
+See [.env.example](.env.example), [.env.local.example](.env.local.example), and [/docs/variable-configuration.md](/docs/variable-configuration.md) for required environment variables.
+
+**Configuration files:**
+- [.env.example](.env.example) - Project configuration (copy to `.env`)
+- [.env.local.example](.env.local.example) - Local secrets like GitHub PAT (copy to `.env.local`)
+- Both `.env` and `.env.local` are gitignored for security
