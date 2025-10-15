@@ -8,8 +8,7 @@ services:
       dockerfile: docker/Dockerfile
       target: local
     volumes:
-      - ./local/bucket:/data/bucket    # Local GCS bucket simulation
-      - ./local/forecast:/data/forecast  # Local forecast repository data
+      - ./local:/data    # Mount local directory as /data
     env_file:
       - .env.local
     environment:
@@ -25,8 +24,7 @@ services:
       dockerfile: docker/Dockerfile
       target: local
     volumes:
-      - ./local/bucket:/data/bucket    # Local GCS bucket simulation
-      - ./local/forecast:/data/forecast  # Local forecast repository data
+      - ./local:/data    # Mount local directory as /data
     env_file:
       - .env.local
     environment:
