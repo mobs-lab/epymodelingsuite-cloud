@@ -1,26 +1,17 @@
 #!/usr/bin/env python3
 """
-Stage B: Process individual tasks using BATCH_TASK_INDEX.
-Loads pickled input from GCS, runs simulation, saves results.
+Stage B: Process individual tasks using BATCH_TASK_INDEX or TASK_INDEX.
+Loads pickled input from storage (GCS or local), runs simulation, saves results.
 """
 
 import os
+import sys
 import pickle
-from google.cloud import storage
 
+# Add scripts directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def load_input_bytes(bucket_name: str, path: str) -> bytes:
-    """Load bytes from GCS bucket."""
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    return bucket.blob(path).download_as_bytes()
-
-
-def save_bytes(bucket_name: str, path: str, data: bytes):
-    """Save bytes to GCS bucket."""
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    bucket.blob(path).upload_from_string(data)
+from util import storage
 
 
 def run_simulation(model) -> dict:
@@ -37,14 +28,22 @@ def run_simulation(model) -> dict:
 
 
 def main():
-    # Get task index from Batch environment
-    idx = int(os.environ["BATCH_TASK_INDEX"])
-    bucket_name = os.environ["GCS_BUCKET"]
+    # Get task index - supports both local (TASK_INDEX) and cloud (BATCH_TASK_INDEX)
+    idx = int(os.getenv("TASK_INDEX", os.environ.get("BATCH_TASK_INDEX", "0")))
+    # GCS_BUCKET is only required in cloud mode
+    bucket_name = os.getenv("GCS_BUCKET")
     in_prefix = os.environ["IN_PREFIX"]
     out_prefix = os.environ["OUT_PREFIX"]
 
+    mode_info = storage.get_mode_info()
     print(f"Starting Stage B task {idx}")
-    print(f"  Bucket: {bucket_name}")
+    print(f"  Storage mode: {mode_info}")
+    if mode_info["mode"] == "cloud":
+        if not bucket_name:
+            raise ValueError("GCS_BUCKET environment variable is required in cloud mode")
+        print(f"  Bucket: {bucket_name}")
+    else:
+        bucket_name = None  # Not needed in local mode
     print(f"  Input prefix: {in_prefix}")
     print(f"  Output prefix: {out_prefix}")
 
@@ -53,7 +52,7 @@ def main():
     print(f"Loading input: {input_key}")
 
     try:
-        raw_data = load_input_bytes(bucket_name, input_key)
+        raw_data = storage.load_bytes(bucket_name, input_key)
         model = pickle.loads(raw_data)
         print(f"  Input loaded: {len(raw_data)} bytes")
     except Exception as e:
@@ -73,7 +72,7 @@ def main():
 
     try:
         output_data = pickle.dumps(results)
-        save_bytes(bucket_name, output_key, output_data)
+        storage.save_bytes(bucket_name, output_key, output_data)
         print(f"  Results saved: {len(output_data)} bytes")
     except Exception as e:
         print(f"ERROR: Failed to save results: {e}")
