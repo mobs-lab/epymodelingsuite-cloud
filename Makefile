@@ -99,16 +99,16 @@ build-dev:
 			-f docker/Dockerfile .; \
 	fi
 	@echo "✓ Local image built: $(IMAGE_NAME):local"
-	@echo "  Use with: docker-compose up or docker-compose run dispatcher"
+	@echo "  Use with: make run-dispatcher-local or make run-runner-local"
 
 run-dispatcher-local:
-	@echo "Running dispatcher locally with docker-compose..."
+	@echo "Running dispatcher locally with Docker Compose..."
 	@echo "  Count: $(RUN_COUNT)"
 	@echo "  Seed: $(RUN_SEED)"
 	@echo "  Sim ID: $(SIM_ID)"
 	@echo ""
 	@echo "Output will be in: ./local/bucket/$(SIM_ID)/<run_id>/inputs/"
-	docker-compose run --rm dispatcher --count $(RUN_COUNT) --seed $(RUN_SEED)
+	docker compose run --rm dispatcher --count $(RUN_COUNT) --seed $(RUN_SEED)
 	@echo ""
 	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
 
@@ -116,7 +116,7 @@ run-runner-local:
 	@echo "Running single runner locally (TASK_INDEX=$(TASK_INDEX))..."
 	@echo "  Reading from: ./local/bucket/$(SIM_ID)/*/inputs/"
 	@echo "  Writing to: ./local/bucket/$(SIM_ID)/*/results/"
-	TASK_INDEX=$(TASK_INDEX) docker-compose run --rm runner
+	TASK_INDEX=$(TASK_INDEX) docker compose run --rm runner
 	@echo ""
 	@echo "✓ Runner $(TASK_INDEX) complete."
 

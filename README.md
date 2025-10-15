@@ -34,7 +34,7 @@ make build        # Cloud build (recommended)
 # OR
 make build-local  # Build cloud image locally and push (requires .env.local with GITHUB_PAT)
 # OR
-make build-dev    # Build local dev image for docker-compose (requires .env.local with GITHUB_PAT)
+make build-dev    # Build local dev image for Docker Compose (requires .env.local with GITHUB_PAT)
 
 # 4a. Run pipeline on Google Cloud
 make run-workflow
@@ -42,14 +42,15 @@ make run-workflow
 # Or customize cloud run:
 RUN_COUNT=50 SIM_ID=experiment-01 make run-workflow
 
-# 4b. OR run locally with docker-compose
+# 4b. OR run locally with Docker Compose (use Makefile commands)
 make build-dev                # Build local image first
 make run-dispatcher-local     # Run dispatcher with defaults (COUNT=10, SEED=1234)
-make run-runner-local         # Run single runner (TASK_INDEX=0)
+make run-runner-local         # Run runner for single task (TASK_INDEX=0)
 
 # Or customize local run:
 RUN_COUNT=50 RUN_SEED=9999 make run-dispatcher-local
 TASK_INDEX=5 make run-runner-local
+
 ```
 
 

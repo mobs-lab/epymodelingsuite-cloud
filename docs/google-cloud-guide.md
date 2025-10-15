@@ -345,7 +345,7 @@ source .env && gcloud auth configure-docker ${REGION}-docker.pkg.dev --project=$
 source .env.local  # For GITHUB_PAT
 make build-local
 
-# Option 3: Build local dev image (for docker-compose, no push)
+# Option 3: Build local dev image (for Docker Compose, no push)
 source .env.local  # For GITHUB_PAT
 make build-dev
 
@@ -402,9 +402,9 @@ RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
 1. **flumodelingsuite** (`GITHUB_MODELING_SUITE_REPO`) - Installed at build time inside the Docker image
 2. **flu-forecast-epydemix** (`GITHUB_FORECAST_REPO`) - Cloned at runtime by [run_dispatcher.sh](scripts/run_dispatcher.sh)
 
-**Local development with docker-compose:**
+**Local development with Docker Compose:**
 
-For local development, first build the local image, then use docker-compose:
+For local development, first build the local image, then use the Makefile commands:
 
 ```bash
 # Build local development image
@@ -412,24 +412,31 @@ source .env.local  # For GITHUB_PAT if using private repos
 make build-dev
 
 # Run dispatcher with default args (--count 10 --seed 1234)
-docker-compose run dispatcher
+make run-dispatcher-local
 
 # Run dispatcher with custom arguments
-docker-compose run dispatcher --count 50 --seed 9999
+RUN_COUNT=50 RUN_SEED=9999 make run-dispatcher-local
 
 # Run a single runner locally
-TASK_INDEX=0 docker-compose run runner
+TASK_INDEX=0 make run-runner-local
 
 # Run multiple runners for different tasks
 for i in {0..9}; do
-  TASK_INDEX=$i docker-compose run -d runner
+  TASK_INDEX=$i make run-runner-local &
 done
-
-# Or build with docker-compose (slower)
-docker-compose build
+wait
 ```
 
-The docker-compose setup:
+**Note:** Using the Makefile commands (`make run-dispatcher-local` or `make run-runner-local`) is recommended instead of running `docker compose` directly. The Makefile automatically includes the `--rm` flag to avoid orphan containers.
+
+**Alternative (NOT recommended): Direct docker compose commands**
+```bash
+# If you must run docker compose directly, always include --rm
+docker compose run --rm dispatcher --count 50 --seed 9999
+TASK_INDEX=0 docker compose run --rm runner
+```
+
+The Docker Compose setup:
 - Uses the `local` build target (smaller, no gcloud)
 - Mounts `./local/bucket` to `/data/bucket` for GCS bucket simulation
 - Mounts `./local/forecast` to `/data/forecast` for forecast data
