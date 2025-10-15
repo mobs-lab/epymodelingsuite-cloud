@@ -12,7 +12,7 @@ services:
     environment:
       - EXECUTION_MODE=local
     entrypoint: ["/bin/bash", "/scripts/run_dispatcher.sh"]
-    # Default args (can be overridden with: docker-compose run dispatcher --count 20 --seed 5678)
+    # Default args (can be overridden with: docker compose run dispatcher --count 20 --seed 5678)
     command: ["--count", "10", "--seed", "1234"]
 
   runner:
@@ -29,5 +29,5 @@ services:
       - EXECUTION_MODE=local
       - TASK_INDEX=${TASK_INDEX:-0}
     entrypoint: ["python", "/scripts/main_runner.py"]
-    # Additional args can be passed with: docker-compose run runner [args]
+    # Additional args can be passed with: docker compose run runner [args]
     command: []
