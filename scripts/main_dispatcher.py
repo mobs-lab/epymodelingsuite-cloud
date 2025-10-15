@@ -30,26 +30,17 @@ def main():
     )
     args = parser.parse_args()
 
-    # Get environment variables
-    # GCS_BUCKET is only required in cloud mode
-    bucket_name = os.getenv("GCS_BUCKET")
-    out_prefix = os.getenv("OUT_PREFIX", "stageA/inputs/")
-    sim_id = os.getenv("SIM_ID", "unknown")
-    run_id = os.getenv("RUN_ID", "unknown")
+    # Get configuration
+    config = storage.get_config()
 
-    mode_info = storage.get_mode_info()
     print(f"Starting Stage A: Generating {args.count} inputs")
-    print(f"  Storage mode: {mode_info}")
-    if mode_info["mode"] == "cloud":
-        if not bucket_name:
-            raise ValueError("GCS_BUCKET environment variable is required in cloud mode")
-        print(f"  Bucket: {bucket_name}")
-    else:
-        bucket_name = None  # Not needed in local mode
-    print(f"  Output prefix: {out_prefix}")
-    print(f"  Sim ID: {sim_id}")
-    print(f"  Run ID: {run_id}")
+    print(f"  Storage mode: {config['mode']}")
+    print(f"  Dir prefix: {config['dir_prefix']}")
+    print(f"  Sim ID: {config['sim_id']}")
+    print(f"  Run ID: {config['run_id']}")
     print(f"  Seed: {args.seed}")
+    if config['mode'] == 'cloud':
+        print(f"  Bucket: {config['bucket']}")
 
     base_sir_model = EpiModel(
         name="SIR Model",
@@ -72,10 +63,11 @@ def main():
         data = pickle.dumps(sir_model)
 
         # Upload to storage (GCS or local)
-        blob_name = f"{out_prefix}input_{i:04d}.pkl"
-        storage.save_bytes(bucket_name, blob_name, data)
+        # Use storage.get_path() to build the path automatically
+        path = storage.get_path("inputs", f"input_{i:04d}.pkl")
+        storage.save_bytes(path, data)
 
-        print(f"  Generated: {blob_name} ({len(data)} bytes)")
+        print(f"  Generated: {path} ({len(data)} bytes)")
 
     print(f"Stage A complete: {args.count} input files uploaded")
 

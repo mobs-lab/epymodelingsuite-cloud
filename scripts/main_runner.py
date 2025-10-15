@@ -30,29 +30,24 @@ def run_simulation(model) -> dict:
 def main():
     # Get task index - supports both local (TASK_INDEX) and cloud (BATCH_TASK_INDEX)
     idx = int(os.getenv("TASK_INDEX", os.environ.get("BATCH_TASK_INDEX", "0")))
-    # GCS_BUCKET is only required in cloud mode
-    bucket_name = os.getenv("GCS_BUCKET")
-    in_prefix = os.environ["IN_PREFIX"]
-    out_prefix = os.environ["OUT_PREFIX"]
 
-    mode_info = storage.get_mode_info()
+    # Get configuration
+    config = storage.get_config()
+
     print(f"Starting Stage B task {idx}")
-    print(f"  Storage mode: {mode_info}")
-    if mode_info["mode"] == "cloud":
-        if not bucket_name:
-            raise ValueError("GCS_BUCKET environment variable is required in cloud mode")
-        print(f"  Bucket: {bucket_name}")
-    else:
-        bucket_name = None  # Not needed in local mode
-    print(f"  Input prefix: {in_prefix}")
-    print(f"  Output prefix: {out_prefix}")
+    print(f"  Storage mode: {config['mode']}")
+    print(f"  Dir prefix: {config['dir_prefix']}")
+    print(f"  Sim ID: {config['sim_id']}")
+    print(f"  Run ID: {config['run_id']}")
+    if config['mode'] == 'cloud':
+        print(f"  Bucket: {config['bucket']}")
 
     # Load input file
-    input_key = f"{in_prefix}input_{idx:04d}.pkl"
-    print(f"Loading input: {input_key}")
+    input_path = storage.get_path("inputs", f"input_{idx:04d}.pkl")
+    print(f"Loading input: {input_path}")
 
     try:
-        raw_data = storage.load_bytes(bucket_name, input_key)
+        raw_data = storage.load_bytes(input_path)
         model = pickle.loads(raw_data)
         print(f"  Input loaded: {len(raw_data)} bytes")
     except Exception as e:
@@ -67,12 +62,12 @@ def main():
         raise
 
     # Save results
-    output_key = f"{out_prefix}result_{idx:04d}.pkl"
-    print(f"Saving results: {output_key}")
+    output_path = storage.get_path("results", f"result_{idx:04d}.pkl")
+    print(f"Saving results: {output_path}")
 
     try:
         output_data = pickle.dumps(results)
-        storage.save_bytes(bucket_name, output_key, output_data)
+        storage.save_bytes(output_path, output_data)
         print(f"  Results saved: {len(output_data)} bytes")
     except Exception as e:
         print(f"ERROR: Failed to save results: {e}")
