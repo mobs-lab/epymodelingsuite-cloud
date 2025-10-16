@@ -14,7 +14,8 @@ IMAGE := $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPO_NAME)/$(IMAGE_NAME):$(IMA
 
 # Workflow parameters
 DIR_PREFIX ?= pipeline/flu/
-SIM_ID ?= default-sim
+# EXP_ID is required - no default value. Set via environment or command line.
+# Example: EXP_ID=my-experiment make run-dispatcher-local
 
 # Local execution parameters
 TASK_INDEX ?= 0
@@ -47,10 +48,8 @@ help:
 	@echo "  GITHUB_FORECAST_REPO         - GitHub forecast repo (current: $(GITHUB_FORECAST_REPO))"
 	@echo "  GITHUB_MODELING_SUITE_REPO   - GitHub modeling suite repo (current: $(GITHUB_MODELING_SUITE_REPO))"
 	@echo "  GITHUB_MODELING_SUITE_REF    - Modeling suite branch/ref (current: $(GITHUB_MODELING_SUITE_REF))"
-	@echo "  RUN_COUNT               - Number of tasks (current: $(RUN_COUNT))"
-	@echo "  RUN_SEED                - Random seed (current: $(RUN_SEED))"
 	@echo "  DIR_PREFIX              - Base directory prefix (current: $(DIR_PREFIX))"
-	@echo "  SIM_ID                  - Simulation ID (current: $(SIM_ID))"
+	@echo "  EXP_ID                  - Experiment ID (current: $(EXP_ID))"
 	@echo "  TASK_INDEX              - Task index for local runner (current: $(TASK_INDEX))"
 	@echo "  NUM_RUNNERS             - Number of runners to spawn (current: $(NUM_RUNNERS))"
 
@@ -111,18 +110,28 @@ build-dev:
 
 run-dispatcher-local:
 	@echo "Running dispatcher locally with Docker Compose..."
-	@echo "  Sim ID: $(SIM_ID)"
+	@if [ -z "$(EXP_ID)" ]; then \
+		echo "ERROR: EXP_ID is required but not set."; \
+		echo "Usage: EXP_ID=your-experiment-id make run-dispatcher-local"; \
+		exit 1; \
+	fi
+	@echo "  Experiment ID: $(EXP_ID)"
 	@echo ""
-	@echo "Output will be in: ./local/bucket/$(SIM_ID)/<run_id>/inputs/"
-	SIM_ID=$(SIM_ID) docker compose run --rm dispatcher
+	@echo "Output will be in: ./local/bucket/$(EXP_ID)/<run_id>/inputs/"
+	EXP_ID=$(EXP_ID) docker compose run --rm dispatcher
 	@echo ""
 	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
 
 run-runner-local:
 	@echo "Running single runner locally (TASK_INDEX=$(TASK_INDEX))..."
-	@echo "  Reading from: ./local/bucket/$(SIM_ID)/*/inputs/"
-	@echo "  Writing to: ./local/bucket/$(SIM_ID)/*/results/"
-	TASK_INDEX=$(TASK_INDEX) docker compose run --rm runner
+	@if [ -z "$(EXP_ID)" ]; then \
+		echo "ERROR: EXP_ID is required but not set."; \
+		echo "Usage: EXP_ID=your-experiment-id make run-runner-local"; \
+		exit 1; \
+	fi
+	@echo "  Reading from: ./local/bucket/$(EXP_ID)/*/inputs/"
+	@echo "  Writing to: ./local/bucket/$(EXP_ID)/*/results/"
+	EXP_ID=$(EXP_ID) TASK_INDEX=$(TASK_INDEX) docker compose run --rm runner
 	@echo ""
 	@echo "✓ Runner $(TASK_INDEX) complete."
 
@@ -167,14 +176,17 @@ tf-destroy:
 
 run-workflow:
 	@echo "Running workflow..."
-	@echo "  Count: $(RUN_COUNT)"
-	@echo "  Seed: $(RUN_SEED)"
-	@echo "  Sim ID: $(SIM_ID)"
+	@if [ -z "$(EXP_ID)" ]; then \
+		echo "ERROR: EXP_ID is required but not set."; \
+		echo "Usage: EXP_ID=your-experiment-id make run-workflow"; \
+		exit 1; \
+	fi
+	@echo "  Experiment ID: $(EXP_ID)"
 	@echo "  GitHub Repo: $(GITHUB_FORECAST_REPO)"
 	@BATCH_SA=$$(cd terraform && terraform output -raw batch_runtime_sa_email 2>/dev/null || echo "batch-runtime@$(PROJECT_ID).iam.gserviceaccount.com") && \
 	gcloud workflows run epydemix-pipeline \
 	  --location=$(REGION) \
-	  --data='{"count":$(RUN_COUNT),"seed":$(RUN_SEED),"bucket":"$(BUCKET_NAME)","dirPrefix":"$(DIR_PREFIX)","sim_id":"$(SIM_ID)","githubForecastRepo":"$(GITHUB_FORECAST_REPO)","batchSaEmail":"'$$BATCH_SA'"}'
+	  --data='{"bucket":"$(BUCKET_NAME)","dirPrefix":"$(DIR_PREFIX)","exp_id":"$(EXP_ID)","githubForecastRepo":"$(GITHUB_FORECAST_REPO)","batchSaEmail":"'$$BATCH_SA'"}'
 
 clean:
 	@echo "Cleaning local artifacts..."
