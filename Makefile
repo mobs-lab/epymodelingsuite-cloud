@@ -13,14 +13,12 @@ GITHUB_MODELING_SUITE_REF ?= main  # Branch or commit to build from
 IMAGE := $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)
 
 # Workflow parameters
-RUN_COUNT ?= 10
-RUN_SEED ?= 1234
 DIR_PREFIX ?= pipeline/flu/
 SIM_ID ?= default-sim
 
 # Local execution parameters
 TASK_INDEX ?= 0
-NUM_RUNNERS ?= $(RUN_COUNT)
+NUM_RUNNERS ?= 10
 
 # Build parameters
 DISABLE_CACHE ?= false
@@ -113,12 +111,10 @@ build-dev:
 
 run-dispatcher-local:
 	@echo "Running dispatcher locally with Docker Compose..."
-	@echo "  Count: $(RUN_COUNT)"
-	@echo "  Seed: $(RUN_SEED)"
 	@echo "  Sim ID: $(SIM_ID)"
 	@echo ""
 	@echo "Output will be in: ./local/bucket/$(SIM_ID)/<run_id>/inputs/"
-	docker compose run --rm dispatcher --count $(RUN_COUNT) 
+	SIM_ID=$(SIM_ID) docker compose run --rm dispatcher
 	@echo ""
 	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
 

@@ -9,11 +9,7 @@
               "imageUri": "${IMAGE_URI}",
               "entrypoint": "python",
               "commands": [
-                "main_dispatcher.py",
-                "--count",
-                "${COUNT}",
-                "--seed",
-                "${SEED}"
+                "main_dispatcher.py"
               ]
             }
           }

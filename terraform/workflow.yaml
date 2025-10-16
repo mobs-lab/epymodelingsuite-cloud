@@ -50,10 +50,6 @@ main:
                         entrypoint: "/bin/bash"
                         commands:
                           - "/scripts/run_dispatcher.sh"
-                          - "--count"
-                          - $${string(count)}
-                          - "--seed"
-                          - $${string(seed)}
                   environment:
                     variables:
                       EXECUTION_MODE: "cloud"
