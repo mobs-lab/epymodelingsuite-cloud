@@ -12,9 +12,18 @@ main:
           - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}:${image_tag}"}
           - githubForecastRepo: $${default(map.get(input, "githubForecastRepo"), "")}
 
-          # Generate unique run ID from execution ID
+          # Generate unique run ID with datetime prefix from execution ID
           - executionId: $${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
-          - runId: $${text.split(executionId, "/")[len(text.split(executionId, "/")) - 1]}
+          - executionIdShort: $${text.split(executionId, "/")[len(text.split(executionId, "/")) - 1]}
+          - timestamp: $${sys.now()}
+          # Extract date part (YYYYMMDD) from timestamp like "2025-10-16T14:30:52.123Z"
+          - datePart: $${text.substring(text.replace_all(timestamp, "-", ""), 0, 8)}
+          # Extract time part (HHMMSS) from timestamp
+          - timePart: $${text.substring(text.replace_all(text.substring(timestamp, 11, 19), ":", ""), 0, 6)}
+          # Take first 8 characters of UUID for uniqueness
+          - uniqueId: $${text.substring(executionIdShort, 0, 8)}
+          # Combine: YYYYMMDDTHHMMSS_<uuid-prefix>
+          - runId: $${datePart + "T" + timePart + "_" + uniqueId}
 
           # Build GCS paths
           - dirPrefixRaw: $${default(map.get(input, "dirPrefix"), "")}
