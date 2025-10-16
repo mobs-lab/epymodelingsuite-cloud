@@ -22,8 +22,8 @@
           }
         },
         "computeResource": {
-          "cpuMilli": 2000,
-          "memoryMib": 4096
+          "cpuMilli": ${STAGE_A_CPU_MILLI:-2000},
+          "memoryMib": ${STAGE_A_MEMORY_MIB:-4096}
         }
       }
     }
@@ -31,7 +31,14 @@
   "allocationPolicy": {
     "serviceAccount": {
       "email": "${BATCH_SA_EMAIL}"
-    }
+    }${STAGE_A_MACHINE_TYPE:+,
+    "instances": [
+      {
+        "policy": {
+          "machineType": "${STAGE_A_MACHINE_TYPE}"
+        }
+      }
+    ]}
   },
   "logsPolicy": {
     "destination": "CLOUD_LOGGING"

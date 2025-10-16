@@ -1,7 +1,7 @@
-project_id           = "your-project-id"
-region               = "us-central1"
-repo_name            = "epymodelingsuite-repo"
-bucket_name          = "your-bucket-name"
-image_name           = "epymodelingsuite"
-image_tag            = "latest"
-github_forecast_repo = "username/reponame"
+# This project uses .env as the single source of truth for configuration.
+# DO NOT use terraform.tfvars - use .env instead!
+#
+# This file is kept only for reference to show what Terraform variables exist.
+# All values should be configured in .env at the project root.
+#
+# See .env.example for the actual configuration template.
