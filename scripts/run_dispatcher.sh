@@ -113,7 +113,7 @@ main() {
 
     # Run the main dispatcher with all arguments
     echo "Running main_dispatcher.py..."
-    python3 "$(dirname "$0")/main_dispatcher.py" "$@"
+    python3 -u "$(dirname "$0")/main_dispatcher.py" "$@"
 
     echo "=== Dispatcher complete ==="
 }
