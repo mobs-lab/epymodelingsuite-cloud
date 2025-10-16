@@ -12,6 +12,7 @@ services:
     environment:
       - EXECUTION_MODE=local
       - EXP_ID=${EXP_ID}
+      - RUN_ID=${RUN_ID}
     entrypoint: ["/bin/bash", "/scripts/run_dispatcher.sh"]
     # Default args (can be overridden with: docker compose run dispatcher --myarg foo)
     command: []
@@ -30,6 +31,7 @@ services:
       - EXECUTION_MODE=local
       - TASK_INDEX=${TASK_INDEX:-0}
       - EXP_ID=${EXP_ID}
+      - RUN_ID=${RUN_ID}
     entrypoint: ["python", "/scripts/main_runner.py"]
     # Additional args can be passed with: docker compose run runner [args]
     command: []
