@@ -118,7 +118,7 @@ run-dispatcher-local:
 	@echo "  Sim ID: $(SIM_ID)"
 	@echo ""
 	@echo "Output will be in: ./local/bucket/$(SIM_ID)/<run_id>/inputs/"
-	docker compose run --rm dispatcher --count $(RUN_COUNT) --seed $(RUN_SEED)
+	docker compose run --rm dispatcher --count $(RUN_COUNT) 
 	@echo ""
 	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
 
