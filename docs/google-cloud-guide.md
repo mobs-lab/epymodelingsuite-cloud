@@ -411,11 +411,8 @@ For local development, first build the local image, then use the Makefile comman
 source .env.local  # For GITHUB_PAT if using private repos
 make build-dev
 
-# Run dispatcher with default args (--count 10 --seed 1234)
+# Run dispatcher
 make run-dispatcher-local
-
-# Run dispatcher with custom arguments
-RUN_COUNT=50 RUN_SEED=9999 make run-dispatcher-local
 
 # Run a single runner locally
 TASK_INDEX=0 make run-runner-local
@@ -432,7 +429,7 @@ wait
 **Alternative (NOT recommended): Direct docker compose commands**
 ```bash
 # If you must run docker compose directly, always include --rm
-docker compose run --rm dispatcher --count 50 --seed 9999
+docker compose run --rm dispatcher
 TASK_INDEX=0 docker compose run --rm runner
 ```
 
@@ -481,30 +478,30 @@ Shell wrapper that handles forecast repository setup before running the dispatch
 export EXECUTION_MODE=cloud
 export GITHUB_FORECAST_REPO=owner/repo
 export GCLOUD_PROJECT_ID=your-project
-./run_dispatcher.sh --count 10 --seed 1234
+./run_dispatcher.sh
 ```
 
 **Usage (local):**
 ```bash
 export EXECUTION_MODE=local
 # Place forecast data in ./local/forecast/
-./run_dispatcher.sh --count 10 --seed 1234
+./run_dispatcher.sh
 ```
 
 ### Stage A: [scripts/main_dispatcher.py](scripts/main_dispatcher.py)
 
-Generates N input files and uploads them to GCS.
+Generates input files based on configuration and uploads them to GCS.
 
 **Features:**
-- CLI arguments: `--count`, `--seed`
-- Environment variables: `GCS_BUCKET`, `OUT_PREFIX`, `JOBID`
+- Environment variables: `GCS_BUCKET`, `OUT_PREFIX`, `JOBID`, `SIM_ID`, `RUN_ID`
+- Automatically discovers and resolves config files by parsing YAML structure
 - Creates pickled input files with model configs
 - Output pattern: `{OUT_PREFIX}input_{i:04d}.pkl`
 - Logging for monitoring progress
 
 **Usage:**
 ```bash
-python main_dispatcher.py --count 10 --seed 1234
+python main_dispatcher.py
 ```
 
 ### Stage B: [scripts/main_runner.py](scripts/main_runner.py)

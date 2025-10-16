@@ -11,6 +11,7 @@ services:
       - .env.local
     environment:
       - EXECUTION_MODE=local
+      - SIM_ID=${SIM_ID}
     entrypoint: ["/bin/bash", "/scripts/run_dispatcher.sh"]
     # Default args (can be overridden with: docker compose run dispatcher --myarg foo)
     command: []
