@@ -137,8 +137,9 @@ main:
                   runnables:
                     - container:
                         imageUri: $${repoUri}
-                        entrypoint: "python"
+                        entrypoint: "python3"
                         commands:
+                          - "-u"
                           - "/scripts/main_runner.py"
                   environment:
                     variables:
