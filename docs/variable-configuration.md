@@ -156,7 +156,8 @@ The workflow then:
 4. Sets `parallelism = min(N, maxParallelism)` for Stage B
 5. Passes environment variables to container tasks:
    - `SIM_ID`, `RUN_ID` - Simulation and run identifiers
-   - `GITHUB_FORECAST_REPO` - Repository to clone
+   - `GITHUB_FORECAST_REPO` - Forecast repository to clone
+   - `FORECAST_REPO_DIR` - Directory to clone forecast repo to (default: `/data/forecast/`)
    - `GITHUB_PAT_SECRET` - Secret Manager secret name for GitHub PAT
    - `GCLOUD_PROJECT_ID` - Project ID for accessing secrets
 

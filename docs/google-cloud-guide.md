@@ -471,7 +471,7 @@ Shell wrapper that handles forecast repository setup before running the dispatch
 **Environment variables:**
 - `EXECUTION_MODE` - "cloud" or "local" (required)
 - `GITHUB_FORECAST_REPO` - Forecast repo to clone (cloud mode only)
-- `FORECAST_REPO_DIR` - Where to clone repo (default: `/tmp/forecast-repo`, cloud only)
+- `FORECAST_REPO_DIR` - Where to clone repo (default: `/data/forecast/`, cloud only)
 - `GCLOUD_PROJECT_ID` - GCP project for Secret Manager (cloud mode only)
 - `GITHUB_PAT_SECRET` - Secret Manager secret name (default: `github-pat`, cloud only)
 - `FORECAST_REPO_REF` - Optional branch/tag to checkout (cloud mode only)
