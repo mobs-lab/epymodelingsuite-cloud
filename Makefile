@@ -17,6 +17,7 @@ DIR_PREFIX ?= pipeline/flu/
 MAX_PARALLELISM ?= 100
 # EXP_ID is required - no default value. Set via environment or command line.
 # Example: EXP_ID=my-experiment make run-dispatcher-local
+# RUN_ID is optional - auto-generated if not provided
 
 # Batch machine configuration
 STAGE_A_CPU_MILLI ?= 2000
@@ -60,6 +61,7 @@ help:
 	@echo "  DIR_PREFIX              - Base directory prefix (current: $(DIR_PREFIX))"
 	@echo "  MAX_PARALLELISM         - Max parallel tasks (current: $(MAX_PARALLELISM))"
 	@echo "  EXP_ID                  - Experiment ID (current: $(EXP_ID))"
+	@echo "  RUN_ID                  - Run ID (current: $(RUN_ID))"
 	@echo "  TASK_INDEX              - Task index for local runner (current: $(TASK_INDEX))"
 	@echo "  NUM_RUNNERS             - Number of runners to spawn (current: $(NUM_RUNNERS))"
 	@echo "  STAGE_A_CPU_MILLI       - Stage A CPU in milli-cores (current: $(STAGE_A_CPU_MILLI))"
@@ -132,9 +134,12 @@ run-dispatcher-local:
 		exit 1; \
 	fi
 	@echo "  Experiment ID: $(EXP_ID)"
+	@if [ -n "$(RUN_ID)" ]; then \
+		echo "  Run ID: $(RUN_ID)"; \
+	fi
 	@echo ""
 	@echo "Output will be in: ./local/bucket/$(EXP_ID)/<run_id>/inputs/"
-	EXP_ID=$(EXP_ID) docker compose run --rm dispatcher
+	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) docker compose run --rm dispatcher
 	@echo ""
 	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
 
@@ -147,7 +152,7 @@ run-runner-local:
 	fi
 	@echo "  Reading from: ./local/bucket/$(EXP_ID)/*/inputs/"
 	@echo "  Writing to: ./local/bucket/$(EXP_ID)/*/results/"
-	EXP_ID=$(EXP_ID) TASK_INDEX=$(TASK_INDEX) docker compose run --rm runner
+	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) TASK_INDEX=$(TASK_INDEX) docker compose run --rm runner
 	@echo ""
 	@echo "✓ Runner $(TASK_INDEX) complete."
 
@@ -209,7 +214,7 @@ tf-destroy:
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)"
 
 run-workflow:
-	@echo "Running workflow..."
+	@echo "Submitting workflow (async)..."
 	@if [ -z "$(EXP_ID)" ]; then \
 		echo "ERROR: EXP_ID is required but not set."; \
 		echo "Usage: EXP_ID=your-experiment-id make run-workflow"; \
@@ -218,9 +223,19 @@ run-workflow:
 	@echo "  Experiment ID: $(EXP_ID)"
 	@echo "  GitHub Repo: $(GITHUB_FORECAST_REPO)"
 	@BATCH_SA=$$(cd terraform && terraform output -raw batch_runtime_sa_email 2>/dev/null || echo "batch-runtime@$(PROJECT_ID).iam.gserviceaccount.com") && \
-	gcloud workflows run epydemix-pipeline \
-	  --location=$(REGION) \
-	  --data='{"bucket":"$(BUCKET_NAME)","dirPrefix":"$(DIR_PREFIX)","exp_id":"$(EXP_ID)","githubForecastRepo":"$(GITHUB_FORECAST_REPO)","batchSaEmail":"'$$BATCH_SA'"}'
+	curl -X POST \
+	  -H "Authorization: Bearer $$(gcloud auth print-access-token)" \
+	  -H "Content-Type: application/json" \
+	  -d '{"argument":"{\"bucket\":\"$(BUCKET_NAME)\",\"dirPrefix\":\"$(DIR_PREFIX)\",\"exp_id\":\"$(EXP_ID)\",\"githubForecastRepo\":\"$(GITHUB_FORECAST_REPO)\",\"batchSaEmail\":\"'$$BATCH_SA'\"}"}' \
+	  "https://workflowexecutions.googleapis.com/v1/projects/$(PROJECT_ID)/locations/$(REGION)/workflows/epydemix-pipeline/executions" \
+	  -s | jq -r '.name' | tee /tmp/workflow_execution.txt && \
+	echo "" && \
+	echo "✓ Workflow submitted successfully!" && \
+	echo "  Execution: $$(cat /tmp/workflow_execution.txt)" && \
+	echo "" && \
+	echo "Monitor with:" && \
+	echo "  gcloud workflows executions describe $$(basename $$(cat /tmp/workflow_execution.txt)) --workflow=epydemix-pipeline --location=$(REGION)" && \
+	echo "  gcloud workflows executions list epydemix-pipeline --location=$(REGION)"
 
 clean:
 	@echo "Cleaning local artifacts..."
