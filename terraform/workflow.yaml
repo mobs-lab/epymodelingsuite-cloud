@@ -64,7 +64,7 @@ main:
                       GITHUB_FORECAST_REPO: $${githubForecastRepo}
                       GCLOUD_PROJECT_ID: $${project}
                       GITHUB_PAT_SECRET: "github-pat"
-                      FORECAST_REPO_DIR: "/tmp/forecast-repo"
+                      FORECAST_REPO_DIR: "/data/forecast/"
                   computeResource:
                     cpuMilli: 2000
                     memoryMib: 4096
