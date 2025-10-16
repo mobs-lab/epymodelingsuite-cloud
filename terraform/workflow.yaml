@@ -15,7 +15,9 @@ main:
           # Generate unique run ID with datetime prefix from execution ID
           - executionId: $${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
           - executionIdShort: $${text.split(executionId, "/")[len(text.split(executionId, "/")) - 1]}
-          - timestamp: $${string(sys.now())}
+          - nowTimestamp: $${sys.now()}
+          # Format timestamp as ISO 8601: YYYY-MM-DDTHH:MM:SS.sssZ
+          - timestamp: $${time.format(nowTimestamp)}
           # Extract date part (YYYYMMDD) from timestamp like "2025-10-16T14:30:52.123Z"
           - datePart: $${text.substring(text.replace_all(timestamp, "-", ""), 0, 8)}
           # Extract time part (HHMMSS) from timestamp
