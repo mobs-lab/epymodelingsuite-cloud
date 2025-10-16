@@ -1,5 +1,7 @@
 # Cloud Monitoring Dashboards for epymodelingsuite
-# These dashboards allow you to monitor CPU and memory usage for each stage
+# These dashboards monitor CPU and memory usage for Cloud Batch jobs
+# Note: Cloud Batch VMs are managed internally and don't expose user labels directly
+# We use instance_name patterns and resource labels to filter metrics
 
 # Dashboard 1: Builder (Stage A - Dispatcher) - stage=builder
 resource "google_monitoring_dashboard" "builder" {
@@ -22,7 +24,7 @@ resource "google_monitoring_dashboard" "builder" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"builder\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stagea\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -55,14 +57,14 @@ resource "google_monitoring_dashboard" "builder" {
                   timeSeriesQuery = {
                     timeSeriesFilterRatio = {
                       numerator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"builder\""
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stagea\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
                         }
                       }
                       denominator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"builder\""
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stagea\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
@@ -95,7 +97,7 @@ resource "google_monitoring_dashboard" "builder" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"builder\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stagea\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -128,7 +130,7 @@ resource "google_monitoring_dashboard" "builder" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"builder\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stagea\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_RATE"
@@ -171,7 +173,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"runner\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -204,14 +206,14 @@ resource "google_monitoring_dashboard" "runner" {
                   timeSeriesQuery = {
                     timeSeriesFilterRatio = {
                       numerator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"runner\""
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
                         }
                       }
                       denominator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"runner\""
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
@@ -244,7 +246,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"runner\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -277,7 +279,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"runner\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_RATE"
@@ -309,7 +311,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metadata.user_labels.stage=\"runner\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
                       aggregation = {
                         alignmentPeriod    = "60s"
                         perSeriesAligner   = "ALIGN_MEAN"
@@ -339,12 +341,12 @@ resource "google_monitoring_dashboard" "overall" {
     mosaicLayout = {
       columns = 48
       tiles = [
-        # Overall CPU Utilization
+        # Overall CPU Utilization - Stage A
         {
           width  = 24
           height = 16
           widget = {
-            title = "Overall CPU Utilization (%) - All Stages"
+            title = "Stage A (Builder) - CPU Utilization (%)"
             xyChart = {
               chartOptions = {
                 mode = "COLOR"
@@ -353,12 +355,10 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metadata.user_labels.component=\"epymodelingsuite\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stagea\")"
                       aggregation = {
-                        alignmentPeriod    = "60s"
-                        perSeriesAligner   = "ALIGN_MEAN"
-                        crossSeriesReducer = "REDUCE_MEAN"
-                        groupByFields      = ["metadata.user_labels.stage"]
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
                       }
                     }
                   }
@@ -372,13 +372,13 @@ resource "google_monitoring_dashboard" "overall" {
             }
           }
         },
-        # Overall Memory Usage (%)
+        # Overall CPU Utilization - Stage B
         {
           xPos   = 24
           width  = 24
           height = 16
           widget = {
-            title = "Overall Memory Usage (%) - All Stages"
+            title = "Stage B (Runner) - CPU Utilization (%)"
             xyChart = {
               chartOptions = {
                 mode = "COLOR"
@@ -386,24 +386,11 @@ resource "google_monitoring_dashboard" "overall" {
               dataSets = [
                 {
                   timeSeriesQuery = {
-                    timeSeriesFilterRatio = {
-                      numerator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metadata.user_labels.component=\"epymodelingsuite\""
-                        aggregation = {
-                          alignmentPeriod    = "60s"
-                          perSeriesAligner   = "ALIGN_MEAN"
-                          crossSeriesReducer = "REDUCE_SUM"
-                          groupByFields      = ["metadata.user_labels.stage"]
-                        }
-                      }
-                      denominator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metadata.user_labels.component=\"epymodelingsuite\""
-                        aggregation = {
-                          alignmentPeriod    = "60s"
-                          perSeriesAligner   = "ALIGN_MEAN"
-                          crossSeriesReducer = "REDUCE_SUM"
-                          groupByFields      = ["metadata.user_labels.stage"]
-                        }
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
                       }
                     }
                   }
@@ -417,13 +404,13 @@ resource "google_monitoring_dashboard" "overall" {
             }
           }
         },
-        # CPU Core Usage (vCPU)
+        # Overall Memory - Stage A
         {
           yPos   = 16
           width  = 24
           height = 16
           widget = {
-            title = "Overall CPU Core Usage (vCPU) - All Stages"
+            title = "Stage A (Builder) - Memory Usage (MiB)"
             xyChart = {
               chartOptions = {
                 mode = "COLOR"
@@ -432,16 +419,14 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metadata.user_labels.component=\"epymodelingsuite\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stagea\")"
                       aggregation = {
-                        alignmentPeriod    = "60s"
-                        perSeriesAligner   = "ALIGN_RATE"
-                        crossSeriesReducer = "REDUCE_SUM"
-                        groupByFields      = ["metadata.user_labels.stage"]
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
                       }
                     }
                   }
-                  plotType   = "STACKED_AREA"
+                  plotType   = "LINE"
                   targetAxis = "Y1"
                 }
               ]
@@ -451,14 +436,14 @@ resource "google_monitoring_dashboard" "overall" {
             }
           }
         },
-        # Memory Usage (MiB)
+        # Overall Memory - Stage B
         {
           xPos   = 24
           yPos   = 16
           width  = 24
           height = 16
           widget = {
-            title = "Overall Memory Usage (MiB) - All Stages"
+            title = "Stage B (Runner) - Memory Usage (MiB)"
             xyChart = {
               chartOptions = {
                 mode = "COLOR"
@@ -467,16 +452,14 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metadata.user_labels.component=\"epymodelingsuite\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" resource.labels.instance_name=starts_with(\"stageb\")"
                       aggregation = {
-                        alignmentPeriod    = "60s"
-                        perSeriesAligner   = "ALIGN_MEAN"
-                        crossSeriesReducer = "REDUCE_SUM"
-                        groupByFields      = ["metadata.user_labels.stage"]
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
                       }
                     }
                   }
-                  plotType   = "STACKED_AREA"
+                  plotType   = "LINE"
                   targetAxis = "Y1"
                 }
               ]
@@ -486,13 +469,13 @@ resource "google_monitoring_dashboard" "overall" {
             }
           }
         },
-        # Active Instances by Stage
+        # Active Instances - Both Stages
         {
           yPos   = 32
           width  = 48
           height = 16
           widget = {
-            title = "Active Instances by Stage"
+            title = "Active Instances (Stage A + Stage B)"
             xyChart = {
               chartOptions = {
                 mode = "COLOR"
@@ -501,16 +484,15 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metadata.user_labels.component=\"epymodelingsuite\""
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" (resource.labels.instance_name=starts_with(\"stagea\") OR resource.labels.instance_name=starts_with(\"stageb\"))"
                       aggregation = {
                         alignmentPeriod    = "60s"
                         perSeriesAligner   = "ALIGN_MEAN"
                         crossSeriesReducer = "REDUCE_COUNT"
-                        groupByFields      = ["metadata.user_labels.stage"]
                       }
                     }
                   }
-                  plotType   = "STACKED_AREA"
+                  plotType   = "LINE"
                   targetAxis = "Y1"
                 }
               ]
