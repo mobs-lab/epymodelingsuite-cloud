@@ -22,8 +22,8 @@ main:
           - timePart: $${text.substring(text.replace_all(text.substring(timestamp, 11, 19), ":", ""), 0, 6)}
           # Take first 8 characters of UUID for uniqueness
           - uniqueId: $${text.substring(executionIdShort, 0, 8)}
-          # Combine: YYYYMMDDTHHMMSS_<uuid-prefix>
-          - runId: $${datePart + "T" + timePart + "_" + uniqueId}
+          # Combine: YYYYMMDD-HHMMSS-<uuid-prefix>
+          - runId: $${datePart + "-" + timePart + "-" + uniqueId}
 
           # Build GCS paths
           - dirPrefixRaw: $${default(map.get(input, "dirPrefix"), "")}
