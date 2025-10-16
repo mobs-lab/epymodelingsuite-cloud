@@ -46,6 +46,12 @@ resource "google_artifact_registry_repository" "repo" {
   format        = "DOCKER"
   description   = "Docker repository for epydemix pipeline"
 
+  labels = {
+    component   = "epymodelingsuite"
+    environment = "production"
+    managed-by  = "terraform"
+  }
+
   depends_on = [google_project_service.artifactregistry]
 }
 
@@ -194,6 +200,12 @@ resource "google_workflows_workflow" "pipeline" {
     stage_b_memory_mib  = var.stage_b_memory_mib
     stage_b_machine_type = var.stage_b_machine_type
   })
+
+  labels = {
+    component   = "epymodelingsuite"
+    environment = "production"
+    managed-by  = "terraform"
+  }
 
   depends_on = [
     google_project_service.workflows,

@@ -47,6 +47,12 @@ main:
             type: OAuth2
             scopes: https://www.googleapis.com/auth/cloud-platform
           body:
+            labels:
+              component: epymodelingsuite
+              stage: builder
+              exp_id: $${expId}
+              run_id: $${runId}
+              managed-by: workflows
             taskGroups:
               - taskCount: 1
                 taskSpec:
@@ -130,6 +136,12 @@ main:
           auth:
             type: OAuth2
           body:
+            labels:
+              component: epymodelingsuite
+              stage: runner
+              exp_id: $${expId}
+              run_id: $${runId}
+              managed-by: workflows
             taskGroups:
               - taskCount: $${N}
                 parallelism: $${parallelism}

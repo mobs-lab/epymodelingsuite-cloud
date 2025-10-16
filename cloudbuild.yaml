@@ -34,3 +34,7 @@ availableSecrets:
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: E2_MEDIUM
+  labels:
+    component: epymodelingsuite
+    stage: imagebuild
+    managed-by: cloudbuild
