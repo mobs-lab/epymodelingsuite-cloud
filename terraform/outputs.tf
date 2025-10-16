@@ -32,3 +32,24 @@ output "image_uri" {
   value       = "${var.region}-docker.pkg.dev/${var.project_id}/${var.repo_name}/${var.image_name}:${var.image_tag}"
   description = "Full Docker image URI"
 }
+
+# Monitoring Dashboard URLs
+output "dashboard_imagebuild_url" {
+  value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.imagebuild.id}?project=${var.project_id}"
+  description = "URL to Image Build dashboard"
+}
+
+output "dashboard_builder_url" {
+  value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.builder.id}?project=${var.project_id}"
+  description = "URL to Builder (Stage A) dashboard"
+}
+
+output "dashboard_runner_url" {
+  value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.runner.id}?project=${var.project_id}"
+  description = "URL to Runner (Stage B) dashboard"
+}
+
+output "dashboard_overall_url" {
+  value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.overall.id}?project=${var.project_id}"
+  description = "URL to Overall System dashboard"
+}
