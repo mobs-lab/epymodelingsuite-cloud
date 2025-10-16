@@ -131,44 +131,44 @@ def build_and_save_dispatch_outputs(
 
 
 def resolve_configs(
-    sim_id: str, config_dir: str = "/data/forecast/config"
+    exp_id: str, config_dir: str = "/data/forecast/experiments"
 ) -> dict[str, Optional[str]]:
     """
-    Resolve config files for a simulation by parsing YAML structure.
+    Resolve config files for an experiment by parsing YAML structure.
 
-    Searches for YAML files in {config_dir}/{sim_id}/ and identifies their type by
+    Searches for YAML files in {config_dir}/{exp_id}/config/ and identifies their type by
     parsing the file structure:
     - Files with 'model' key -> basemodel config
     - Files with 'modelset.sampling' -> sampling config
     - Files with 'modelset.calibration' -> calibration config
 
     Args:
-        sim_id: Simulation ID (e.g., 'test-sim', 'flu_round05')
-        config_dir: Base directory for config files (default: '/data/forecast/config')
+        exp_id: Experiment ID (e.g., 'test-sim', 'flu_round05')
+        config_dir: Base directory for experiments (default: '/data/forecast/experiments')
 
     Returns:
         Dictionary with keys 'basemodel', 'sampling', 'calibration' mapping to file paths or None
         Example: {'basemodel': '/path/to/config.yaml', 'sampling': None, 'calibration': None}
 
     Raises:
-        FileNotFoundError: If the sim_id directory doesn't exist or no YAML files are found
+        FileNotFoundError: If the exp_id directory doesn't exist or no YAML files are found
         ValueError: If multiple files of the same type are found
     """
-    sim_config_dir = Path(config_dir) / sim_id
+    exp_config_dir = Path(config_dir) / exp_id / "config"
 
-    if not sim_config_dir.exists():
+    if not exp_config_dir.exists():
         raise FileNotFoundError(
-            f"Config directory not found for sim_id '{sim_id}': {sim_config_dir}"
+            f"Config directory not found for exp_id '{exp_id}': {exp_config_dir}"
         )
 
     # Find all YAML files in the directory
-    yaml_files = list(sim_config_dir.glob("*.yml")) + list(
-        sim_config_dir.glob("*.yaml")
+    yaml_files = list(exp_config_dir.glob("*.yml")) + list(
+        exp_config_dir.glob("*.yaml")
     )
 
     if not yaml_files:
         raise FileNotFoundError(
-            f"No YAML files found in config directory: {sim_config_dir}"
+            f"No YAML files found in config directory: {exp_config_dir}"
         )
 
     # Initialize result dictionary
@@ -197,7 +197,7 @@ def resolve_configs(
         # Check for duplicates
         if configs[config_type] is not None:
             raise ValueError(
-                f"Multiple {config_type} config files found in {sim_config_dir}: "
+                f"Multiple {config_type} config files found in {exp_config_dir}: "
                 f"{Path(configs[config_type]).name} and {yaml_file.name}"
             )
 
@@ -219,14 +219,14 @@ def main():
     print("Starting Stage A: Generating dispatch inputs")
     print(f"  Storage mode: {config['mode']}")
     print(f"  Dir prefix: {config['dir_prefix']}")
-    print(f"  Sim ID: {config['sim_id']}")
+    print(f"  Experiment ID: {config['exp_id']}")
     print(f"  Run ID: {config['run_id']}")
     if config["mode"] == "cloud":
         print(f"  Bucket: {config['bucket']}")
 
-    # Resolve config files for this simulation
-    print(f"\nResolving config files for sim_id: {config['sim_id']}")
-    config_files = resolve_configs(config["sim_id"])
+    # Resolve config files for this experiment
+    print(f"\nResolving config files for exp_id: {config['exp_id']}")
+    config_files = resolve_configs(config["exp_id"])
 
     print("  Found configs:")
     print(f"    Basemodel: {config_files['basemodel']}")

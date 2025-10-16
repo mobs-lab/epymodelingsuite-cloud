@@ -22,7 +22,7 @@ Usage:
 
 import os
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 
 def _get_execution_mode() -> str:
@@ -43,14 +43,24 @@ def get_config() -> dict:
         Dictionary with configuration:
         - mode: "local" or "cloud"
         - bucket: GCS bucket name (cloud mode only)
-        - sim_id: Simulation ID
+        - exp_id: Experiment ID
         - run_id: Run ID
         - dir_prefix: Directory prefix (e.g., "pipeline/flu/")
+
+    Raises:
+        ValueError: If EXP_ID is not set in environment
     """
+    exp_id = os.getenv("EXP_ID")
+    if not exp_id:
+        raise ValueError(
+            "EXP_ID environment variable is required but not set. "
+            "Set it before running: export EXP_ID=your-experiment-id"
+        )
+
     return {
         "mode": _get_execution_mode(),
         "bucket": os.getenv("GCS_BUCKET", ""),
-        "sim_id": os.getenv("SIM_ID", "unknown"),
+        "exp_id": exp_id,
         "run_id": os.getenv("RUN_ID", "unknown"),
         "dir_prefix": os.getenv("DIR_PREFIX", "pipeline/flu/").rstrip("/"),
     }
@@ -60,10 +70,10 @@ def get_path(*parts: str) -> str:
     """
     Construct a storage path from components.
 
-    Uses DIR_PREFIX from environment (e.g., "pipeline/flu/") plus SIM_ID and RUN_ID.
+    Uses DIR_PREFIX from environment (e.g., "pipeline/flu/") plus EXP_ID and RUN_ID.
 
-    In local mode: Returns path like "bucket/{dir_prefix}/{sim_id}/{run_id}/{parts}"
-    In cloud mode: Returns path like "{dir_prefix}/{sim_id}/{run_id}/{parts}"
+    In local mode: Returns path like "bucket/{dir_prefix}/{exp_id}/{run_id}/{parts}"
+    In cloud mode: Returns path like "{dir_prefix}/{exp_id}/{run_id}/{parts}"
 
     Args:
         *parts: Path components to join (e.g., "inputs", "input_0000.pkl")
@@ -72,7 +82,7 @@ def get_path(*parts: str) -> str:
         Full storage path string
 
     Example:
-        # With DIR_PREFIX=pipeline/flu/, SIM_ID=test-sim, RUN_ID=run-20241015
+        # With DIR_PREFIX=pipeline/flu/, EXP_ID=test-sim, RUN_ID=run-20241015
         get_path("inputs", "input_0000.pkl")
         # Local: "bucket/pipeline/flu/test-sim/run-20241015/inputs/input_0000.pkl"
         # Cloud: "pipeline/flu/test-sim/run-20241015/inputs/input_0000.pkl"
@@ -81,7 +91,7 @@ def get_path(*parts: str) -> str:
     mode = config["mode"]
 
     # Build the base path structure using DIR_PREFIX
-    base_parts = [config["dir_prefix"], config["sim_id"], config["run_id"]]
+    base_parts = [config["dir_prefix"], config["exp_id"], config["run_id"]]
     full_parts = base_parts + list(parts)
 
     if mode == "local":

@@ -40,16 +40,15 @@ make build-dev    # Build local dev image for Docker Compose (requires .env.loca
 make run-workflow
 
 # Or customize cloud run:
-RUN_COUNT=50 SIM_ID=experiment-01 make run-workflow
+EXP_ID=experiment-01 make run-workflow
 
 # 4b. OR run locally with Docker Compose (use Makefile commands)
 make build-dev                # Build local image first
-make run-dispatcher-local     # Run dispatcher with defaults (COUNT=10, SEED=1234)
+make run-dispatcher-local     # Run dispatcher with defaults
 make run-runner-local         # Run runner for single task (TASK_INDEX=0)
 
 # Or customize local run:
-RUN_COUNT=50 RUN_SEED=9999 make run-dispatcher-local
-TASK_INDEX=5 make run-runner-local
+EXP_ID=experiment-01 TASK_INDEX=5 make run-dispatcher-local
 
 ```
 

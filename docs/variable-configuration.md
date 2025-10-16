@@ -23,10 +23,9 @@ GITHUB_MODELING_SUITE_REPO=username/modeling-suite-repo
 GITHUB_MODELING_SUITE_REF=main
 
 # Workflow Parameters
-RUN_COUNT=10
-RUN_SEED=1234
+ 
 DIR_PREFIX=pipeline/flu/
-SIM_ID=default-sim
+EXP_ID=default-sim
 MAX_PARALLELISM=100
 ```
 
@@ -41,13 +40,13 @@ make run-workflow
 
 Workflow outputs are organized as:
 ```
-gs://{BUCKET_NAME}/{DIR_PREFIX}/{SIM_ID}/{RUN_ID}/inputs/input_*.pkl
-gs://{BUCKET_NAME}/{DIR_PREFIX}/{SIM_ID}/{RUN_ID}/results/result_*.pkl
+gs://{BUCKET_NAME}/{DIR_PREFIX}/{EXP_ID}/{RUN_ID}/inputs/input_*.pkl
+gs://{BUCKET_NAME}/{DIR_PREFIX}/{EXP_ID}/{RUN_ID}/results/result_*.pkl
 ```
 
 Where:
 - `DIR_PREFIX` - Organizational prefix (configurable, optional trailing slash)
-- `SIM_ID` - User-provided simulation identifier (passed to workflow)
+- `EXP_ID` - User-provided experiment identifier (passed to workflow)
 - `RUN_ID` - Auto-generated from workflow execution ID (unique per run)
 
 ## Terraform Variables
@@ -134,7 +133,7 @@ The workflow receives these parameters at runtime:
   "seed": 1234,
   "bucket": "bucket-name",
   "dirPrefix": "pipeline/flu/",
-  "sim_id": "winter-2024",
+  "exp_id": "my-experiment-01",
   "batchSaEmail": "batch-runtime@project.iam.gserviceaccount.com",
   "githubForecastRepo": "owner/forecasting-repo",
   "maxParallelism": 100
@@ -146,7 +145,7 @@ The workflow receives these parameters at runtime:
 - `seed` - Random seed for reproducibility
 - `bucket` - GCS bucket name for inputs/outputs
 - `dirPrefix` - Organizational prefix (optional, adds trailing slash if missing)
-- `sim_id` - User-provided simulation identifier
+- `exp_id` - User-provided experiment identifier
 - `batchSaEmail` - Service account email for Batch jobs
 - `githubForecastRepo` - Private GitHub repository for forecasting (format: "owner/repo")
 - `maxParallelism` - **Optional** - Maximum parallel tasks in Stage B (default: 100, max: 5000 per Cloud Batch limits)
@@ -154,11 +153,11 @@ The workflow receives these parameters at runtime:
 The workflow then:
 1. Extracts `run_id` from the workflow execution ID (auto-generated)
 2. Normalizes `dirPrefix` (adds trailing slash if needed)
-3. Constructs paths: `{dirPrefix}{sim_id}/{run_id}/inputs/` and `/results/`
+3. Constructs paths: `{dirPrefix}{exp_id}/{run_id}/inputs/` and `/results/`
 4. Sets `parallelism = min(N, maxParallelism)` for Stage B
 5. Passes environment variables to container tasks:
    - `EXECUTION_MODE` - "cloud" (enables cloud storage and GitHub cloning)
-   - `SIM_ID`, `RUN_ID` - Simulation and run identifiers
+   - `EXP_ID`, `RUN_ID` - Simulation and run identifiers
    - `GITHUB_FORECAST_REPO` - Forecast repository to clone
    - `FORECAST_REPO_DIR` - Directory to clone forecast repo to (default: `/data/forecast/`)
    - `GITHUB_PAT_SECRET` - Secret Manager secret name for GitHub PAT
@@ -208,7 +207,7 @@ During Batch job execution:
 3. **Makefile** reads `.env` and passes to:
    - Cloud Build (via `--substitutions`)
    - Terraform (via `-var` flags)
-   - Workflow execution (via `--data` JSON with `dirPrefix`, `sim_id`, and `githubForecastRepo`)
+   - Workflow execution (via `--data` JSON with `dirPrefix`, `exp_id`, and `githubForecastRepo`)
 4. **Terraform** uses `terraform.tfvars` and `templatefile()` to:
    - Deploy infrastructure
    - Create Secret Manager secret resource (shell only, value added manually)

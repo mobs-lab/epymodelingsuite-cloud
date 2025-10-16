@@ -19,16 +19,14 @@ main:
           # Build GCS paths
           - dirPrefixRaw: $${default(map.get(input, "dirPrefix"), "")}
           - dirPrefix: $${if(dirPrefixRaw == "", "", if(text.substring(dirPrefixRaw, len(dirPrefixRaw) - 1, len(dirPrefixRaw)) == "/", dirPrefixRaw, dirPrefixRaw + "/"))}
-          - simId: $${input.sim_id}
+          - expId: $${input.exp_id}
           - bucket: $${input.bucket}
-          - basePath: $${dirPrefix + simId + "/" + runId + "/"}
+          - basePath: $${dirPrefix + expId + "/" + runId + "/"}
           - outPrefix: $${basePath + "inputs/"}
           - inPrefix: $${basePath + "inputs/"}
           - resPrefix: $${basePath + "results/"}
 
           # Job parameters
-          - count: $${input.count}
-          - seed: $${input.seed}
           - batchSaEmail: $${input.batchSaEmail}
           - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
 
@@ -54,8 +52,8 @@ main:
                     variables:
                       EXECUTION_MODE: "cloud"
                       GCS_BUCKET: $${bucket}
-                      OUT_PREFIX: $${outPrefix}
-                      SIM_ID: $${simId}
+                      DIR_PREFIX: $${dirPrefix}
+                      EXP_ID: $${expId}
                       RUN_ID: $${runId}
                       GITHUB_FORECAST_REPO: $${githubForecastRepo}
                       GCLOUD_PROJECT_ID: $${project}
@@ -133,8 +131,9 @@ main:
                     variables:
                       EXECUTION_MODE: "cloud"
                       GCS_BUCKET: $${bucket}
-                      IN_PREFIX: $${inPrefix}
-                      OUT_PREFIX: $${resPrefix}
+                      DIR_PREFIX: $${dirPrefix}
+                      EXP_ID: $${expId}
+                      RUN_ID: $${runId}
                   computeResource:
                     cpuMilli: 2000
                     memoryMib: 8192
