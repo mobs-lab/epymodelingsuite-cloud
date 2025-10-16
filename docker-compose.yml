@@ -12,8 +12,8 @@ services:
     environment:
       - EXECUTION_MODE=local
     entrypoint: ["/bin/bash", "/scripts/run_dispatcher.sh"]
-    # Default args (can be overridden with: docker compose run dispatcher --count 20 --seed 5678)
-    command: ["--count", "10", "--seed", "1234"]
+    # Default args (can be overridden with: docker compose run dispatcher --myarg foo)
+    command: []
 
   runner:
     image: epymodelingsuite:local
