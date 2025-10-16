@@ -17,8 +17,10 @@ BUCKET_NAME=your-bucket-name
 IMAGE_NAME=epymodelingsuite
 IMAGE_TAG=latest
 
-# GitHub Private Repository
-GITHUB_FORECAST_REPO=username/reponame
+# GitHub Private Repositories
+GITHUB_FORECAST_REPO=username/forecasting-repo
+GITHUB_MODELING_SUITE_REPO=username/modeling-suite-repo
+GITHUB_MODELING_SUITE_REF=main
 
 # Workflow Parameters
 RUN_COUNT=10
@@ -155,6 +157,7 @@ The workflow then:
 3. Constructs paths: `{dirPrefix}{sim_id}/{run_id}/inputs/` and `/results/`
 4. Sets `parallelism = min(N, maxParallelism)` for Stage B
 5. Passes environment variables to container tasks:
+   - `EXECUTION_MODE` - "cloud" (enables cloud storage and GitHub cloning)
    - `SIM_ID`, `RUN_ID` - Simulation and run identifiers
    - `GITHUB_FORECAST_REPO` - Forecast repository to clone
    - `FORECAST_REPO_DIR` - Directory to clone forecast repo to (default: `/data/forecast/`)
