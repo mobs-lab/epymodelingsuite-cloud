@@ -184,9 +184,15 @@ resource "google_workflows_workflow" "pipeline" {
   region          = var.region
   service_account = google_service_account.workflows_runner.email
   source_contents = templatefile("${path.module}/workflow.yaml", {
-    repo_name  = var.repo_name
-    image_name = var.image_name
-    image_tag  = var.image_tag
+    repo_name           = var.repo_name
+    image_name          = var.image_name
+    image_tag           = var.image_tag
+    stage_a_cpu_milli   = var.stage_a_cpu_milli
+    stage_a_memory_mib  = var.stage_a_memory_mib
+    stage_a_machine_type = var.stage_a_machine_type
+    stage_b_cpu_milli   = var.stage_b_cpu_milli
+    stage_b_memory_mib  = var.stage_b_memory_mib
+    stage_b_machine_type = var.stage_b_machine_type
   })
 
   depends_on = [

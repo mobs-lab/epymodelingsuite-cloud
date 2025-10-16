@@ -14,8 +14,17 @@ IMAGE := $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPO_NAME)/$(IMAGE_NAME):$(IMA
 
 # Workflow parameters
 DIR_PREFIX ?= pipeline/flu/
+MAX_PARALLELISM ?= 100
 # EXP_ID is required - no default value. Set via environment or command line.
 # Example: EXP_ID=my-experiment make run-dispatcher-local
+
+# Batch machine configuration
+STAGE_A_CPU_MILLI ?= 2000
+STAGE_A_MEMORY_MIB ?= 4096
+STAGE_A_MACHINE_TYPE ?=
+STAGE_B_CPU_MILLI ?= 2000
+STAGE_B_MEMORY_MIB ?= 8192
+STAGE_B_MACHINE_TYPE ?=
 
 # Local execution parameters
 TASK_INDEX ?= 0
@@ -49,9 +58,16 @@ help:
 	@echo "  GITHUB_MODELING_SUITE_REPO   - GitHub modeling suite repo (current: $(GITHUB_MODELING_SUITE_REPO))"
 	@echo "  GITHUB_MODELING_SUITE_REF    - Modeling suite branch/ref (current: $(GITHUB_MODELING_SUITE_REF))"
 	@echo "  DIR_PREFIX              - Base directory prefix (current: $(DIR_PREFIX))"
+	@echo "  MAX_PARALLELISM         - Max parallel tasks (current: $(MAX_PARALLELISM))"
 	@echo "  EXP_ID                  - Experiment ID (current: $(EXP_ID))"
 	@echo "  TASK_INDEX              - Task index for local runner (current: $(TASK_INDEX))"
 	@echo "  NUM_RUNNERS             - Number of runners to spawn (current: $(NUM_RUNNERS))"
+	@echo "  STAGE_A_CPU_MILLI       - Stage A CPU in milli-cores (current: $(STAGE_A_CPU_MILLI))"
+	@echo "  STAGE_A_MEMORY_MIB      - Stage A memory in MiB (current: $(STAGE_A_MEMORY_MIB))"
+	@echo "  STAGE_A_MACHINE_TYPE    - Stage A machine type (current: $(STAGE_A_MACHINE_TYPE))"
+	@echo "  STAGE_B_CPU_MILLI       - Stage B CPU in milli-cores (current: $(STAGE_B_CPU_MILLI))"
+	@echo "  STAGE_B_MEMORY_MIB      - Stage B memory in MiB (current: $(STAGE_B_MEMORY_MIB))"
+	@echo "  STAGE_B_MACHINE_TYPE    - Stage B machine type (current: $(STAGE_B_MACHINE_TYPE))"
 
 build:
 	@echo "Building and pushing image with Cloud Build..."
@@ -148,7 +164,13 @@ tf-plan:
 	  -var="bucket_name=$(BUCKET_NAME)" \
 	  -var="image_name=$(IMAGE_NAME)" \
 	  -var="image_tag=$(IMAGE_TAG)" \
-	  -var="github_forecast_repo=$(GITHUB_FORECAST_REPO)"
+	  -var="github_forecast_repo=$(GITHUB_FORECAST_REPO)" \
+	  -var="stage_a_cpu_milli=$(STAGE_A_CPU_MILLI)" \
+	  -var="stage_a_memory_mib=$(STAGE_A_MEMORY_MIB)" \
+	  -var="stage_a_machine_type=$(STAGE_A_MACHINE_TYPE)" \
+	  -var="stage_b_cpu_milli=$(STAGE_B_CPU_MILLI)" \
+	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
+	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)"
 
 tf-apply:
 	@echo "Applying Terraform configuration..."
@@ -159,7 +181,13 @@ tf-apply:
 	  -var="bucket_name=$(BUCKET_NAME)" \
 	  -var="image_name=$(IMAGE_NAME)" \
 	  -var="image_tag=$(IMAGE_TAG)" \
-	  -var="github_forecast_repo=$(GITHUB_FORECAST_REPO)"
+	  -var="github_forecast_repo=$(GITHUB_FORECAST_REPO)" \
+	  -var="stage_a_cpu_milli=$(STAGE_A_CPU_MILLI)" \
+	  -var="stage_a_memory_mib=$(STAGE_A_MEMORY_MIB)" \
+	  -var="stage_a_machine_type=$(STAGE_A_MACHINE_TYPE)" \
+	  -var="stage_b_cpu_milli=$(STAGE_B_CPU_MILLI)" \
+	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
+	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)"
 
 tf-destroy:
 	@echo "WARNING: This will destroy all Terraform-managed resources!"
@@ -172,7 +200,13 @@ tf-destroy:
 	  -var="bucket_name=$(BUCKET_NAME)" \
 	  -var="image_name=$(IMAGE_NAME)" \
 	  -var="image_tag=$(IMAGE_TAG)" \
-	  -var="github_forecast_repo=$(GITHUB_FORECAST_REPO)"
+	  -var="github_forecast_repo=$(GITHUB_FORECAST_REPO)" \
+	  -var="stage_a_cpu_milli=$(STAGE_A_CPU_MILLI)" \
+	  -var="stage_a_memory_mib=$(STAGE_A_MEMORY_MIB)" \
+	  -var="stage_a_machine_type=$(STAGE_A_MACHINE_TYPE)" \
+	  -var="stage_b_cpu_milli=$(STAGE_B_CPU_MILLI)" \
+	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
+	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)"
 
 run-workflow:
 	@echo "Running workflow..."

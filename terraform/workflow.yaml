@@ -30,6 +30,14 @@ main:
           - batchSaEmail: $${input.batchSaEmail}
           - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
 
+          # Batch machine configuration
+          - cpuMilliA: ${stage_a_cpu_milli}
+          - memoryMibA: ${stage_a_memory_mib}
+          - machineTypeA: "${stage_a_machine_type}"
+          - cpuMilliB: ${stage_b_cpu_milli}
+          - memoryMibB: ${stage_b_memory_mib}
+          - machineTypeB: "${stage_b_machine_type}"
+
     # ========== STAGE A: Generate Input Files ==========
     - create_stageA_job:
         call: http.post
@@ -60,13 +68,18 @@ main:
                       GITHUB_PAT_SECRET: "github-pat"
                       FORECAST_REPO_DIR: "/data/forecast/"
                   computeResource:
-                    cpuMilli: 2000
-                    memoryMib: 4096
+                    cpuMilli: $${cpuMilliA}
+                    memoryMib: $${memoryMibA}
             logsPolicy:
               destination: "CLOUD_LOGGING"
             allocationPolicy:
               serviceAccount:
                 email: $${batchSaEmail}
+              %{~ if stage_a_machine_type != "" ~}
+              instances:
+                - policy:
+                    machineType: $${machineTypeA}
+              %{~ endif ~}
           query:
             jobId: $${"stagea-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
         result: jobA
@@ -135,13 +148,18 @@ main:
                       EXP_ID: $${expId}
                       RUN_ID: $${runId}
                   computeResource:
-                    cpuMilli: 2000
-                    memoryMib: 8192
+                    cpuMilli: $${cpuMilliB}
+                    memoryMib: $${memoryMibB}
             logsPolicy:
               destination: "CLOUD_LOGGING"
             allocationPolicy:
               serviceAccount:
                 email: $${batchSaEmail}
+              %{~ if stage_b_machine_type != "" ~}
+              instances:
+                - policy:
+                    machineType: $${machineTypeB}
+              %{~ endif ~}
           query:
             jobId: $${"stageb-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
         result: jobB
