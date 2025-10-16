@@ -4,3 +4,4 @@ pandas>=2.0.0
 scipy>=1.11.0
 epydemix>=1.0.1
 numpy>=1.23.5
+dill>=0.4.0
