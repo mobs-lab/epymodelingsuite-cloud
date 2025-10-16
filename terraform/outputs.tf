@@ -34,11 +34,6 @@ output "image_uri" {
 }
 
 # Monitoring Dashboard URLs
-output "dashboard_imagebuild_url" {
-  value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.imagebuild.id}?project=${var.project_id}"
-  description = "URL to Image Build dashboard"
-}
-
 output "dashboard_builder_url" {
   value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.builder.id}?project=${var.project_id}"
   description = "URL to Builder (Stage A) dashboard"
