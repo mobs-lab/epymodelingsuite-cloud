@@ -98,19 +98,19 @@ All resources use a consistent labeling scheme:
 
 ### Monitoring Dashboards
 
-After running `make tf-apply`, four Cloud Monitoring dashboards are automatically created:
+After running `make tf-apply`, three Cloud Monitoring dashboards are automatically created:
 
-1. **Image Build Dashboard** - Monitors Cloud Build execution time and status
-   - Filter: `component=epymodelingsuite AND stage=imagebuild`
-
-2. **Builder Dashboard** - Monitors Stage A (dispatcher) CPU/memory usage
+1. **Builder Dashboard** - Monitors Stage A (dispatcher) CPU/memory usage
    - Filter: `component=epymodelingsuite AND stage=builder`
+   - Metrics: CPU %, Memory %, Memory MiB, CPU cores
 
-3. **Runner Dashboard** - Monitors Stage B (parallel runners) CPU/memory, parallelism
+2. **Runner Dashboard** - Monitors Stage B (parallel runners) CPU/memory, parallelism
    - Filter: `component=epymodelingsuite AND stage=runner`
+   - Metrics: CPU %, Memory %, Memory MiB, CPU cores, Active instances
 
-4. **Overall System Dashboard** - Monitors all stages combined
+3. **Overall System Dashboard** - Monitors all stages combined
    - Filter: `component=epymodelingsuite`
+   - Metrics: Aggregated CPU/memory by stage, Active instances by stage
 
 **Access dashboards:**
 ```bash
