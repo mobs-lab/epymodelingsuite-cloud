@@ -28,7 +28,7 @@ def main():
     print(f"Starting Stage B task {idx}")
     print(f"  Storage mode: {config['mode']}")
     print(f"  Dir prefix: {config['dir_prefix']}")
-    print(f"  Sim ID: {config['sim_id']}")
+    print(f"  Experiment ID: {config['exp_id']}")
     print(f"  Run ID: {config['run_id']}")
     if config["mode"] == "cloud":
         print(f"  Bucket: {config['bucket']}")

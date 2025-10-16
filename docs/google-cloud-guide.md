@@ -209,9 +209,9 @@ See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 4. **Wait helper**: Polls Batch job status until completion
 
 **Key features:**
-- Takes runtime parameters: `count`, `seed`, `bucket`, `dirPrefix`, `sim_id`, `batchSaEmail`, `githubForecastRepo`, `maxParallelism` (optional, default: 100)
+- Takes runtime parameters: `count`, `seed`, `bucket`, `dirPrefix`, `exp_id`, `batchSaEmail`, `githubForecastRepo`, `maxParallelism` (optional, default: 100)
 - Auto-generates `run_id` from workflow execution ID for unique identification
-- Constructs paths: `{dirPrefix}{sim_id}/{run_id}/inputs/` and `/results/`
+- Constructs paths: `{dirPrefix}{exp_id}/{run_id}/inputs/` and `/results/`
 - Stage A: 2 CPU, 4 GB RAM, includes repo cloning via [run_dispatcher.sh](scripts/run_dispatcher.sh)
 - Stage B: 2 CPU, 8 GB RAM, configurable parallelism (default: 100, max: 5000 per Cloud Batch limits)
 - GitHub authentication via PAT from Secret Manager
@@ -444,7 +444,7 @@ The Docker Compose setup:
 ```
 ./local/
   bucket/           # Simulates GCS bucket (inputs/outputs)
-    {sim_id}/
+    {exp_id}/
       {run_id}/
         inputs/     # Generated input files
         results/    # Simulation results
@@ -493,7 +493,7 @@ export EXECUTION_MODE=local
 Generates input files based on configuration and uploads them to GCS.
 
 **Features:**
-- Environment variables: `GCS_BUCKET`, `OUT_PREFIX`, `JOBID`, `SIM_ID`, `RUN_ID`
+- Environment variables: `GCS_BUCKET`, `OUT_PREFIX`, `JOBID`, `EXP_ID`, `RUN_ID`
 - Automatically discovers and resolves config files by parsing YAML structure
 - Creates pickled input files with model configs
 - Output pattern: `{OUT_PREFIX}input_{i:04d}.pkl`
@@ -538,7 +538,7 @@ See full implementation in [Makefile](Makefile).
 **Configuration:**
 - Reads from environment variables (source `.env` first)
 - `run-workflow` auto-retrieves Batch SA email from Terraform
-- Configurable: `RUN_COUNT`, `RUN_SEED`
+
 
 **Quick workflow:**
 ```bash
