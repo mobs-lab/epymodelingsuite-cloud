@@ -78,3 +78,59 @@ See [.env.example](.env.example), [.env.local.example](.env.local.example), and 
 - [.env.example](.env.example) - Project configuration (copy to `.env`)
 - [.env.local.example](.env.local.example) - Local secrets like GitHub PAT (copy to `.env.local`)
 - Both `.env` and `.env.local` are gitignored for security
+
+## Monitoring and Resource Groups
+
+The infrastructure uses **resource labels** to organize and monitor different stages of the pipeline. All resources are tagged with labels for easy filtering and monitoring.
+
+### Label Structure
+
+All resources use a consistent labeling scheme:
+- **`component: epymodelingsuite`** - Identifies all resources belonging to this system
+- **`stage`** - Identifies the specific phase:
+  - `imagebuild` - Cloud Build jobs that build Docker images
+  - `builder` - Stage A Batch jobs (dispatcher that generates input files)
+  - `runner` - Stage B Batch jobs (parallel simulation runners)
+- **`exp_id`** - Dynamic label for experiment ID (Batch jobs only)
+- **`run_id`** - Dynamic label for workflow execution/run ID (Batch jobs only)
+- **`environment: production`** - Environment identifier
+- **`managed-by`** - Shows which tool manages the resource (`terraform`, `cloudbuild`, `workflows`)
+
+### Monitoring Dashboards
+
+After running `make tf-apply`, four Cloud Monitoring dashboards are automatically created:
+
+1. **Image Build Dashboard** - Monitors Cloud Build execution time and status
+   - Filter: `component=epymodelingsuite AND stage=imagebuild`
+
+2. **Builder Dashboard** - Monitors Stage A (dispatcher) CPU/memory usage
+   - Filter: `component=epymodelingsuite AND stage=builder`
+
+3. **Runner Dashboard** - Monitors Stage B (parallel runners) CPU/memory, parallelism
+   - Filter: `component=epymodelingsuite AND stage=runner`
+
+4. **Overall System Dashboard** - Monitors all stages combined
+   - Filter: `component=epymodelingsuite`
+
+**Access dashboards:**
+```bash
+# After terraform apply, get dashboard URLs:
+cd terraform && terraform output | grep dashboard
+```
+
+Or navigate to: [Cloud Console → Monitoring → Dashboards](https://console.cloud.google.com/monitoring/dashboards)
+
+### Custom Filtering
+
+You can create custom queries in Cloud Monitoring to filter by specific experiments or runs:
+
+```
+# View all resources for a specific experiment
+component=epymodelingsuite AND exp_id="experiment-01"
+
+# View specific run of an experiment
+component=epymodelingsuite AND run_id="abc123-def456"
+
+# Compare builder vs runner performance
+component=epymodelingsuite AND (stage=builder OR stage=runner)
+```
