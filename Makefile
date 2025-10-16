@@ -22,6 +22,10 @@ SIM_ID ?= default-sim
 TASK_INDEX ?= 0
 NUM_RUNNERS ?= $(RUN_COUNT)
 
+# Build parameters
+DISABLE_CACHE ?= false
+CACHE_FLAG := $(if $(filter true,$(DISABLE_CACHE)),--no-cache,)
+
 help:
 	@echo "Available targets:"
 	@echo "  build                - Build and push cloud image using Cloud Build (recommended)"
@@ -80,21 +84,27 @@ build-local:
 
 build-dev:
 	@echo "Building local development image..."
-	@echo "Target: local (no gcloud, smaller image)"
+	@echo "Target: local (no gcloud)"
+	@if [ "$(DISABLE_CACHE)" = "true" ]; then echo "Cache: disabled (DISABLE_CACHE=true)"; else echo "Cache: enabled"; fi
+	@if [ -n "$(GITHUB_MODELING_SUITE_REPO)" ]; then \
+		echo "Repository: $(GITHUB_MODELING_SUITE_REPO) @ $(GITHUB_MODELING_SUITE_REF)"; \
+	else \
+		echo "Repository: not configured"; \
+	fi
 	@if [ -n "$(GITHUB_MODELING_SUITE_REPO)" ]; then \
 		if [ -z "$$GITHUB_PAT" ]; then \
 			echo "Error: GITHUB_PAT environment variable must be set for builds with modeling suite"; \
 			echo "Run: source .env.local (after setting GITHUB_PAT in .env.local)"; \
 			exit 1; \
 		fi; \
-		docker build -t $(IMAGE_NAME):local \
+		docker build $(CACHE_FLAG) -t $(IMAGE_NAME):local \
 			--target local \
 			--build-arg GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO) \
 			--build-arg GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF) \
 			--build-arg GITHUB_PAT=$$GITHUB_PAT \
 			-f docker/Dockerfile .; \
 	else \
-		docker build -t $(IMAGE_NAME):local \
+		docker build $(CACHE_FLAG) -t $(IMAGE_NAME):local \
 			--target local \
 			-f docker/Dockerfile .; \
 	fi
