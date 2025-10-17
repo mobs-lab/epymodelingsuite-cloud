@@ -1,4 +1,4 @@
-.PHONY: build build-local build-dev run-dispatcher-local run-runner-local tf-init tf-plan tf-apply tf-destroy run-workflow clean help
+.PHONY: build build-local build-dev run-dispatcher-local run-task-local run-task-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
 
 # Default values - override with environment variables
 PROJECT_ID ?= your-project
@@ -41,7 +41,8 @@ help:
 	@echo "  build-local          - Build cloud image locally and push to Artifact Registry"
 	@echo "  build-dev            - Build local development image (no push, for docker-compose)"
 	@echo "  run-dispatcher-local - Run dispatcher locally with docker-compose"
-	@echo "  run-runner-local     - Run a single runner locally with docker-compose"
+	@echo "  run-task-local       - Run a single task locally with docker-compose"
+	@echo "  run-task-cloud       - Run a single task on Google Cloud Batch"
 	@echo "  tf-init              - Initialize Terraform"
 	@echo "  tf-plan              - Run Terraform plan"
 	@echo "  tf-apply             - Apply Terraform configuration"
@@ -143,18 +144,50 @@ run-dispatcher-local:
 	@echo ""
 	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
 
-run-runner-local:
-	@echo "Running single runner locally (TASK_INDEX=$(TASK_INDEX))..."
+run-task-local:
+	@echo "Running single task locally (TASK_INDEX=$(TASK_INDEX))..."
 	@if [ -z "$(EXP_ID)" ]; then \
 		echo "ERROR: EXP_ID is required but not set."; \
-		echo "Usage: EXP_ID=your-experiment-id make run-runner-local"; \
+		echo "Usage: EXP_ID=your-experiment-id make run-task-local"; \
 		exit 1; \
 	fi
 	@echo "  Reading from: ./local/bucket/$(EXP_ID)/*/inputs/"
 	@echo "  Writing to: ./local/bucket/$(EXP_ID)/*/results/"
 	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) TASK_INDEX=$(TASK_INDEX) docker compose run --rm runner
 	@echo ""
-	@echo "✓ Runner $(TASK_INDEX) complete."
+	@echo "✓ Task $(TASK_INDEX) complete."
+
+run-task-cloud:
+	@echo "Submitting single task to Google Cloud Batch..."
+	@if [ -z "$(EXP_ID)" ]; then \
+		echo "ERROR: EXP_ID is required but not set."; \
+		echo "Usage: EXP_ID=test-flu RUN_ID=20251017-0145-xxxxxx TASK_INDEX=3 make run-task-cloud"; \
+		exit 1; \
+	fi
+	@if [ -z "$(RUN_ID)" ]; then \
+		echo "ERROR: RUN_ID is required but not set."; \
+		echo "Usage: EXP_ID=test-flu RUN_ID=20251017-0145-xxxxxx TASK_INDEX=3 make run-task-cloud"; \
+		exit 1; \
+	fi
+	@if [ -z "$(TASK_INDEX)" ]; then \
+		echo "ERROR: TASK_INDEX is required but not set."; \
+		echo "Usage: EXP_ID=test-flu RUN_ID=20251017-0145-xxxxxx TASK_INDEX=3 make run-task-cloud"; \
+		exit 1; \
+	fi
+	PROJECT_ID=$(PROJECT_ID) \
+	REGION=$(REGION) \
+	BUCKET_NAME=$(BUCKET_NAME) \
+	REPO_NAME=$(REPO_NAME) \
+	IMAGE_NAME=$(IMAGE_NAME) \
+	IMAGE_TAG=$(IMAGE_TAG) \
+	DIR_PREFIX=$(DIR_PREFIX) \
+	STAGE_B_CPU_MILLI=$(STAGE_B_CPU_MILLI) \
+	STAGE_B_MEMORY_MIB=$(STAGE_B_MEMORY_MIB) \
+	STAGE_B_MACHINE_TYPE=$(STAGE_B_MACHINE_TYPE) \
+	EXP_ID=$(EXP_ID) \
+	RUN_ID=$(RUN_ID) \
+	TASK_INDEX=$(TASK_INDEX) \
+	./scripts/run-task-cloud.sh
 
 tf-init:
 	@echo "Initializing Terraform..."
