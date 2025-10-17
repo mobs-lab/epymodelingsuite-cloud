@@ -218,7 +218,7 @@ waitJob:
     - poll_loop:
         for:
           value: i
-          range: $${[0, 999]}
+          range: $${[0, 2999]}
           steps:
             - get_job_status:
                 try:
@@ -277,7 +277,7 @@ waitJob:
             - sleep_before_retry:
                 call: sys.sleep
                 args:
-                  seconds: 10
+                  seconds: 15
 
     - return_status:
         return: $${finalStatus}
