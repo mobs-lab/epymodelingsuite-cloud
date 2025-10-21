@@ -1,18 +1,14 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
     args:
-      - 'build'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
-      - '--build-arg'
-      - 'GITHUB_MODELING_SUITE_REPO=${_GITHUB_MODELING_SUITE_REPO}'
-      - '--build-arg'
-      - 'GITHUB_MODELING_SUITE_REF=${_GITHUB_MODELING_SUITE_REF}'
-      - '--build-arg'
-      - 'GITHUB_PAT=$$GITHUB_PAT'
-      - '-f'
-      - 'docker/Dockerfile'
-      - '.'
+      - '-c'
+      - |
+        docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG} \
+          --build-arg GITHUB_MODELING_SUITE_REPO=${_GITHUB_MODELING_SUITE_REPO} \
+          --build-arg GITHUB_MODELING_SUITE_REF=${_GITHUB_MODELING_SUITE_REF} \
+          --build-arg GITHUB_PAT=$$GITHUB_PAT \
+          -f docker/Dockerfile .
     secretEnv: ['GITHUB_PAT']
 
 images:
