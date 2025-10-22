@@ -107,7 +107,7 @@ TASK_SPEC=$(cat <<EOF
       "DIR_PREFIX": "${DIR_PREFIX}",
       "EXP_ID": "${EXP_ID}",
       "RUN_ID": "${RUN_ID}",
-      "BATCH_TASK_INDEX": "${TASK_INDEX}"
+      "TASK_INDEX": "${TASK_INDEX}"
     }
   },
   "computeResource": {
