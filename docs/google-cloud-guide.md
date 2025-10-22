@@ -20,8 +20,9 @@ This document provides complete setup and implementation details for the Google 
 - [6) Docker Image](#6-docker-image)
   - [Multi-stage Build Architecture](#multi-stage-build-architecture)
   - [Build & Push](#build--push)
-  - [How flumodelingsuite is Installed](#how-flumodelingsuite-is-installed)
-  - [Local Development with Docker Compose](#local-development-with-docker-compose)
+  - [Local Execution with Docker Compose](#local-execution-with-docker-compose)
+    - [Running Locally](#running-locally)
+    - [Docker Compose Configuration](#docker-compose-configuration)
 - [7) Scripts](#7-scripts)
   - [Stage A Wrapper: scripts/run_dispatcher.sh](#stage-a-wrapper-scriptsrun_dispatchersh)
   - [Stage A: scripts/main_dispatcher.py](#stage-a-scriptsmain_dispatcherpy)
@@ -434,27 +435,32 @@ For production (cloud) and development/testing (local), all of the computation r
 ### Multi-stage build architecture
 
 The Dockerfile uses multi-stage builds with three stages:
-1. **base** - Common dependencies (Python packages, uv, scripts, git, flumodelingsuite)
-2. **local** - Minimal image for local development (base + no gcloud)
-3. **cloud** - Full image with gcloud CLI for Secret Manager access
 
-**Stage comparison:**
-- **local**: ~300-400 MB, includes Python deps, git, scripts, and flumodelingsuite
-- **cloud**: ~500-700 MB, adds gcloud CLI for Secret Manager access
+**Build stages:**
 
-Both stages include the flumodelingsuite package since it's needed for the actual modeling work.
+1. **base** - Common dependencies shared by both local and cloud images
+   - Base image: `python:3.11-slim`
+   - Installs `uv` for fast dependency management
+   - Installs `google-cloud-storage` and other Python dependencies
+   - **Clones and installs flumodelingsuite package** from private GitHub repository (if configured)
+   - Copies scripts from [scripts/](scripts/) directory
 
-### Current implementation (cloud stage)
-- Base: `python:3.11-slim`
-- Installs git and gcloud CLI for Secret Manager access
-- Uses `uv` for fast dependency management
-- Installs `google-cloud-storage` and other dependencies
-- **Clones and installs flumodelingsuite package** from private GitHub repository (if configured)
-- Copies scripts from [scripts/](scripts/) directory
-- Default entrypoint: `main_dispatcher.py` (Stage A)
+2. **local** - Minimal image for local development
+   - Builds from `base` stage
+   - Size: ~300-400 MB
+   - Includes Python deps, git, scripts, and flumodelingsuite
+   - No gcloud CLI (uses local filesystem instead of GCS)
+   - Used by Docker Compose for local testing
 
-**Current configuration:**
-- Image name: `epymodelingsuite` (configurable via `IMAGE_NAME` in [.env](.env))
+3. **cloud** - Production image for Google Cloud
+   - Builds from `base` stage
+   - Size: ~500-700 MB
+   - Adds gcloud CLI for Secret Manager access
+   - Default entrypoint: `main_dispatcher.py` (Stage A)
+   - Used by Cloud Batch jobs
+
+**Image naming:**
+- Image name: `epymodelingsuite` (configurable via `IMAGE_NAME` in `.env`)
 - Image tag: `latest` (configurable via `IMAGE_TAG`)
 - Full path: `${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/epymodelingsuite:latest`
 
@@ -488,44 +494,30 @@ gcloud builds submit --region ${REGION} --config cloudbuild.yaml
 - Required for `build-local` and `build-dev` with private repositories
 - Cloud builds use Secret Manager instead
 
-Cloud Build configuration in [cloudbuild.yaml](cloudbuild.yaml):
+**Cloud Build configuration** in [cloudbuild.yaml](cloudbuild.yaml):
 - Uses `E2_MEDIUM` machine type
 - Logs to Cloud Logging only
 - Automatically pushes to Artifact Registry
 - **Fetches GitHub PAT from Secret Manager** for private repository access
 - Passes `GITHUB_MODELING_SUITE_REPO` and `GITHUB_MODELING_SUITE_REF` as build arguments
 
-### How flumodelingsuite is installed
+**How flumodelingsuite is installed:**
 
-The [Dockerfile](docker/Dockerfile) includes logic to clone and install the flumodelingsuite package during build:
+The flumodelingsuite package is installed during the Docker build in the `base` stage. The [Dockerfile](docker/Dockerfile) clones the private repository using GitHub PAT and installs it via `uv`:
 
-```dockerfile
-ARG GITHUB_MODELING_SUITE_REPO
-ARG GITHUB_MODELING_SUITE_REF=main
-ARG GITHUB_PAT
+- Installs at **build time** (baked into the Docker image, not at runtime)
+- Uses GitHub PAT from Secret Manager (Cloud Build) or `.env.local` (local builds)
+- Supports specific branch/commit via `GITHUB_MODELING_SUITE_REF` build argument
+- Repository is cloned to `/tmp/flumodelingsuite`, installed, then removed to keep image clean
+- PAT is not persisted in image layers (security best practice)
 
-# Clone the flumodelingsuite repository and install it
-RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
-    git clone --branch ${GITHUB_MODELING_SUITE_REF} \
-        https://${GITHUB_PAT}@github.com/${GITHUB_MODELING_SUITE_REPO}.git /tmp/flumodelingsuite && \
-    cd /tmp/flumodelingsuite && \
-    uv pip install --system --no-cache . && \
-    cd /app && \
-    rm -rf /tmp/flumodelingsuite; \
-    fi
-```
+This approach ensures all containers have the same version of flumodelingsuite and eliminates runtime dependencies on GitHub.
 
-**Key features:**
-- Installs at **build time** (baked into the Docker image)
-- Uses GitHub PAT from Secret Manager (Cloud Build) or environment variable (local)
-- Supports specific branch/commit via `GITHUB_MODELING_SUITE_REF`
-- Repository is removed after installation to keep image clean
-- PAT is not persisted in image layers
+### Local execution with Docker Compose
 
+#### Running locally
 
-### Local development with Docker Compose
-
-For local development, first build the local image, then use the Makefile commands:
+For local execution, first build the local image, then use the Makefile commands:
 
 ```bash
 # Build local development image
@@ -533,19 +525,27 @@ source .env.local  # For GITHUB_PAT if using private repos
 make build-dev
 
 # Run dispatcher
-make run-dispatcher-local
+EXP_ID=test-sim make run-dispatcher-local
 
 # Run a single runner locally
-TASK_INDEX=0 make run-runner-local
+EXP_ID=test-sim TASK_INDEX=0 make run-task-local
 
 # Run multiple runners for different tasks
 for i in {0..9}; do
-  TASK_INDEX=$i make run-runner-local &
+  EXP_ID=test-sim TASK_INDEX=$i make run-task-local &
 done
 wait
 ```
 
-**Note:** Using the Makefile commands (`make run-dispatcher-local` or `make run-runner-local`) is recommended instead of running `docker compose` directly. The Makefile automatically includes the `--rm` flag to avoid orphan containers.
+**Note:** The Makefile commands wrap `docker compose` calls with additional features:
+- Automatically includes `--rm` flag to remove containers after execution (prevents orphaned containers)
+- Validates required environment variables (e.g., `EXP_ID`)
+- Passes environment variables to docker compose: `EXP_ID`, `RUN_ID`, `TASK_INDEX`
+- Provides helpful output messages showing where files are read/written
+
+**What the Makefile does:**
+- `make run-dispatcher-local` → runs `docker compose run --rm dispatcher` with `EXP_ID` and `RUN_ID`
+- `make run-task-local` → runs `docker compose run --rm runner` with `EXP_ID`, `RUN_ID`, and `TASK_INDEX`
 
 **Alternative (NOT recommended): Direct docker compose commands**
 ```bash
@@ -554,23 +554,38 @@ docker compose run --rm dispatcher
 TASK_INDEX=0 docker compose run --rm runner
 ```
 
-The Docker Compose setup:
-- Uses the `local` build target (smaller, no gcloud)
-- Mounts `./local/bucket` to `/data/bucket` for GCS bucket simulation
-- Mounts `./local/forecast` to `/data/forecast` for forecast data
-- Loads additional config from `.env.local` (optional)
-- Sets `EXECUTION_MODE=local` automatically (requires storage abstraction layer - see [local-docker-design.md](local-docker-design.md))
+#### Docker Compose configuration
+
+The Docker Compose setup (defined in [docker-compose.yml](../docker-compose.yml)):
+
+**Volume bindings:**
+- Mounts `./local` (host) to `/data` (container)
+  - `./local/bucket/` → `/data/bucket/` - Simulates GCS bucket for inputs/outputs
+  - `./local/forecast/` → `/data/forecast/` - Forecast repository data (alternative to git clone)
+
+**Configuration:**
+- Uses the `local` build target (smaller image, no gcloud CLI)
+- Loads environment variables from `.env.local` (optional, for GitHub PAT)
+- Sets `EXECUTION_MODE=local` automatically (enables local filesystem instead of GCS)
+- Environment variables: `EXP_ID`, `RUN_ID`, `TASK_INDEX`
+
+**Services:**
+- **dispatcher** - Runs `run_dispatcher.sh` to generate input files
+- **runner** - Runs `main_runner.py` to process individual tasks
 
 **Local directory structure:**
 ```
-./local/
-  bucket/           # Simulates GCS bucket (inputs/outputs)
+./local/                    # Host directory (mounted as /data in container)
+  bucket/                   # → /data/bucket/ (simulates GCS bucket)
     {exp_id}/
       {run_id}/
-        inputs/     # Generated input files
-        results/    # Simulation results
-  forecast/         # Forecast repository data (alternative to git clone)
+        inputs/             # Generated input files (input_0000.pkl, ...)
+        results/            # Simulation results (result_0000.pkl, ...)
+  forecast/                 # → /data/forecast/ (forecast repository)
+    experiments/            # YAML experiment configurations
 ```
+
+The storage abstraction layer in the scripts automatically detects `EXECUTION_MODE=local` and uses `/data/bucket/` instead of `gs://bucket-name/`. See [local-docker-design.md](local-docker-design.md) for implementation details.
 
 
 ## 7) Scripts
