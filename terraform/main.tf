@@ -199,6 +199,7 @@ resource "google_workflows_workflow" "pipeline" {
     stage_b_cpu_milli   = var.stage_b_cpu_milli
     stage_b_memory_mib  = var.stage_b_memory_mib
     stage_b_machine_type = var.stage_b_machine_type
+    stage_b_max_run_duration = var.stage_b_max_run_duration
     task_count_per_node = var.task_count_per_node
   })
 

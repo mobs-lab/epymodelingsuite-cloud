@@ -75,6 +75,12 @@ variable "stage_b_machine_type" {
   description = "Machine type for Stage B (optional, e.g., 'n2-standard-4'). Empty string = auto-select"
 }
 
+variable "stage_b_max_run_duration" {
+  type        = number
+  default     = 36000
+  description = "Maximum runtime for Stage B tasks in seconds (default: 36000s = 10 hours)"
+}
+
 variable "task_count_per_node" {
   type        = number
   default     = 1
