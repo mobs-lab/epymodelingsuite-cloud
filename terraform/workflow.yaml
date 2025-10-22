@@ -96,15 +96,14 @@ main:
               %{~ if stage_a_machine_type != "" ~}
               instances:
                 - %{~ if length(regexall("^c4d-", stage_a_machine_type)) > 0 ~}
-                  # C4D machine types require pd-ssd or pd-extreme boot disks
+                  # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
                   installGpuDrivers: false
                   policy:
                     machineType: $${machineTypeA}
                     provisioningModel: STANDARD
-                  disks:
-                    - newDisk:
-                        type: pd-ssd
-                        sizeGb: 50
+                    bootDisk:
+                      type: hyperdisk-balanced
+                      sizeGb: 50
                   %{~ else ~}
                   policy:
                     machineType: $${machineTypeA}
@@ -197,15 +196,15 @@ main:
               %{~ if stage_b_machine_type != "" ~}
               instances:
                 - %{~ if length(regexall("^c4d-", stage_b_machine_type)) > 0 ~}
-                  # C4D machine types require pd-ssd or pd-extreme boot disks
+                  # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
+                  # C4D does NOT support regular Persistent Disks (pd-ssd, pd-balanced, etc.)
                   installGpuDrivers: false
                   policy:
                     machineType: $${machineTypeB}
                     provisioningModel: STANDARD
-                  disks:
-                    - newDisk:
-                        type: pd-ssd
-                        sizeGb: 50
+                    bootDisk:
+                      type: hyperdisk-balanced
+                      sizeGb: 50
                   %{~ else ~}
                   policy:
                     machineType: $${machineTypeB}
