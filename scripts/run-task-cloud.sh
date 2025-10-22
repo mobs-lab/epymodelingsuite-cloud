@@ -21,6 +21,7 @@
 #   - STAGE_B_CPU_MILLI: CPU in milli-cores (default: 2000)
 #   - STAGE_B_MEMORY_MIB: Memory in MiB (default: 8192)
 #   - STAGE_B_MACHINE_TYPE: Machine type (default: "")
+#   - STAGE_B_MAX_RUN_DURATION: Maximum task duration in seconds (default: 36000)
 
 set -euo pipefail
 
@@ -42,6 +43,7 @@ DIR_PREFIX="${DIR_PREFIX:-}"
 STAGE_B_CPU_MILLI="${STAGE_B_CPU_MILLI:-2000}"
 STAGE_B_MEMORY_MIB="${STAGE_B_MEMORY_MIB:-8192}"
 STAGE_B_MACHINE_TYPE="${STAGE_B_MACHINE_TYPE:-}"
+STAGE_B_MAX_RUN_DURATION="${STAGE_B_MAX_RUN_DURATION:-36000}"
 
 # Construct image URI
 IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:${IMAGE_TAG}"
@@ -112,7 +114,7 @@ TASK_SPEC=$(cat <<EOF
     "cpuMilli": ${STAGE_B_CPU_MILLI},
     "memoryMib": ${STAGE_B_MEMORY_MIB}
   },
-  "maxRunDuration": "14400s"
+  "maxRunDuration": "${STAGE_B_MAX_RUN_DURATION}s"
 }
 EOF
 )

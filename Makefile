@@ -26,6 +26,7 @@ STAGE_A_MACHINE_TYPE ?=
 STAGE_B_CPU_MILLI ?= 2000
 STAGE_B_MEMORY_MIB ?= 8192
 STAGE_B_MACHINE_TYPE ?=
+STAGE_B_MAX_RUN_DURATION ?= 36000
 TASK_COUNT_PER_NODE ?= 1
 
 # Local execution parameters
@@ -72,6 +73,7 @@ help:
 	@echo "  STAGE_B_CPU_MILLI       - Stage B CPU in milli-cores (current: $(STAGE_B_CPU_MILLI))"
 	@echo "  STAGE_B_MEMORY_MIB      - Stage B memory in MiB (current: $(STAGE_B_MEMORY_MIB))"
 	@echo "  STAGE_B_MACHINE_TYPE    - Stage B machine type (current: $(STAGE_B_MACHINE_TYPE))"
+	@echo "  STAGE_B_MAX_RUN_DURATION - Stage B max duration in seconds (current: $(STAGE_B_MAX_RUN_DURATION))"
 	@echo "  TASK_COUNT_PER_NODE     - Max tasks per VM (current: $(TASK_COUNT_PER_NODE))"
 
 build:
@@ -211,6 +213,7 @@ tf-plan:
 	  -var="stage_b_cpu_milli=$(STAGE_B_CPU_MILLI)" \
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
+	  -var="stage_b_max_run_duration=$(STAGE_B_MAX_RUN_DURATION)" \
 	  -var="task_count_per_node=$(TASK_COUNT_PER_NODE)"
 
 tf-apply:
@@ -229,6 +232,7 @@ tf-apply:
 	  -var="stage_b_cpu_milli=$(STAGE_B_CPU_MILLI)" \
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
+	  -var="stage_b_max_run_duration=$(STAGE_B_MAX_RUN_DURATION)" \
 	  -var="task_count_per_node=$(TASK_COUNT_PER_NODE)"
 
 tf-destroy:

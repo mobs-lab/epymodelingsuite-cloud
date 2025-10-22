@@ -63,7 +63,18 @@ STAGE_A_MACHINE_TYPE=""            # VM type (empty = auto-select)
 STAGE_B_CPU_MILLI=2000             # CPU in milli-cores (2000 = 2 vCPUs)
 STAGE_B_MEMORY_MIB=4096            # Memory in MiB (4096 = 4 GB)
 STAGE_B_MACHINE_TYPE=""            # VM type (e.g., "e2-standard-2", empty = auto-select)
+STAGE_B_MAX_RUN_DURATION=36000     # Maximum task duration in seconds (36000s = 10 hours)
 ```
+
+**Timeout Configuration:**
+- `STAGE_B_MAX_RUN_DURATION`: Maximum time allowed for each Stage B task to complete
+- Default: 36000 seconds (10 hours)
+- Tasks exceeding this limit will be terminated by Google Cloud Batch
+- Adjust based on your simulation runtime requirements
+  - Short simulations (< 1 hour): 3600 seconds
+  - Medium simulations (1-5 hours): 18000 seconds (5 hours)
+  - Long simulations (5-10 hours): 36000 seconds (10 hours)
+  - Very long simulations: Increase as needed (max: 604800s = 7 days per Cloud Batch limits)
 
 **Recommended production configuration:**
 ```bash

@@ -349,11 +349,13 @@ computeResource:
 computeResource:
   cpuMilli: ${STAGE_B_CPU_MILLI}    # Default: 2000 (2 vCPUs)
   memoryMib: ${STAGE_B_MEMORY_MIB}  # Default: 4096 (4 GB RAM)
+maxRunDuration: ${STAGE_B_MAX_RUN_DURATION}s  # Default: 36000s (10 hours)
 taskCountPerNode: ${TASK_COUNT_PER_NODE}  # Default: 1 (dedicated VM per task)
 ```
 - Parallel tasks processing individual simulations
-- Configurable via `.env`: `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`, `TASK_COUNT_PER_NODE`
+- Configurable via `.env`: `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`, `STAGE_B_MAX_RUN_DURATION`, `TASK_COUNT_PER_NODE`
 - Default resources: 2 vCPUs, 4 GB RAM per task
+- Default timeout: 36000 seconds (10 hours) per task
 
 ### Tuning Compute Resources
 
@@ -382,6 +384,29 @@ export STAGE_B_CPU_MILLI=8000
 export STAGE_B_MEMORY_MIB=15360
 export STAGE_B_MACHINE_TYPE="c4d-highmem-2"
 ```
+
+**Timeout configurations:**
+
+```bash
+# Short simulations (< 1 hour)
+export STAGE_B_MAX_RUN_DURATION=3600  # 1 hour
+
+# Medium simulations (1-5 hours)
+export STAGE_B_MAX_RUN_DURATION=18000  # 5 hours
+
+# Long simulations (5-10 hours) - Default
+export STAGE_B_MAX_RUN_DURATION=36000  # 10 hours
+
+# Very long simulations (customize as needed)
+export STAGE_B_MAX_RUN_DURATION=86400  # 24 hours
+# Note: Cloud Batch max limit is 604800s (7 days)
+```
+
+**Important notes:**
+- Tasks exceeding `STAGE_B_MAX_RUN_DURATION` will be terminated by Google Cloud Batch
+- Set this value based on your longest expected simulation runtime
+- Add buffer time (e.g., if max simulation is 8 hours, set to 10 hours)
+- Monitor task completion times to optimize this setting
 
 ### Recommended Configuration: Dedicated VMs (taskCountPerNode=1)
 
