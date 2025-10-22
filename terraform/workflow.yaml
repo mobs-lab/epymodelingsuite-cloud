@@ -95,8 +95,20 @@ main:
                 email: $${batchSaEmail}
               %{~ if stage_a_machine_type != "" ~}
               instances:
-                - policy:
+                - %{~ if length(regexall("^c4d-", stage_a_machine_type)) > 0 ~}
+                  # C4D machine types require pd-ssd or pd-extreme boot disks
+                  installGpuDrivers: false
+                  policy:
                     machineType: $${machineTypeA}
+                    provisioningModel: STANDARD
+                  disks:
+                    - newDisk:
+                        type: pd-ssd
+                        sizeGb: 50
+                  %{~ else ~}
+                  policy:
+                    machineType: $${machineTypeA}
+                  %{~ endif ~}
               %{~ endif ~}
           query:
             jobId: $${"stagea-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
@@ -184,8 +196,20 @@ main:
                 email: $${batchSaEmail}
               %{~ if stage_b_machine_type != "" ~}
               instances:
-                - policy:
+                - %{~ if length(regexall("^c4d-", stage_b_machine_type)) > 0 ~}
+                  # C4D machine types require pd-ssd or pd-extreme boot disks
+                  installGpuDrivers: false
+                  policy:
                     machineType: $${machineTypeB}
+                    provisioningModel: STANDARD
+                  disks:
+                    - newDisk:
+                        type: pd-ssd
+                        sizeGb: 50
+                  %{~ else ~}
+                  policy:
+                    machineType: $${machineTypeB}
+                  %{~ endif ~}
               %{~ endif ~}
           query:
             jobId: $${"stageb-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
