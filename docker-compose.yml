@@ -1,5 +1,5 @@
 services:
-  dispatcher:
+  builder:
     image: epymodelingsuite:local
     build:
       context: .
@@ -13,8 +13,8 @@ services:
       - EXECUTION_MODE=local
       - EXP_ID=${EXP_ID}
       - RUN_ID=${RUN_ID}
-    entrypoint: ["/bin/bash", "/scripts/run_dispatcher.sh"]
-    # Default args (can be overridden with: docker compose run dispatcher --myarg foo)
+    entrypoint: ["/bin/bash", "/scripts/run_builder.sh"]
+    # Default args (can be overridden with: docker compose run builder --myarg foo)
     command: []
 
   runner:

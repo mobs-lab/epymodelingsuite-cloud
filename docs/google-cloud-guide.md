@@ -24,8 +24,8 @@ This document provides complete setup and implementation details for the Google 
     - [Running Locally](#running-locally)
     - [Docker Compose Configuration](#docker-compose-configuration)
 - [7) Scripts](#7-scripts)
-  - [Stage A Wrapper: scripts/run_dispatcher.sh](#stage-a-wrapper-scriptsrun_dispatchersh)
-  - [Stage A: scripts/main_dispatcher.py](#stage-a-scriptsmain_dispatcherpy)
+  - [Stage A Wrapper: scripts/run_builder.sh](#stage-a-wrapper-scriptsrun_dispatchersh)
+  - [Stage A: scripts/main_builder.py](#stage-a-scriptsmain_dispatcherpy)
   - [Stage B: scripts/main_runner.py](#stage-b-scriptsmain_runnerpy)
 - [8) Monitoring and Resource Groups](#8-monitoring-and-resource-groups)
   - [Label Structure](#label-structure)
@@ -91,8 +91,8 @@ The pipeline is consisted from following tech stacks/components:
   * Workflows (deployed from YAML)
 * **Container image** (Dockerfile + requirements) with both Stage A / Stage B entrypoints
 * **Scripts**:
-  * `run_dispatcher.sh` (Setups and runs stage A).
-  * `main_dispatcher.py` (Stage A: produce N pickled inputs)
+  * `run_builder.sh` (Setups and runs stage A).
+  * `main_builder.py` (Stage A: produce N pickled inputs)
   * `main_runner.py` (Stage B: consume one pickle per task using `BATCH_TASK_INDEX`)
 * **Workflow YAML**:
   * Orchestrates: Stage A → wait → list GCS → Stage B (`taskCount=N`) → wait
@@ -113,7 +113,7 @@ epymodelingsuite-cloud/
 │  ├─ Dockerfile
 │  └─ requirements.txt
 ├─ scripts/
-│  ├─ main_dispatcher.py         # Stage A: Generate N input files
+│  ├─ main_builder.py         # Stage A: Generate N input files
 │  └─ main_runner.py             # Stage B: Process individual tasks
 ├─ jobs/                         # Manual job templates for testing/debugging
 │  ├─ stage-a.json
@@ -271,7 +271,7 @@ We use Terraform to manage core cloud resources and workflow. See full implement
 See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 
 **Orchestration flow:**
-1. **Stage A (Generator)**: Single Batch job that runs `main_dispatcher.py` to generate N input files
+1. **Stage A (Generator)**: Single Batch job that runs `main_builder.py` to generate N input files
 2. **List inputs**: Counts generated files in GCS
 3. **Stage B (Runner)**: Parallel Batch jobs (N tasks) running `main_runner.py`, each processing one input
 4. **Wait helper**: Polls Batch job status until completion
@@ -280,7 +280,7 @@ See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 - Takes runtime parameters: `count`, `seed`, `bucket`, `dirPrefix`, `exp_id`, `batchSaEmail`, `githubForecastRepo`, `maxParallelism` (optional, default: 100)
 - Auto-generates `run_id` from workflow execution ID for unique identification
 - Constructs paths: `{dirPrefix}{exp_id}/{run_id}/inputs/` and `/results/`
-- Stage A: 2 CPU, 4 GB RAM, includes repo cloning via [run_dispatcher.sh](scripts/run_dispatcher.sh)
+- Stage A: 2 CPU, 4 GB RAM, includes repo cloning via [run_builder.sh](scripts/run_builder.sh)
 - Stage B: 2 CPU, 8 GB RAM, configurable parallelism (default: 100, max: 5000 per Cloud Batch limits)
 - GitHub authentication via PAT from Secret Manager
 - Logs to Cloud Logging
@@ -456,7 +456,7 @@ The Dockerfile uses multi-stage builds with three stages:
    - Builds from `base` stage
    - Size: ~500-700 MB
    - Adds gcloud CLI for Secret Manager access
-   - Default entrypoint: `main_dispatcher.py` (Stage A)
+   - Default entrypoint: `main_builder.py` (Stage A)
    - Used by Cloud Batch jobs
 
 **Image naming:**
@@ -524,8 +524,8 @@ For local execution, first build the local image, then use the Makefile commands
 source .env.local  # For GITHUB_PAT if using private repos
 make build-dev
 
-# Run dispatcher
-EXP_ID=test-sim make run-dispatcher-local
+# Run builder
+EXP_ID=test-sim make run-builder-local
 
 # Run a single runner locally
 EXP_ID=test-sim TASK_INDEX=0 make run-task-local
@@ -544,7 +544,7 @@ wait
 - Provides helpful output messages showing where files are read/written
 
 **What the Makefile does:**
-- `make run-dispatcher-local` → runs `docker compose run --rm dispatcher` with `EXP_ID` and `RUN_ID`
+- `make run-builder-local` → runs `docker compose run --rm dispatcher` with `EXP_ID` and `RUN_ID`
 - `make run-task-local` → runs `docker compose run --rm runner` with `EXP_ID`, `RUN_ID`, and `TASK_INDEX`
 
 **Alternative (NOT recommended): Direct docker compose commands**
@@ -570,7 +570,7 @@ The Docker Compose setup (defined in [docker-compose.yml](../docker-compose.yml)
 - Environment variables: `EXP_ID`, `RUN_ID`, `TASK_INDEX`
 
 **Services:**
-- **dispatcher** - Runs `run_dispatcher.sh` to generate input files
+- **dispatcher** - Runs `run_builder.sh` to generate input files
 - **runner** - Runs `main_runner.py` to process individual tasks
 
 **Local directory structure:**
@@ -590,7 +590,7 @@ The storage abstraction layer in the scripts automatically detects `EXECUTION_MO
 
 ## 7) Scripts
 
-### Stage A Wrapper: [scripts/run_dispatcher.sh](scripts/run_dispatcher.sh)
+### Stage A Wrapper: [scripts/run_builder.sh](scripts/run_builder.sh)
 
 Shell wrapper that handles forecast repository setup before running the dispatcher.
 
@@ -609,7 +609,7 @@ Shell wrapper that handles forecast repository setup before running the dispatch
 - `FORECAST_REPO_REF` - Optional branch/tag to checkout (cloud mode only)
 
 
-### Stage A: [scripts/main_dispatcher.py](scripts/main_dispatcher.py)
+### Stage A: [scripts/main_builder.py](scripts/main_builder.py)
 
 Generates input files based on configuration and uploads them to GCS.
 
@@ -622,7 +622,7 @@ Generates input files based on configuration and uploads them to GCS.
 
 **Usage:**
 ```bash
-python main_dispatcher.py
+python main_builder.py
 ```
 
 ### Stage B: [scripts/main_runner.py](scripts/main_runner.py)
@@ -661,7 +661,7 @@ All resources use a consistent labeling scheme:
 
 After running `make tf-apply`, three Cloud Monitoring dashboards are automatically created:
 
-1. **Builder Dashboard** - Monitors Stage A (dispatcher) CPU/memory usage
+1. **Builder Dashboard** - Monitors Stage A (builder) CPU/memory usage
    - Filter: `component=epymodelingsuite AND stage=builder`
    - Metrics: CPU %, Memory %, Memory MiB, CPU cores
 
@@ -720,7 +720,7 @@ make build-dev      # Build for local development
 EXP_ID=my-exp make run-workflow  # Run on cloud
 
 # Local development
-make run-dispatcher-local        # Run dispatcher locally
+make run-builder-local        # Run builder locally
 make run-task-local              # Run single task locally
 
 # Other

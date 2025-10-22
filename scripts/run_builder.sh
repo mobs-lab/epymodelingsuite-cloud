@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Shell wrapper for main_dispatcher.py
-# Handles cloning private GitHub forecast repo before running the dispatcher (cloud mode only)
+# Shell wrapper for main_builder.py
+# Handles cloning private GitHub forecast repo before running the builder (cloud mode only)
 
 # Environment detection
 EXECUTION_MODE="${EXECUTION_MODE:-cloud}"
@@ -13,7 +13,7 @@ FORECAST_REPO_DIR="${FORECAST_REPO_DIR:-/data/forecast/}"
 SECRET_NAME="${GITHUB_PAT_SECRET:-github-pat}"
 PROJECT_ID="${GCLOUD_PROJECT_ID:-}"
 
-echo "=== Starting dispatcher wrapper (mode: ${EXECUTION_MODE}) ==="
+echo "=== Starting builder wrapper (mode: ${EXECUTION_MODE}) ==="
 
 # Function to setup GitHub authentication (cloud mode only)
 setup_github_auth() {
@@ -111,11 +111,11 @@ main() {
         fi
     fi
 
-    # Run the main dispatcher with all arguments
-    echo "Running main_dispatcher.py..."
-    python3 -u "$(dirname "$0")/main_dispatcher.py" "$@"
+    # Run the main builder with all arguments
+    echo "Running main_builder.py..."
+    python3 -u "$(dirname "$0")/main_builder.py" "$@"
 
-    echo "=== Dispatcher complete ==="
+    echo "=== Builder complete ==="
 }
 
 # Run main function

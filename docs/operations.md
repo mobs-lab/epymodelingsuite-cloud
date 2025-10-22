@@ -71,7 +71,7 @@ gcloud workflows executions list epydemix-pipeline --location=$REGION
 # 1. Test pipeline locally with Docker Compose
 source .env.local  # For GitHub PAT
 make build-dev
-EXP_ID=test-sim make run-dispatcher-local
+EXP_ID=test-sim make run-builder-local
 EXP_ID=test-sim TASK_INDEX=0 make run-task-local
 ```
 
@@ -149,7 +149,7 @@ EXP_ID=my-experiment make run-workflow
 
 # The workflow will:
 # 1. Generate a unique RUN_ID automatically
-# 2. Run Stage A (dispatcher) to create input files
+# 2. Run Stage A (builder) to create input files
 # 3. Run Stage B (runners) in parallel
 # 4. Store results in: gs://{bucket}/{DIR_PREFIX}{EXP_ID}/{RUN_ID}/
 ```
@@ -179,10 +179,10 @@ source .env
 source .env.local  # For GITHUB_PAT
 
 # Only needed for the first time or when epymodelingsuite needs update
-make build-dev 
+make build-dev
 
-# 2. Run dispatcher
-EXP_ID=test-sim make run-dispatcher-local
+# 2. Run builder
+EXP_ID=test-sim make run-builder-local
 
 # 3a. Run individual tasks
 EXP_ID=test-sim TASK_INDEX=0 make run-task-local
@@ -302,7 +302,7 @@ gcloud logging tail "resource.type=batch.googleapis.com/Job"
 Access monitoring dashboards from [here](https://console.cloud.google.com/monitoring/dashboards).
 
 Three dashboards are available:
-- **Builder Dashboard** - Stage A (dispatcher) metrics
+- **Builder Dashboard** - Stage A (builder) metrics
 - **Runner Dashboard** - Stage B (parallel runners) metrics
 - **Overall System Dashboard** - Combined metrics across all stages
 

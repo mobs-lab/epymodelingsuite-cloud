@@ -1,4 +1,4 @@
-.PHONY: build build-local build-dev run-dispatcher-local run-task-local run-task-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
+.PHONY: build build-local build-dev run-builder-local run-task-local run-task-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
 
 # Default values - override with environment variables
 PROJECT_ID ?= your-project
@@ -16,7 +16,7 @@ IMAGE := $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPO_NAME)/$(IMAGE_NAME):$(IMA
 DIR_PREFIX ?= pipeline/flu/
 MAX_PARALLELISM ?= 100
 # EXP_ID is required - no default value. Set via environment or command line.
-# Example: EXP_ID=my-experiment make run-dispatcher-local
+# Example: EXP_ID=my-experiment make run-builder-local
 # RUN_ID is optional - auto-generated if not provided
 
 # Batch machine configuration
@@ -38,18 +38,18 @@ CACHE_FLAG := $(if $(filter true,$(DISABLE_CACHE)),--no-cache,)
 
 help:
 	@echo "Available targets:"
-	@echo "  build                - Build and push cloud image using Cloud Build (recommended)"
-	@echo "  build-local          - Build cloud image locally and push to Artifact Registry"
-	@echo "  build-dev            - Build local development image (no push, for docker-compose)"
-	@echo "  run-dispatcher-local - Run dispatcher locally with docker-compose"
-	@echo "  run-task-local       - Run a single task locally with docker-compose"
-	@echo "  run-task-cloud       - Run a single task on Google Cloud Batch"
-	@echo "  tf-init              - Initialize Terraform"
-	@echo "  tf-plan              - Run Terraform plan"
-	@echo "  tf-apply             - Apply Terraform configuration"
-	@echo "  tf-destroy           - Destroy Terraform resources"
-	@echo "  run-workflow         - Execute the workflow on Google Cloud"
-	@echo "  clean                - Clean local artifacts"
+	@echo "  build              - Build and push cloud image using Cloud Build (recommended)"
+	@echo "  build-local        - Build cloud image locally and push to Artifact Registry"
+	@echo "  build-dev          - Build local development image (no push, for docker-compose)"
+	@echo "  run-builder-local  - Run builder locally with docker-compose"
+	@echo "  run-task-local     - Run a single task locally with docker-compose"
+	@echo "  run-task-cloud     - Run a single task on Google Cloud Batch"
+	@echo "  tf-init            - Initialize Terraform"
+	@echo "  tf-plan            - Run Terraform plan"
+	@echo "  tf-apply           - Apply Terraform configuration"
+	@echo "  tf-destroy         - Destroy Terraform resources"
+	@echo "  run-workflow       - Execute the workflow on Google Cloud"
+	@echo "  clean              - Clean local artifacts"
 	@echo ""
 	@echo "Environment variables:"
 	@echo "  REGION                  - GCP region (current: $(REGION))"
@@ -127,13 +127,13 @@ build-dev:
 			-f docker/Dockerfile .; \
 	fi
 	@echo "✓ Local image built: $(IMAGE_NAME):local"
-	@echo "  Use with: make run-dispatcher-local or make run-runner-local"
+	@echo "  Use with: make run-builder-local or make run-runner-local"
 
-run-dispatcher-local:
-	@echo "Running dispatcher locally with Docker Compose..."
+run-builder-local:
+	@echo "Running builder locally with Docker Compose..."
 	@if [ -z "$(EXP_ID)" ]; then \
 		echo "ERROR: EXP_ID is required but not set."; \
-		echo "Usage: EXP_ID=your-experiment-id make run-dispatcher-local"; \
+		echo "Usage: EXP_ID=your-experiment-id make run-builder-local"; \
 		exit 1; \
 	fi
 	@echo "  Experiment ID: $(EXP_ID)"
@@ -142,9 +142,9 @@ run-dispatcher-local:
 	fi
 	@echo ""
 	@echo "Output will be in: ./local/bucket/$(EXP_ID)/<run_id>/inputs/"
-	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) docker compose run --rm dispatcher
+	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) docker compose run --rm builder
 	@echo ""
-	@echo "✓ Dispatcher complete. Check ./local/bucket/ for outputs."
+	@echo "✓ Builder complete. Check ./local/bucket/ for outputs."
 
 run-task-local:
 	@echo "Running single task locally (TASK_INDEX=$(TASK_INDEX))..."
