@@ -1,10 +1,56 @@
-# Batch + Workflows Pipeline
+# Google Cloud Guide
 
-This document includes information of the **Cloud Batch + Workflows** pipeline using Terraform, Docker images, and lightweight scripts.
+This document provides complete setup and implementation details for the Google Cloud pipeline (Cloud Batch + Workflows) using Terraform, Docker images, and lightweight scripts.
 
----
 
-## 0) Design and architecture
+## Quick Reference
+
+Here are the essential commands to setup the pipeline. Please read the full documentation before actual execution.
+
+```bash
+# 1. Set up environment variables
+cp .env.example .env
+
+# Edit .env with your project details (PROJECT_ID, REGION, BUCKET_NAME, etc.)
+source .env
+
+# 2. Create GitHub PAT and store in Secret Manager
+echo -n "your_github_pat_here" | gcloud secrets create github-pat \
+  --data-file=- \
+  --project=${PROJECT_ID}
+
+# 3. Initialize and deploy infrastructure
+make tf-init
+make tf-plan    # Review changes first
+make tf-apply
+
+# 4. Build and push Docker image
+make build
+
+# 5. Add experiment file to your forecast repository.
+
+# 6. Run your first workflow
+EXP_ID=initial-test make run-workflow
+
+# 7. Monitor execution
+gcloud workflows executions list epydemix-pipeline --location=$REGION
+
+# 8. View logs and details
+gcloud workflows executions describe <execution_id> \
+  --workflow=epydemix-pipeline --location=$REGION
+
+# View Batch job logs
+gcloud logging read "resource.type=batch.googleapis.com/Job" --limit 50
+```
+
+**Next steps:**
+- Continue reading for detailed explanations of each component
+- See [operations.md](operations.md) for daily operational commands
+- See [variable-configuration.md](variable-configuration.md) for configuration reference
+
+## Design and architecture
+
+The pipeline is consisted from following tech stacks/components:
 
 * **Infrastructure-as-code (Terraform)** for:
   * Artifact Registry (container repo)
@@ -20,7 +66,6 @@ This document includes information of the **Cloud Batch + Workflows** pipeline u
   * Orchestrates: Stage A → wait → list GCS → Stage B (`taskCount=N`) → wait
 * **Makefile (optional)**: common commands (build/push/deploy/run)
 
----
 
 ## 1) Repository structure
 
@@ -50,26 +95,18 @@ epymodelingsuite-cloud/
 └─ README.md
 ```
 
----
 
 ## 2) Prerequisites
 
-* gcloud authenticated to target project: `gcloud auth login`, `gcloud config set project <PROJECT_ID>`
-* Terraform ≥ 1.5
-* Docker
-* Python 3.11 (for local dev)
-* (Optional) `make`
-* **GitHub Fine-Grained Personal Access Token (PAT)** - required for accessing private repositories (epymodelingsuite and forecasting)
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install) authenticated to target project: `gcloud auth login`, `gcloud config set project <PROJECT_ID>`
+- [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) ≥ 1.5
+- [Docker](https://docs.docker.com/engine/install/)
+  - For Mac, [OrbStack](https://orbstack.dev/) is recommended over Docker Desktop for lightweight and faster experience.
+- Python 3.11 (for local dev)
+- Make
+- **GitHub Fine-Grained Personal Access Token (PAT)** - required for accessing private repositories (epymodelingsuite and forecasting)
 
-Installing Terraform
-```sh
-# https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
-# Mac
-brew tap hashicorp/tap
-brew install hashicorp/tap/terraform
- ```
-
-### Permissions
+### IAM Permissions
 
 To deploy and run this infrastructure, you need the following IAM permissions in addition to the Editor role (`roles/editor`):
 
@@ -131,7 +168,8 @@ export GITHUB_MODELING_SUITE_REF=main  # Branch or commit to build from
 source .env
 ```
 
-**Note**: This implementation does not make a new bucket, but rather uses an **existing GCS bucket**.
+
+**Note**: The terraform does not make a new bucket, but rather uses an **existing GCS bucket**.
 
 ### Setting up GitHub Personal Access Token
 
@@ -142,8 +180,8 @@ The pipeline requires a GitHub Fine-Grained Personal Access Token (PAT) to clone
 2. Click "Generate new token"
 3. Set appropriate name and expiration
 4. Under "Repository access", select "Only select repositories" and add:
-   - `flumodelingsuite` repository (modeling suite package)
-   - `flu-forecast-epydemix` repository (forecast data)
+   - `epymodelingsuite` repository
+   - Your forecast repository
 5. Under "Repository permissions", grant:
    - **Contents**: Read-only access
 6. Generate and copy the token
@@ -170,11 +208,10 @@ gcloud secrets describe github-pat --project=${PROJECT_ID}
 - Set an appropriate expiration date and rotate regularly
 - Single PAT provides access to multiple repositories with granular permissions
 
----
 
-## 3) Terraform (core resources)
+## 3) Terraform
 
-See full implementation in [terraform/main.tf](terraform/main.tf), [terraform/variables.tf](terraform/variables.tf), and [terraform/outputs.tf](terraform/outputs.tf).
+We use Terraform to manage core cloud resources and workflow. See full implementation in [terraform/main.tf](terraform/main.tf), [terraform/variables.tf](terraform/variables.tf), and [terraform/outputs.tf](terraform/outputs.tf).
 
 **Key resources:**
 - **APIs**: Enables `batch.googleapis.com`, `workflows.googleapis.com`, `artifactregistry.googleapis.com`, `secretmanager.googleapis.com`
@@ -196,7 +233,6 @@ See full implementation in [terraform/main.tf](terraform/main.tf), [terraform/va
 - Includes logging permissions for Batch jobs
 - GitHub PAT secret must be created manually before applying Terraform
 
----
 
 ## 4) Workflow YAML
 
@@ -219,20 +255,43 @@ See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 - Error handling for failed/deleted jobs
 - Returns job names and task count
 
----
-
 ## 5) Compute Resources and Instance Types
 
-### Understanding cpuMilli
+### Understanding cpuMilli, memoryMib, and Machine Types
 
-In Google Cloud Batch, compute resources are specified using `cpuMilli` and `memoryMib` rather than predefined instance types (which are also available as options).
+Google Cloud Batch allows you to specify compute resources in two ways:
+
+**Option 1: Automatic VM selection (recommended for getting started)**
+- Set `cpuMilli` and `memoryMib` to define task requirements
+- Leave `STAGE_B_MACHINE_TYPE=""` (empty)
+- Google Cloud **automatically selects** an appropriate VM type
+- Example: `cpuMilli=2000, memoryMib=4096` → Google may provision `e2-standard-2` (2 vCPU, 8 GB)
+
+**Option 2: Explicit machine type (recommended for production)**
+- Set `STAGE_B_MACHINE_TYPE="e2-standard-2"`
+- `cpuMilli` and `memoryMib` become **task constraints** (must fit within the VM)
+- Ensures predictable VM provisioning and scaling behavior
+- Better for avoiding task queueing with `TASK_COUNT_PER_NODE=1`
 
 **cpuMilli** represents thousandths of a vCPU:
 - `1000 cpuMilli = 1 vCPU`
 - `2000 cpuMilli = 2 vCPUs`
-- `500 cpuMilli = 0.5 vCPU`
+- `4000 cpuMilli = 4 vCPUs`
 
-Google Cloud automatically provisions the appropriate machine type based on your resource requirements. You can optionally specify instances types. See [documentation](https://cloud.google.com/batch/docs/create-run-job#resources) for details.
+**Important relationship:**
+```
+If STAGE_B_MACHINE_TYPE is set:
+  - cpuMilli/memoryMib = task requirements (must fit in VM)
+  - Machine type determines actual VM resources
+  - Example: e2-standard-2 (2 vCPU, 8 GB) with cpuMilli=2000 → 1 task per VM
+
+If STAGE_B_MACHINE_TYPE is empty:
+  - cpuMilli/memoryMib = basis for automatic VM selection
+  - Google chooses VM type that fits requirements
+  - Less predictable scaling behavior
+```
+
+See [Google Cloud Batch documentation](https://cloud.google.com/batch/docs/create-run-job#resources) for details.
 
 ### Current Resource Allocation
 
@@ -243,71 +302,105 @@ machineType: E2_MEDIUM
 - [Predefined instance type](https://cloud.google.com/build/pricing?hl=en) for build operations. Note that the only options for CloudBuild are `e2-medium`, `e2-standard-2`, `e2-highcpu-8`, and `e2-highcpu-32`. See documentation for details.
 - `e2-medium`: 1 vCPU, 4 GB RAM
 
-**Stage A Job (Generator)** - [terraform/workflow.yaml:66-68](../terraform/workflow.yaml#L66-L68)
+**Stage A Job (Generator)**
 ```yaml
 computeResource:
-  cpuMilli: 2000    # 2 vCPUs
-  memoryMib: 4096   # 4 GB RAM
+  cpuMilli: ${STAGE_A_CPU_MILLI}    # Default: 2000 (2 vCPUs)
+  memoryMib: ${STAGE_A_MEMORY_MIB}  # Default: 4096 (4 GB RAM)
 ```
 - Single task that generates input files
-- Resources allocated: 2 vCPUs, 4 GB RAM
+- Configurable via `.env`: `STAGE_A_CPU_MILLI`, `STAGE_A_MEMORY_MIB`, `STAGE_A_MACHINE_TYPE`
+- Default resources: 2 vCPUs, 4 GB RAM
 
-**Stage B Job (Runner)** - [terraform/workflow.yaml:139-141](../terraform/workflow.yaml#L139-L141)
+**Stage B Job (Runner)**
 ```yaml
 computeResource:
-  cpuMilli: 2000    # 2 vCPUs
-  memoryMib: 8192   # 8 GB RAM
+  cpuMilli: ${STAGE_B_CPU_MILLI}    # Default: 2000 (2 vCPUs)
+  memoryMib: ${STAGE_B_MEMORY_MIB}  # Default: 4096 (4 GB RAM)
+taskCountPerNode: ${TASK_COUNT_PER_NODE}  # Default: 1 (dedicated VM per task)
 ```
 - Parallel tasks processing individual simulations
-- Resources allocated: 2 vCPUs, 8 GB RAM per task
-- Higher memory allocation for simulation workload
+- Configurable via `.env`: `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`, `TASK_COUNT_PER_NODE`
+- Default resources: 2 vCPUs, 4 GB RAM per task
 
 ### Tuning Compute Resources
 
-To adjust resources for your workload, edit [terraform/workflow.yaml](../terraform/workflow.yaml):
+Resources are now **configurable via environment variables** in `.env`:
 
 **Example configurations:**
-```yaml
-# Lightweight tasks
-computeResource:
-  cpuMilli: 1000    # 1 vCPU
-  memoryMib: 2048   # 2 GB
 
-# Standard tasks (current)
-computeResource:
-  cpuMilli: 2000    # 2 vCPUs
-  memoryMib: 8192   # 8 GB
+```bash
+# Lightweight tasks (1 vCPU, 2 GB)
+export STAGE_B_CPU_MILLI=1000
+export STAGE_B_MEMORY_MIB=2048
+export STAGE_B_MACHINE_TYPE=""  # Auto-select
 
-# Compute-intensive tasks
-computeResource:
-  cpuMilli: 4000    # 4 vCPUs
-  memoryMib: 16384  # 16 GB
+# Standard tasks (2 vCPUs, 8 GB) - Default
+export STAGE_B_CPU_MILLI=2000
+export STAGE_B_MEMORY_MIB=8192
+export STAGE_B_MACHINE_TYPE="e2-standard-2"
 
-# High-memory tasks
-computeResource:
-  cpuMilli: 8000    # 8 vCPUs
-  memoryMib: 32768  # 32 GB
+# Compute-intensive tasks (2 vCPUs, 7 GB)
+export STAGE_B_CPU_MILLI=2000
+export STAGE_B_MEMORY_MIB=7168
+export STAGE_B_MACHINE_TYPE="c4d-standard-2"
+
+# High-memory tasks (2 vCPUs, 15 GB)
+export STAGE_B_CPU_MILLI=8000
+export STAGE_B_MEMORY_MIB=15360
+export STAGE_B_MACHINE_TYPE="c4d-highmem-2"
 ```
 
-**Important notes:**
-- Resource limits depend on your project's regional quotas
-- Higher resources = higher costs per task
-- Monitor actual resource usage with Cloud Logging to optimize allocation
-- Google Cloud Batch supports up to 32 vCPUs and 128 GB per task
+### Recommended Configuration: Dedicated VMs (taskCountPerNode=1)
+
+For parallel execution with no task queueing, use **one task per VM**:
+
+```bash
+# Recommended configuration in .env
+export TASK_COUNT_PER_NODE=1
+export STAGE_B_CPU_MILLI=2000
+export STAGE_B_MEMORY_MIB=8192
+export STAGE_B_MACHINE_TYPE="e2-standard-2"  # Explicit type for predictable scaling
+```
+
+**Benefits:**
+- **No queueing**: Each task gets its own VM immediately
+- **Efficient resource usage**: VMs terminate when tasks finish
+- **Cost-effective for variable runtimes**: Pay only for actual task duration
+- **Predictable scaling**: With explicit machine type, Batch provisions expected number of VMs
+
+**How it works:**
+```
+With TASK_COUNT_PER_NODE=1:
+  - Google Cloud Batch creates up to N VMs for N tasks
+  - Each VM runs exactly 1 task then terminates
+  - If machine type is set, VM creation is predictable
+  - If machine type is empty, Batch may create fewer VMs (hitting quota/availability limits)
+```
+
+**Production recommendations:**
+1. **Set explicit `STAGE_B_MACHINE_TYPE`** for predictable VM provisioning
+2. **Match `STAGE_B_CPU_MILLI` to machine capacity**: `e2-standard-2` (2 vCPU) → `CPU_MILLI=2000`
+3. **Set `TASK_COUNT_PER_NODE=1`** for parallel execution with variable task runtimes
+4. **Monitor first run** in Cloud Console to verify expected number of VMs are created
+
+**Common machine types:**
+- `e2-standard-2` (2 vCPU, 8 GB) → Set `CPU_MILLI=2000`, `MEMORY_MIB=8192`
+- `c4d-standard-2` (2 vCPU, 8 GB, newer) → Set `CPU_MILLI=2000`, `MEMORY_MIB=7168`
 
 **After modifying resources:**
 ```bash
+source .env
 make tf-plan    # Review changes
 make tf-apply   # Deploy updated configuration
 ```
 
----
 
 ## 6) Docker image
 
-See [docker/Dockerfile](docker/Dockerfile) and [docker/requirements.txt](docker/requirements.txt).
+For production (cloud) and development/testing (local), all of the computation runs on a Docker container. See [docker/Dockerfile](docker/Dockerfile) and [docker/requirements.txt](docker/requirements.txt).
 
-**Multi-stage build architecture:**
+### Multi-stage build architecture
 
 The Dockerfile uses multi-stage builds with three stages:
 1. **base** - Common dependencies (Python packages, uv, scripts, git, flumodelingsuite)
@@ -320,10 +413,10 @@ The Dockerfile uses multi-stage builds with three stages:
 
 Both stages include the flumodelingsuite package since it's needed for the actual modeling work.
 
-**Current implementation (cloud stage):**
+### Current implementation (cloud stage)
 - Base: `python:3.11-slim`
 - Installs git and gcloud CLI for Secret Manager access
-- Uses `uv` for fast dependency management (10-100x faster than pip)
+- Uses `uv` for fast dependency management
 - Installs `google-cloud-storage` and other dependencies
 - **Clones and installs flumodelingsuite package** from private GitHub repository (if configured)
 - Copies scripts from [scripts/](scripts/) directory
@@ -334,7 +427,7 @@ Both stages include the flumodelingsuite package since it's needed for the actua
 - Image tag: `latest` (configurable via `IMAGE_TAG`)
 - Full path: `${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/epymodelingsuite:latest`
 
-**Build & push:**
+### Build & push
 
 ```bash
 # Option 1: Cloud Build (recommended for production)
@@ -353,7 +446,7 @@ make build-dev
 gcloud builds submit --region ${REGION} --config cloudbuild.yaml
 ```
 
-**Build target comparison:**
+**Build targets:**
 - `make build` - Uses Cloud Build on GCP, builds `cloud` target, pushes to Artifact Registry
 - `make build-local` - Builds `cloud` target locally, pushes to Artifact Registry (requires auth)
 - `make build-dev` - Builds `local` target locally, tags as `epymodelingsuite:local`, no push
@@ -371,7 +464,7 @@ Cloud Build configuration in [cloudbuild.yaml](cloudbuild.yaml):
 - **Fetches GitHub PAT from Secret Manager** for private repository access
 - Passes `GITHUB_MODELING_SUITE_REPO` and `GITHUB_MODELING_SUITE_REF` as build arguments
 
-**How flumodelingsuite is installed:**
+### How flumodelingsuite is installed
 
 The [Dockerfile](docker/Dockerfile) includes logic to clone and install the flumodelingsuite package during build:
 
@@ -398,11 +491,8 @@ RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
 - Repository is removed after installation to keep image clean
 - PAT is not persisted in image layers
 
-**Two repository patterns:**
-1. **flumodelingsuite** (`GITHUB_MODELING_SUITE_REPO`) - Installed at build time inside the Docker image
-2. **flu-forecast-epydemix** (`GITHUB_FORECAST_REPO`) - Cloned at runtime by [run_dispatcher.sh](scripts/run_dispatcher.sh)
 
-**Local development with Docker Compose:**
+### Local development with Docker Compose
 
 For local development, first build the local image, then use the Makefile commands:
 
@@ -451,7 +541,6 @@ The Docker Compose setup:
   forecast/         # Forecast repository data (alternative to git clone)
 ```
 
----
 
 ## 7) Scripts
 
@@ -473,20 +562,6 @@ Shell wrapper that handles forecast repository setup before running the dispatch
 - `GITHUB_PAT_SECRET` - Secret Manager secret name (default: `github-pat`, cloud only)
 - `FORECAST_REPO_REF` - Optional branch/tag to checkout (cloud mode only)
 
-**Usage (cloud):**
-```bash
-export EXECUTION_MODE=cloud
-export GITHUB_FORECAST_REPO=owner/repo
-export GCLOUD_PROJECT_ID=your-project
-./run_dispatcher.sh
-```
-
-**Usage (local):**
-```bash
-export EXECUTION_MODE=local
-# Place forecast data in ./local/forecast/
-./run_dispatcher.sh
-```
 
 ### Stage A: [scripts/main_dispatcher.py](scripts/main_dispatcher.py)
 
@@ -518,115 +593,120 @@ Processes individual tasks in parallel using `BATCH_TASK_INDEX`.
 **Note:** `BATCH_TASK_INDEX` is automatically set by Cloud Batch (0-indexed).
 
 
----
 
-## 8) Makefile
+## 8) Monitoring and Resource Groups
 
-See full implementation in [Makefile](Makefile).
+The infrastructure uses **resource labels** to organize and monitor different stages of the pipeline. All resources are tagged with labels for easy filtering and monitoring.
 
-**Available commands:**
-- `make help` - Show all commands and current configuration
-- `make build` - Build and push with Cloud Build
-- `make build-local` - Build locally and push
-- `make tf-init` - Initialize Terraform
-- `make tf-plan` - Preview Terraform changes
-- `make tf-apply` - Apply infrastructure
-- `make tf-destroy` - Destroy all resources (5-second safety delay)
-- `make run-workflow` - Execute the pipeline
-- `make clean` - Clean local artifacts
+### Label Structure
 
-**Configuration:**
-- Reads from environment variables (source `.env` first)
-- `run-workflow` auto-retrieves Batch SA email from Terraform
+All resources use a consistent labeling scheme:
+- **`component: epymodelingsuite`** - Identifies all resources belonging to this system
+- **`stage`** - Identifies the specific phase:
+  - `imagebuild` - Cloud Build jobs that build Docker images
+  - `builder` - Stage A Batch jobs (dispatcher that generates input files)
+  - `runner` - Stage B Batch jobs (parallel simulation runners)
+- **`exp_id`** - Dynamic label for experiment ID (Batch jobs only)
+- **`run_id`** - Dynamic label for workflow execution/run ID (Batch jobs only)
+- **`environment: production`** - Environment identifier
+- **`managed-by`** - Shows which tool manages the resource (`terraform`, `cloudbuild`, `workflows`)
 
+### Monitoring Dashboards
 
-**Quick workflow:**
+After running `make tf-apply`, three Cloud Monitoring dashboards are automatically created:
+
+1. **Builder Dashboard** - Monitors Stage A (dispatcher) CPU/memory usage
+   - Filter: `component=epymodelingsuite AND stage=builder`
+   - Metrics: CPU %, Memory %, Memory MiB, CPU cores
+
+2. **Runner Dashboard** - Monitors Stage B (parallel runners) CPU/memory, parallelism
+   - Filter: `component=epymodelingsuite AND stage=runner`
+   - Metrics: CPU %, Memory %, Memory MiB, CPU cores, Active instances
+
+3. **Overall System Dashboard** - Monitors all stages combined
+   - Filter: `component=epymodelingsuite`
+   - Metrics: Aggregated CPU/memory by stage, Active instances by stage
+
+**Access dashboards:**
 ```bash
-source .env
-make tf-init
-make tf-apply
-make build
-make run-workflow
+# After terraform apply, get dashboard URLs:
+cd terraform && terraform output | grep dashboard
 ```
 
----
+Or navigate to: [Cloud Console → Monitoring → Dashboards](https://console.cloud.google.com/monitoring/dashboards)
 
-## 9) Operational notes
+### Custom Filtering
+
+You can create custom queries in Cloud Monitoring to filter by specific experiments or runs:
+
+```
+# View all resources for a specific experiment
+component=epymodelingsuite AND exp_id="experiment-01"
+
+# View specific run of an experiment
+component=epymodelingsuite AND run_id="abc123-def456"
+
+# Compare builder vs runner performance
+component=epymodelingsuite AND (stage=builder OR stage=runner)
+```
+
+
+## 9) Makefile
+
+See full implementation in [Makefile](Makefile). For detailed operational commands and workflows, see [/docs/operations.md](/docs/operations.md).
+
+
+**Quick reference:**
+
+```bash
+# Infrastructure
+make tf-init        # Initialize Terraform
+make tf-plan        # Preview changes
+make tf-apply       # Deploy infrastructure
+make tf-destroy     # Destroy resources
+
+# Build
+make build          # Cloud Build (recommended)
+make build-local    # Build locally and push
+make build-dev      # Build for local development
+
+# Execute
+EXP_ID=my-exp make run-workflow  # Run on cloud
+
+# Local development
+make run-dispatcher-local        # Run dispatcher locally
+make run-task-local              # Run single task locally
+
+# Other
+make clean          # Clean local artifacts
+make help           # Show all commands
+```
+
+
+## 10) Operational notes
 
 * **Reproducibility**: tag images with immutable digests and store a `run_metadata.json` next to outputs (image digest, args, run time, counts).
-* **Quotas**: cap `parallelism` in Workflows (default: 100, configurable via `maxParallelism` parameter, Cloud Batch supports up to 5,000 parallel tasks per job); adjust CPU/Memory per task based on your region's vCPU quota.
-* **Retries**: design `main_runner.py` to be idempotent (safe to rerun a failed task). Consider writing to a temp key then atomic rename.
+* **Quotas**:
+  - Cap `parallelism` in Workflows (default: 100, configurable via `MAX_PARALLELISM` in `.env`)
+  - Cloud Batch supports up to 5,000 parallel tasks per job
+  - Adjust CPU/Memory per task based on your region's vCPU quota
+  - **Avoid queueing**: Set explicit `STAGE_B_MACHINE_TYPE` with `TASK_COUNT_PER_NODE=1` for predictable VM provisioning
+* **VM Allocation Best Practices**:
+  - **Set `TASK_COUNT_PER_NODE=1`** for parallel execution (one task per VM)
+  - **Set explicit `STAGE_B_MACHINE_TYPE`** (e.g., "e2-standard-2") for predictable scaling
+  - **Match `STAGE_B_CPU_MILLI` to machine capacity**: `e2-standard-2` (2 vCPU) → `CPU_MILLI=2000`
+  - Monitor first job run in Cloud Console to verify expected number of VMs are created
 * **Security**:
   - Principle of least privilege (scoped IAM on bucket, read-only PAT for repos)
   - Only unpickle **trusted** data produced by Stage A
   - GitHub authentication via fine-grained PAT with minimal permissions (Contents: read)
   - **Never commit GitHub PAT** - stored in Secret Manager only
-  - `.env` and `terraform.tfvars` are gitignored
   - Rotate PAT regularly and set appropriate expiration dates
-* **Local test**: Run scripts locally by exporting environment variables:
-  ```bash
-  export BATCH_TASK_INDEX=0 GCS_BUCKET=your-bucket
-  python scripts/main_runner.py
-  ```
-* **Manual job execution**: Use templates in [jobs/](jobs/) directory for testing individual stages
-* **UV benefits**: 10-100x faster installs, better caching, smaller image layers
 
----
+## 10) Implementation Summary
 
-## 10) Quick start
-
-```bash
-# 1) Set up environment variables
-cp .env.example .env
-# Edit .env with your project details
-source .env
-
-# 2) Create GitHub PAT and store in Secret Manager
-echo -n "your_github_pat_here" | gcloud secrets create github-pat \
-  --data-file=- \
-  --project=${PROJECT_ID}
-
-# 3) Initialize and apply Terraform
-make tf-init
-make tf-plan    # Review changes first
-make tf-apply
-
-# 4) Build & push Docker image
-make build
-
-# 5) Run the workflow
-make run-workflow
-
-# 6) Monitor execution
-gcloud workflows executions list epydemix-pipeline --location=$REGION
-
-# 7) Check logs and details
-gcloud workflows executions describe <execution_id> \
-  --workflow=epydemix-pipeline --location=$REGION
-
-# View Batch job logs
-gcloud logging read "resource.type=batch.googleapis.com/Job" --limit 50
-```
-
----
-
-## 11) Implementation Summary
-
-**✅ Completed:**
-- Full Terraform infrastructure in [terraform/](terraform/)
-- Docker configuration with `uv` in [docker/](docker/)
-- **Private repository support** - flumodelingsuite installed at build time, forecast data cloned at runtime
-- Python scripts in [scripts/](scripts/)
-- Workflows orchestration in [terraform/workflow.yaml](terraform/workflow.yaml)
-- Makefile automation in [Makefile](Makefile)
-- Manual job templates in [jobs/](jobs/)
-- Environment configuration ([.env.example](.env.example), [.gitignore](.gitignore))
-- Documentation ([README.md](README.md), [docs/variable-configuration.md](docs/variable-configuration.md))
-- GitHub authentication via Secret Manager
-- Replace placeholder in [scripts/main_runner.py](scripts/main_runner.py):62 with actual epydemix model code
 
 **📝 TODO (for production use):**
-- Tune compute resources in [terraform/workflow.yaml](terraform/workflow.yaml) based on actual workload
 - Set up result aggregation/analysis scripts
 - Configure monitoring and alerting for workflow failures
 - Implement result validation and quality checks
