@@ -48,6 +48,7 @@ main:
           - cpuMilliB: ${stage_b_cpu_milli}
           - memoryMibB: ${stage_b_memory_mib}
           - machineTypeB: "${stage_b_machine_type}"
+          - taskCountPerNode: ${task_count_per_node}
 
     # ========== STAGE A: Generate Input Files ==========
     - create_stageA_job:
@@ -156,6 +157,7 @@ main:
             taskGroups:
               - taskCount: $${N}
                 parallelism: $${parallelism}
+                taskCountPerNode: $${taskCountPerNode}
                 taskSpec:
                   runnables:
                     - container:
