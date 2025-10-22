@@ -74,3 +74,9 @@ variable "stage_b_machine_type" {
   default     = ""
   description = "Machine type for Stage B (optional, e.g., 'n2-standard-4'). Empty string = auto-select"
 }
+
+variable "task_count_per_node" {
+  type        = number
+  default     = 1
+  description = "Maximum tasks per VM (1 = dedicated VM per task, 2+ = shared VMs)"
+}
