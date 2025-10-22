@@ -65,7 +65,7 @@ variable "stage_b_cpu_milli" {
 
 variable "stage_b_memory_mib" {
   type        = number
-  default     = 8192
+  default     = 4096
   description = "Memory allocation for Stage B in MiB"
 }
 
