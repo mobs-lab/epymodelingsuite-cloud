@@ -1,227 +1,189 @@
 # Variable Configuration
 
-This document explains how configuration values are managed across the project to avoid hardcoding.
+Complete reference for all configuration variables used across the project.
+
+## Overview
+
+All project-specific values are configurable via:
+- **`.env`** - Primary configuration for Makefile and runtime (gitignored)
+- **`.env.local`** - Local secrets for Docker builds (gitignored, optional)
+- **Secret Manager** - Sensitive values for cloud deployment (GitHub PAT)
+
 
 ## Environment Variables (.env)
 
-The `.env` file (gitignored) contains project-specific values used by Makefile and scripts:
+The `.env` file contains project-specific values used by Makefile and scripts.
+
+**Template:** [.env.example](.env.example)
+
+### Google Cloud Infrastructure
 
 ```bash
-# Google Cloud Infrastructure
-PROJECT_ID=your-project-id
-REGION=us-central1
-REPO_NAME=epydemix
-BUCKET_NAME=your-bucket-name
+PROJECT_ID=your-project-id         # GCP project ID
+REGION=us-central1                 # GCP region for resources
+REPO_NAME=epydemix                 # Artifact Registry repository name
+BUCKET_NAME=your-bucket-name       # GCS bucket (must exist)
+```
 
-# Docker Image
-IMAGE_NAME=epymodelingsuite
-IMAGE_TAG=latest
+### Docker Image
 
-# GitHub Private Repositories
-GITHUB_FORECAST_REPO=username/forecasting-repo
-GITHUB_MODELING_SUITE_REPO=username/modeling-suite-repo
-GITHUB_MODELING_SUITE_REF=main
+```bash
+IMAGE_NAME=epymodelingsuite        # Docker image name
+IMAGE_TAG=latest                   # Docker image tag
+```
 
-# Workflow Parameters
- 
-DIR_PREFIX=pipeline/flu/
-EXP_ID=default-sim
-MAX_PARALLELISM=100
+### GitHub Private Repositories
+
+```bash
+GITHUB_FORECAST_REPO=username/forecasting-repo              # Forecast data repo
+GITHUB_MODELING_SUITE_REPO=username/modeling-suite-repo     # Modeling suite package
+GITHUB_MODELING_SUITE_REF=main                              # Branch/commit to build
+```
+
+### Workflow Parameters
+
+```bash
+DIR_PREFIX=pipeline/flu/           # Base directory prefix in GCS
+EXP_ID=default-sim                 # Default experiment ID (override at runtime)
+MAX_PARALLELISM=100                # Max parallel tasks (default: 100, max: 5000)
+TASK_COUNT_PER_NODE=1              # Tasks per VM (1 = dedicated VMs)
+```
+
+### Batch Compute Resources - Stage A (Dispatcher)
+
+```bash
+STAGE_A_CPU_MILLI=2000             # CPU in milli-cores (2000 = 2 vCPUs)
+STAGE_A_MEMORY_MIB=4096            # Memory in MiB (4096 = 4 GB)
+STAGE_A_MACHINE_TYPE=""            # VM type (empty = auto-select)
+```
+
+### Batch Compute Resources - Stage B (Runner)
+
+```bash
+STAGE_B_CPU_MILLI=2000             # CPU in milli-cores (2000 = 2 vCPUs)
+STAGE_B_MEMORY_MIB=4096            # Memory in MiB (4096 = 4 GB)
+STAGE_B_MACHINE_TYPE=""            # VM type (e.g., "e2-standard-2", empty = auto-select)
+```
+
+**Recommended production configuration:**
+```bash
+STAGE_B_MACHINE_TYPE="e2-standard-2"  # Explicit type for predictable scaling
+TASK_COUNT_PER_NODE=1                 # One task per VM (no queueing)
+```
+
+
+## Output Structure
+
+Workflow outputs are organized in GCS as:
+
+```
+gs://{BUCKET_NAME}/{DIR_PREFIX}{EXP_ID}/{RUN_ID}/
+  inputs/input_0000.pkl, input_0001.pkl, ...
+  results/result_0000.pkl, result_0001.pkl, ...
+```
+
+**Path components:**
+- `BUCKET_NAME` - GCS bucket (from `.env`)
+- `DIR_PREFIX` - Organizational prefix (from `.env`, optional trailing slash)
+- `EXP_ID` - Experiment identifier (user provides when running workflow)
+- `RUN_ID` - Auto-generated timestamp-uuid (unique per workflow execution)
+
+
+## GitHub Authentication
+
+GitHub Personal Access Token (PAT) is required to access private repositories.
+
+**PAT requirements:**
+- Type: Fine-grained personal access token
+- Repository access: Select specific repositories (modeling suite, forecast)
+- Permissions: Contents (read-only)
+- Expiration: Set and rotate regularly
+
+See [google-cloud-guide.md](google-cloud-guide.md#setting-up-github-personal-access-token) for detailed PAT creation instructions.
+
+### Cloud Deployment (Secret Manager)
+
+For cloud builds and workflow execution, store PAT in Google Secret Manager.
+
+**Secret name:** `github-pat`
+
+**Setup:**
+```bash
+# Create secret (first time)
+echo -n "your_github_pat" | gcloud secrets create github-pat \
+  --data-file=- \
+  --project=${PROJECT_ID}
+
+# Update secret (when rotating)
+echo -n "new_github_pat" | gcloud secrets versions add github-pat \
+  --data-file=- \
+  --project=${PROJECT_ID}
+```
+
+**Usage:**
+- Cloud Build fetches PAT to install modeling suite package
+- Batch jobs fetch PAT to clone forecast repository
+- Service accounts have `secretmanager.secretAccessor` role
+
+### Local Development (.env.local)
+
+For local Docker builds (`make build-local` and `make build-dev`), use `.env.local`.
+
+**Template:** [.env.local.example](.env.local.example)
+
+**Setup:**
+```bash
+# Copy template
+cp .env.local.example .env.local
+
+# Edit .env.local and add your PAT
+# File contents:
+GITHUB_PAT=your_github_pat_here
+
+# Load variables before building
+source .env.local
 ```
 
 **Usage:**
 ```bash
-source .env
-make build
-make run-workflow
+# Build local development image
+source .env.local
+make build-dev
+
+# Build cloud image locally and push
+source .env.local
+make build-local
 ```
 
-### Output Structure
+**Security notes:**
+- `.env.local` is gitignored - never commit it
+- Only needed for local Docker builds with private repositories
+- Cloud builds use Secret Manager instead
+- PAT is passed to Docker as a build argument (not persisted in image layers)
 
-Workflow outputs are organized as:
-```
-gs://{BUCKET_NAME}/{DIR_PREFIX}/{EXP_ID}/{RUN_ID}/inputs/input_*.pkl
-gs://{BUCKET_NAME}/{DIR_PREFIX}/{EXP_ID}/{RUN_ID}/results/result_*.pkl
-```
-
-Where:
-- `DIR_PREFIX` - Organizational prefix (configurable, optional trailing slash)
-- `EXP_ID` - User-provided experiment identifier (passed to workflow)
-- `RUN_ID` - Auto-generated from workflow execution ID (unique per run)
-
-## Terraform Variables
-
-### Input Variables (terraform/variables.tf)
-- `project_id` - Google Cloud Project ID
-- `region` - Google Cloud region (default: "us-central1")
-- `repo_name` - Artifact Registry repository name (default: "epydemix")
-- `bucket_name` - GCS bucket name
-- `image_name` - Docker image name (default: "epymodelingsuite")
-- `image_tag` - Docker image tag (default: "latest")
-- `github_forecast_repo` - Private GitHub repo for forecasting (format: "username/reponame")
-
-### Configuration (terraform/terraform.tfvars)
-User-specific values (gitignored):
-```hcl
-project_id            = "your-gcp-project-id"
-region                = "us-central1"
-repo_name             = "epymodelingsuite-repo"
-bucket_name           = "your-bucket-name"
-image_name            = "epymodelingsuite"
-image_tag             = "latest"
-github_forecast_repo  = "owner/forecasting-repo"
-```
-
-### Template (terraform/terraform.tfvars.example)
-Example template (committed to git) for new users.
-
-## Workflow YAML (terraform/workflow.yaml)
-
-Uses Terraform `templatefile()` to inject variables:
-- `${repo_name}` - Artifact Registry repo name
-- `${image_name}` - Docker image name
-- `${image_tag}` - Docker image tag
-- `$${...}` - Escaped for Workflows runtime variables
-
-## Cloud Build (cloudbuild.yaml)
-
-Uses substitution variables with defaults:
-- `${_REGION}` - Region (default: "us-central1")
-- `${_REPO_NAME}` - Repo name (default: "epymodelingsuite-repo")
-- `${_IMAGE_NAME}` - Image name (default: "epymodelingsuite")
-- `${_IMAGE_TAG}` - Image tag (default: "latest")
-
-Override via Makefile:
-```bash
-make build  # Uses env vars
-```
-
-Or manually:
-```bash
-gcloud builds submit --substitutions=_REGION=us-west1,_REPO_NAME=myrepo
-```
-
-## Manual Job Templates (jobs/)
-
-Template files use environment variables:
-- `stage-a.json.template` - Stage A template
-- `stage-b.json.template` - Stage B template
-
-Generate concrete files:
-```bash
-source .env
-./jobs/generate-jobs.sh
-```
-
-**Configurable parameters in generate-jobs.sh:**
-- `TASK_COUNT` - Number of tasks (default: 10)
-- `PARALLELISM` - Maximum parallel tasks (default: 100)
-- `COUNT`, `SEED` - Stage A parameters
-- `IN_PREFIX`, `OUT_PREFIX`, `RESULTS_PREFIX` - GCS paths
-
-Generated files (gitignored):
-- `jobs/stage-a.json`
-- `jobs/stage-b.json`
-
-## Workflow Runtime Variables
-
-The workflow receives these parameters at runtime:
-
-```json
-{
-  "count": 10,
-  "seed": 1234,
-  "bucket": "bucket-name",
-  "dirPrefix": "pipeline/flu/",
-  "exp_id": "my-experiment-01",
-  "batchSaEmail": "batch-runtime@project.iam.gserviceaccount.com",
-  "githubForecastRepo": "owner/forecasting-repo",
-  "maxParallelism": 100
-}
-```
-
-**Parameter descriptions:**
-- `count` - Number of input files to generate in Stage A
-- `seed` - Random seed for reproducibility
-- `bucket` - GCS bucket name for inputs/outputs
-- `dirPrefix` - Organizational prefix (optional, adds trailing slash if missing)
-- `exp_id` - User-provided experiment identifier
-- `batchSaEmail` - Service account email for Batch jobs
-- `githubForecastRepo` - Private GitHub repository for forecasting (format: "owner/repo")
-- `maxParallelism` - **Optional** - Maximum parallel tasks in Stage B (default: 100, max: 5000 per Cloud Batch limits)
-
-The workflow then:
-1. Extracts `run_id` from the workflow execution ID (auto-generated)
-2. Normalizes `dirPrefix` (adds trailing slash if needed)
-3. Constructs paths: `{dirPrefix}{exp_id}/{run_id}/inputs/` and `/results/`
-4. Sets `parallelism = min(N, maxParallelism)` for Stage B
-5. Passes environment variables to container tasks:
-   - `EXECUTION_MODE` - "cloud" (enables cloud storage and GitHub cloning)
-   - `EXP_ID`, `RUN_ID` - Simulation and run identifiers
-   - `GITHUB_FORECAST_REPO` - Forecast repository to clone
-   - `FORECAST_REPO_DIR` - Directory to clone forecast repo to (default: `/data/forecast/`)
-   - `GITHUB_PAT_SECRET` - Secret Manager secret name for GitHub PAT
-   - `GCLOUD_PROJECT_ID` - Project ID for accessing secrets
-
-## GitHub Authentication
-
-### Secret Manager Setup
-
-The project uses Google Secret Manager to securely store the GitHub Personal Access Token (PAT):
-
-**Secret name:** `github-pat` (referenced in terraform/main.tf)
-
-**Create the secret:**
-```bash
-echo -n "your_github_pat_here" | gcloud secrets create github-pat \
-  --data-file=- \
-  --project=${PROJECT_ID}
-```
-
-**Update the secret:**
-```bash
-echo -n "new_pat_value" | gcloud secrets versions add github-pat \
-  --data-file=- \
-  --project=${PROJECT_ID}
-```
-
-### GitHub PAT Requirements
-
-The PAT must be a **fine-grained personal access token** with:
-- **Repository access**: Select specific repositories (epymodelingsuite, forecasting)
-- **Permissions**: Contents (read-only)
-- **Expiration**: Set appropriate expiration and rotate regularly
-
-### Runtime Usage
-
-During Batch job execution:
-1. `run_dispatcher.sh` fetches PAT from Secret Manager using `gcloud secrets versions access`
-2. Uses PAT to clone private repository via HTTPS: `https://oauth2:TOKEN@github.com/owner/repo.git`
-3. PAT is only in memory, never written to disk
-4. Service account (`batch-runtime`) has `roles/secretmanager.secretAccessor` permission
 
 ## Configuration Flow
 
-1. **User sets values** in `.env` (for scripts/Make) and `terraform/terraform.tfvars` (for Terraform)
-2. **User creates GitHub PAT** and stores in Secret Manager as `github-pat`
-3. **Makefile** reads `.env` and passes to:
-   - Cloud Build (via `--substitutions`)
-   - Terraform (via `-var` flags)
-   - Workflow execution (via `--data` JSON with `dirPrefix`, `exp_id`, and `githubForecastRepo`)
-4. **Terraform** uses `terraform.tfvars` and `templatefile()` to:
-   - Deploy infrastructure
-   - Create Secret Manager secret resource (shell only, value added manually)
-   - Grant service account access to secret
-   - Generate workflow YAML with correct image URI
-5. **Workflow** extracts `run_id` from execution ID and constructs full paths
-6. **Batch jobs** fetch PAT from Secret Manager at runtime to clone private repos
-7. **Job generator** reads `.env` to create manual test templates
+**Setup (one-time):**
+1. Copy `.env.example` → `.env` and configure values
+2. For local builds: Copy `.env.local.example` → `.env.local` and add GitHub PAT
+3. For cloud deployment: Create GitHub PAT and store in Secret Manager
+4. Run `make tf-init && make tf-apply` to deploy infrastructure
 
-## No Hardcoded Values
+**Cloud build and deploy:**
+1. Makefile reads `.env` variables
+2. Passes variables to Cloud Build, Terraform, and Workflow execution
+3. Terraform injects variables into workflow YAML via `templatefile()`
+4. Cloud Build fetches GitHub PAT from Secret Manager
+5. Workflow generates unique `run_id` and constructs GCS paths
 
-All project-specific values (project IDs, regions, bucket names, image names) are now configurable via:
-- `.env` for Makefile/scripts
-- `terraform.tfvars` for Terraform
-- Template files for manual jobs
+**Local build:**
+1. Load both `.env` and `.env.local`: `source .env && source .env.local`
+2. Makefile passes `GITHUB_PAT` from `.env.local` to Docker build
+3. Docker build uses PAT to clone private repositories during image build
 
-This allows the codebase to be portable across different Google Cloud projects and environments.
+**Runtime:**
+1. Batch jobs receive environment variables from workflow
+2. Jobs fetch GitHub PAT from Secret Manager to clone repositories
+3. Results stored in GCS at `{bucket}/{dirPrefix}{exp_id}/{run_id}/`
+

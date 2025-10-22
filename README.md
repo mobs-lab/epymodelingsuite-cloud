@@ -1,57 +1,26 @@
-# Epymodelingsuite Google Cloud Pipeline
+# epymodelingsuite-cloud
 
-Serverless, scalable pipeline for running parallel epydemix simulations on Google Cloud using Cloud Batch + Workflows.
+Serverless, scalable pipeline for running epydemix simulations/calibration on Google Cloud using Cloud Batch + Workflows.
 
 ## Overview
 
-This pipeline orchestrates two-stage simulation runs:
-- **Stage A**: Generate N input configurations → GCS
-- **Stage B**: Process N simulations in parallel → results to GCS
-- **Orchestration**: Workflows coordinates stages with retry logic
+This pipeline orchestrates two-stage job runs on Google Cloud with [Workflows](https://cloud.google.com/workflows):
 
-**Key benefits:** Serverless, scales to 1000s of tasks, pay-per-use, infrastructure as code.
+**Pipeline Flow:**
+- **Stage A (Dispatcher/Builder)** - Single task that generates N input configuration files → GCS
+- **Stage B (Runner)** - N parallel tasks, each processing one input file → results to GCS
+- **Orchestration** - Cloud Workflows coordinates stage transitions with automatic retry logic
+
 
 ## Quick Start
 
-For detailed setup instructions, see [/docs/google-cloud-guide.md](/docs/google-cloud-guide.md).
+**Initial Setup:**
+- See [docs/google-cloud-guide.md](docs/google-cloud-guide.md#quick-start) for complete setup instructions
+- Covers: environment configuration, GitHub PAT setup, infrastructure deployment, and first run
 
-```bash
-# 1. Set up environment
-cp .env.example .env
-# Edit .env with your project details
-source .env
-
-# For local Docker builds with private repos, set up secrets
-cp .env.local.example .env.local
-# Edit .env.local with your GitHub PAT
-source .env.local
-
-# 2. Deploy infrastructure
-make tf-init && make tf-apply
-
-# 3. Build Docker image
-make build        # Cloud build (recommended)
-# OR
-make build-local  # Build cloud image locally and push (requires .env.local with GITHUB_PAT)
-# OR
-make build-dev    # Build local dev image for Docker Compose (requires .env.local with GITHUB_PAT)
-
-# 4a. Run pipeline on Google Cloud
-make run-workflow
-
-# Or customize cloud run:
-EXP_ID=experiment-01 make run-workflow
-
-# 4b. OR run locally with Docker Compose (use Makefile commands)
-make build-dev                # Build local image first
-make run-dispatcher-local     # Run dispatcher with defaults
-make run-runner-local         # Run runner for single task (TASK_INDEX=0)
-
-# Or customize local run:
-EXP_ID=experiment-01 TASK_INDEX=5 make run-dispatcher-local
-
-```
-
+**Routine Operations:**
+- See [docs/operations.md](docs/operations.md) for running workflows, monitoring, and troubleshooting
+- Quick commands for building, deploying, and running experiments
 
 
 ## Glossary
@@ -161,10 +130,19 @@ Understanding the key concepts and terminology used throughout this pipeline:
 
 ## Key Files & Documentation
 
-- **[/docs/google-cloud-guide.md](/docs/google-cloud-guide.md)** - Complete implementation guide
+**Documentation:**
+- **[/docs/google-cloud-guide.md](/docs/google-cloud-guide.md)** - Setup and detailed implementation guide
+- **[/docs/operations.md](/docs/operations.md)** - Operational commands and common workflows
+- **[/docs/variable-configuration.md](/docs/variable-configuration.md)** - Environment variable reference
+- **[/docs/local-docker-design.md](/docs/local-docker-design.md)** - Local execution design
+
+**Infrastructure:**
 - **[terraform/](terraform/)** - Infrastructure as code
   - [main.tf](terraform/main.tf) - Google Cloud resources
   - [workflow.yaml](terraform/workflow.yaml) - Orchestration logic
+- **[Makefile](Makefile)** - Build/deploy automation
+
+**Application:**
 - **[scripts/](scripts/)** - Application code
   - [main_dispatcher.py](scripts/main_dispatcher.py) - Stage A generator
   - [main_runner.py](scripts/main_runner.py) - Stage B runner
@@ -172,71 +150,21 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - **[docker/](docker/)** - Container config
   - [Dockerfile](docker/Dockerfile) - Multi-stage build (local and cloud targets)
 - **[docker-compose.yml](docker-compose.yml)** - Local development setup
-- **[Makefile](Makefile)** - Build/deploy automation
-- **[/docs/variable-configuration.md](/docs/variable-configuration.md)** - Environment variable reference
-- **[/docs/local-docker-design.md](/docs/local-docker-design.md)** - Local execution design
+
 
 ## Configuration
 
-See [.env.example](.env.example), [.env.local.example](.env.local.example), and [/docs/variable-configuration.md](/docs/variable-configuration.md) for required environment variables.
+Configuration is managed through environment variables and templates:
 
-**Configuration files:**
-- [.env.example](.env.example) - Project configuration (copy to `.env`)
-- [.env.local.example](.env.local.example) - Local secrets like GitHub PAT (copy to `.env.local`)
-- Both `.env` and `.env.local` are gitignored for security
+**Files:**
+- [.env.example](.env.example) - Project configuration template (copy to `.env`)
+- [.env.local.example](.env.local.example) - Local secrets template (copy to `.env.local`)
+- [/docs/variable-configuration.md](/docs/variable-configuration.md) - Complete variable reference
 
-## Monitoring and Resource Groups
+**Key variables:**
+- `PROJECT_ID`, `REGION`, `BUCKET_NAME` - Google Cloud infrastructure
+- `EXP_ID` - Experiment identifier (required for runs)
+- `GITHUB_FORECAST_REPO`, `GITHUB_MODELING_SUITE_REPO` - Private repository access
+- `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE` - Compute resources
 
-The infrastructure uses **resource labels** to organize and monitor different stages of the pipeline. All resources are tagged with labels for easy filtering and monitoring.
-
-### Label Structure
-
-All resources use a consistent labeling scheme:
-- **`component: epymodelingsuite`** - Identifies all resources belonging to this system
-- **`stage`** - Identifies the specific phase:
-  - `imagebuild` - Cloud Build jobs that build Docker images
-  - `builder` - Stage A Batch jobs (dispatcher that generates input files)
-  - `runner` - Stage B Batch jobs (parallel simulation runners)
-- **`exp_id`** - Dynamic label for experiment ID (Batch jobs only)
-- **`run_id`** - Dynamic label for workflow execution/run ID (Batch jobs only)
-- **`environment: production`** - Environment identifier
-- **`managed-by`** - Shows which tool manages the resource (`terraform`, `cloudbuild`, `workflows`)
-
-### Monitoring Dashboards
-
-After running `make tf-apply`, three Cloud Monitoring dashboards are automatically created:
-
-1. **Builder Dashboard** - Monitors Stage A (dispatcher) CPU/memory usage
-   - Filter: `component=epymodelingsuite AND stage=builder`
-   - Metrics: CPU %, Memory %, Memory MiB, CPU cores
-
-2. **Runner Dashboard** - Monitors Stage B (parallel runners) CPU/memory, parallelism
-   - Filter: `component=epymodelingsuite AND stage=runner`
-   - Metrics: CPU %, Memory %, Memory MiB, CPU cores, Active instances
-
-3. **Overall System Dashboard** - Monitors all stages combined
-   - Filter: `component=epymodelingsuite`
-   - Metrics: Aggregated CPU/memory by stage, Active instances by stage
-
-**Access dashboards:**
-```bash
-# After terraform apply, get dashboard URLs:
-cd terraform && terraform output | grep dashboard
-```
-
-Or navigate to: [Cloud Console → Monitoring → Dashboards](https://console.cloud.google.com/monitoring/dashboards)
-
-### Custom Filtering
-
-You can create custom queries in Cloud Monitoring to filter by specific experiments or runs:
-
-```
-# View all resources for a specific experiment
-component=epymodelingsuite AND exp_id="experiment-01"
-
-# View specific run of an experiment
-component=epymodelingsuite AND run_id="abc123-def456"
-
-# Compare builder vs runner performance
-component=epymodelingsuite AND (stage=builder OR stage=runner)
-```
+Both `.env` and `.env.local` are gitignored for security.
