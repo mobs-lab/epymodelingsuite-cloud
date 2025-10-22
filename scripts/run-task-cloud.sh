@@ -121,7 +121,33 @@ EOF
 
 # Build allocation policy with optional machine type
 if [ -n "${STAGE_B_MACHINE_TYPE}" ]; then
-  ALLOCATION_POLICY=$(cat <<EOF
+  # Check if machine type is C4D (requires hyperdisk)
+  if [[ "${STAGE_B_MACHINE_TYPE}" == c4d-* ]]; then
+    # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
+    # C4D does NOT support regular Persistent Disks (pd-ssd, pd-balanced, etc.)
+    ALLOCATION_POLICY=$(cat <<EOF
+{
+  "serviceAccount": {
+    "email": "${BATCH_SA_EMAIL}"
+  },
+  "instances": [
+    {
+      "installGpuDrivers": false,
+      "policy": {
+        "machineType": "${STAGE_B_MACHINE_TYPE}",
+        "provisioningModel": "STANDARD",
+        "bootDisk": {
+          "type": "hyperdisk-balanced",
+          "sizeGb": 50
+        }
+      }
+    }
+  ]
+}
+EOF
+)
+  else
+    ALLOCATION_POLICY=$(cat <<EOF
 {
   "serviceAccount": {
     "email": "${BATCH_SA_EMAIL}"
@@ -136,6 +162,7 @@ if [ -n "${STAGE_B_MACHINE_TYPE}" ]; then
 }
 EOF
 )
+  fi
 else
   ALLOCATION_POLICY=$(cat <<EOF
 {
