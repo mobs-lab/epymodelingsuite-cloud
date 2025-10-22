@@ -67,14 +67,14 @@ Understanding the key concepts and terminology used throughout this pipeline:
 <details>
 <summary><h3>Pipeline Stages</h3></summary>
 
-**Stage A (Dispatcher/Builder)**
+**Stage A (Builder)**
 - Generates N input configuration files (pickled Python objects)
 - Runs as a single Google Cloud Batch job with 1 task
 - Outputs: `{EXP_ID}/{RUN_ID}/inputs/input_0000.pkl` through `input_{N-1}.pkl`
-- Script: [scripts/main_dispatcher.py](scripts/main_dispatcher.py)
+- Script: [scripts/main_builder.py](scripts/main_builder.py)
 
 **Builder**
-- Another name for Stage A or the dispatcher
+- Another name for Stage A
 - The component that "builds" or generates input configurations
 - Labeled with `stage: builder` in Google Cloud resources
 
@@ -147,7 +147,7 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Runs via Docker Compose on your machine
 - Uses local filesystem (`./local/bucket/`)
 - Environment: `EXECUTION_MODE=local`
-- Commands: `make run-dispatcher-local`, `make run-task-local`
+- Commands: `make run-builder-local`, `make run-task-local`
 
 </details>
 
@@ -167,9 +167,9 @@ Understanding the key concepts and terminology used throughout this pipeline:
 
 **Application:**
 - **[scripts/](scripts/)** - Application code
-  - [main_dispatcher.py](scripts/main_dispatcher.py) - Stage A generator
+  - [main_builder.py](scripts/main_builder.py) - Stage A generator
   - [main_runner.py](scripts/main_runner.py) - Stage B runner
-  - [run_dispatcher.sh](scripts/run_dispatcher.sh) - Stage A wrapper for repo cloning
+  - [run_builder.sh](scripts/run_builder.sh) - Stage A wrapper for repo cloning
 - **[docker/](docker/)** - Container config
   - [Dockerfile](docker/Dockerfile) - Multi-stage build (local and cloud targets)
 - **[docker-compose.yml](docker-compose.yml)** - Local development setup

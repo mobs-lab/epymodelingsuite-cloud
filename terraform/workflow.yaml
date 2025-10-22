@@ -73,7 +73,7 @@ main:
                         imageUri: $${repoUri}
                         entrypoint: "/bin/bash"
                         commands:
-                          - "/scripts/run_dispatcher.sh"
+                          - "/scripts/run_builder.sh"
                   environment:
                     variables:
                       EXECUTION_MODE: "cloud"
