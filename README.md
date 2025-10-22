@@ -2,6 +2,18 @@
 
 Serverless, scalable pipeline for running epydemix simulations/calibration on Google Cloud using Cloud Batch + Workflows.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Glossary](#glossary)
+  - [Core Concepts](#core-concepts)
+  - [Pipeline Stages](#pipeline-stages)
+  - [Google Cloud Batch Concepts](#google-cloud-batch-concepts)
+  - [Execution Modes](#execution-modes)
+- [Key Files & Documentation](#key-files--documentation)
+- [Configuration](#configuration)
+
 ## Overview
 
 This pipeline orchestrates two-stage job runs on Google Cloud with [Workflows](https://cloud.google.com/workflows):
@@ -134,7 +146,6 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - **[/docs/google-cloud-guide.md](/docs/google-cloud-guide.md)** - Setup and detailed implementation guide
 - **[/docs/operations.md](/docs/operations.md)** - Operational commands and common workflows
 - **[/docs/variable-configuration.md](/docs/variable-configuration.md)** - Environment variable reference
-- **[/docs/local-docker-design.md](/docs/local-docker-design.md)** - Local execution design
 
 **Infrastructure:**
 - **[terraform/](terraform/)** - Infrastructure as code

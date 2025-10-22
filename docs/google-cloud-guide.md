@@ -2,6 +2,37 @@
 
 This document provides complete setup and implementation details for the Google Cloud pipeline (Cloud Batch + Workflows) using Terraform, Docker images, and lightweight scripts.
 
+## Table of Contents
+
+- [Quick Reference](#quick-reference)
+- [Design and Architecture](#design-and-architecture)
+- [1) Repository Structure](#1-repository-structure)
+- [2) Prerequisites](#2-prerequisites)
+  - [IAM Permissions](#iam-permissions)
+  - [Setting up GitHub Personal Access Token](#setting-up-github-personal-access-token)
+- [3) Terraform](#3-terraform)
+- [4) Workflow YAML](#4-workflow-yaml)
+- [5) Compute Resources and Instance Types](#5-compute-resources-and-instance-types)
+  - [Understanding cpuMilli, memoryMib, and Machine Types](#understanding-cpumilli-memorymib-and-machine-types)
+  - [Current Resource Allocation](#current-resource-allocation)
+  - [Tuning Compute Resources](#tuning-compute-resources)
+  - [Recommended Configuration: Dedicated VMs (taskCountPerNode=1)](#recommended-configuration-dedicated-vms-taskcountpernode1)
+- [6) Docker Image](#6-docker-image)
+  - [Multi-stage Build Architecture](#multi-stage-build-architecture)
+  - [Build & Push](#build--push)
+  - [How flumodelingsuite is Installed](#how-flumodelingsuite-is-installed)
+  - [Local Development with Docker Compose](#local-development-with-docker-compose)
+- [7) Scripts](#7-scripts)
+  - [Stage A Wrapper: scripts/run_dispatcher.sh](#stage-a-wrapper-scriptsrun_dispatchersh)
+  - [Stage A: scripts/main_dispatcher.py](#stage-a-scriptsmain_dispatcherpy)
+  - [Stage B: scripts/main_runner.py](#stage-b-scriptsmain_runnerpy)
+- [8) Monitoring and Resource Groups](#8-monitoring-and-resource-groups)
+  - [Label Structure](#label-structure)
+  - [Monitoring Dashboards](#monitoring-dashboards)
+  - [Custom Filtering](#custom-filtering)
+- [9) Makefile](#9-makefile)
+- [10) Operational Notes](#10-operational-notes)
+- [10) Implementation Summary](#10-implementation-summary)
 
 ## Quick Reference
 

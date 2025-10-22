@@ -2,6 +2,32 @@
 
 This document covers common operational commands for running and monitoring the pipeline.
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Reference](#quick-reference)
+- [Building Docker Images](#building-docker-images)
+  - [Build Targets](#build-targets)
+  - [Cloud Build (Recommended for Production)](#cloud-build-recommended-for-production)
+  - [Local Build and Push](#local-build-and-push)
+  - [Local Development Build](#local-development-build)
+- [Running the Pipeline](#running-the-pipeline)
+  - [Cloud Execution](#cloud-execution)
+  - [Local Testing with Docker Compose](#local-testing-with-docker-compose)
+  - [Run a Single Cloud Task Manually](#run-a-single-cloud-task-manually)
+- [Monitoring](#monitoring)
+  - [Workflow Executions](#workflow-executions)
+  - [Batch Jobs](#batch-jobs)
+  - [Cloud Storage](#cloud-storage)
+  - [Logs](#logs)
+  - [Cloud Console Dashboards](#cloud-console-dashboards)
+- [Terraform Operations](#terraform-operations)
+  - [Initialize Terraform](#initialize-terraform)
+  - [Preview Changes](#preview-changes)
+  - [Apply Infrastructure Changes](#apply-infrastructure-changes)
+  - [Destroy Infrastructure](#destroy-infrastructure)
+  - [Update Docker Image](#update-docker-image)
+
 ## Prerequisites
 
 Before running any commands, load your environment configuration:
