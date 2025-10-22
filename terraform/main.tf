@@ -48,6 +48,7 @@ resource "google_artifact_registry_repository" "repo" {
 
   labels = {
     component   = "epymodelingsuite"
+    project     = "epymodelingsuite-cloud"
     environment = "production"
     managed-by  = "terraform"
   }
@@ -66,6 +67,13 @@ data "google_storage_bucket" "data" {
 # Required permissions: Contents (read) for epymodelingsuite and forecasting repositories
 resource "google_secret_manager_secret" "github_pat" {
   secret_id = "github-pat"
+
+  labels = {
+    component   = "epymodelingsuite"
+    project     = "epymodelingsuite-cloud"
+    environment = "production"
+    managed-by  = "terraform"
+  }
 
   replication {
     auto {}
@@ -205,6 +213,7 @@ resource "google_workflows_workflow" "pipeline" {
 
   labels = {
     component   = "epymodelingsuite"
+    project     = "epymodelingsuite-cloud"
     environment = "production"
     managed-by  = "terraform"
   }
