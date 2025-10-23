@@ -33,7 +33,8 @@ This document provides complete setup and implementation details for the Google 
   - [Custom Filtering](#custom-filtering)
 - [9) Makefile](#9-makefile)
 - [10) Operational Notes](#10-operational-notes)
-- [10) Implementation Summary](#10-implementation-summary)
+- [11) Billing and Cost Tracking](#11-billing-and-cost-tracking)
+- [12) Implementation Summary](#12-implementation-summary)
 
 ## Quick Reference
 
@@ -297,10 +298,10 @@ Google Cloud Batch allows you to specify compute resources in two ways:
 - Set `cpuMilli` and `memoryMib` to define task requirements
 - Leave `STAGE_B_MACHINE_TYPE=""` (empty)
 - Google Cloud **automatically selects** an appropriate VM type
-- Example: `cpuMilli=2000, memoryMib=4096` → Google may provision `e2-standard-2` (2 vCPU, 8 GB)
+- Example: `cpuMilli=2000, memoryMib=4096` → Google may provision `c4d-standard-2` (2 vCPU, 7 GB)
 
 **Option 2: Explicit machine type (recommended for production)**
-- Set `STAGE_B_MACHINE_TYPE="e2-standard-2"`
+- Set `STAGE_B_MACHINE_TYPE="c4d-standard-2"`
 - `cpuMilli` and `memoryMib` become **task constraints** (must fit within the VM)
 - Ensures predictable VM provisioning and scaling behavior
 - Better for avoiding task queueing with `TASK_COUNT_PER_NODE=1`
@@ -417,7 +418,7 @@ For parallel execution with no task queueing, use **one task per VM**:
 export TASK_COUNT_PER_NODE=1
 export STAGE_B_CPU_MILLI=2000
 export STAGE_B_MEMORY_MIB=8192
-export STAGE_B_MACHINE_TYPE="e2-standard-2"  # Explicit type for predictable scaling
+export STAGE_B_MACHINE_TYPE="c4d-standard-2"  # Explicit type for predictable scaling
 ```
 
 **Benefits:**
@@ -437,13 +438,33 @@ With TASK_COUNT_PER_NODE=1:
 
 **Production recommendations:**
 1. **Set explicit `STAGE_B_MACHINE_TYPE`** for predictable VM provisioning
-2. **Match `STAGE_B_CPU_MILLI` to machine capacity**: `e2-standard-2` (2 vCPU) → `CPU_MILLI=2000`
+2. **Match `STAGE_B_CPU_MILLI` to machine capacity**: e.g. `c4d-standard-2` (2 vCPU) → `CPU_MILLI=2000`
 3. **Set `TASK_COUNT_PER_NODE=1`** for parallel execution with variable task runtimes
 4. **Monitor first run** in Cloud Console to verify expected number of VMs are created
 
-**Common machine types:**
-- `e2-standard-2` (2 vCPU, 8 GB) → Set `CPU_MILLI=2000`, `MEMORY_MIB=8192`
-- `c4d-standard-2` (2 vCPU, 8 GB, newer) → Set `CPU_MILLI=2000`, `MEMORY_MIB=7168`
+
+**Machine type options:**
+
+`c4d-standard-2` provides the optimal balance of performance and cost for our workloads. A typical calibration task in Stage B for a single state uses approximately 4GB of memory, making the 7GB available in `c4d-standard-2` sufficient with headroom. Since epymodelingsuite computations are **single-threaded**, tasks only require 1 vCPU (`CPU_MILLI=1000`). However, setting `CPU_MILLI=1000` without an explicit machine type causes Google Cloud to auto-select slower `e2-standard` instances. We use dedicated small VMs with `TASK_COUNT_PER_NODE=1` and `c4d-standard-2` because it provides predictable scaling and leverages faster AMD EPYC Genoa processors for optimal single-thread performance.
+
+While larger shared VMs could maximize vCPU utilization and reduce per-task costs, they introduce unpredictable queueing when simulation runtimes vary significantly. (Some tasks finish quickly while others run longer, extending billing duration until the slowest task on each VM completes.) Using a dedicated VM with 2 vCPUs, the average vCPU utilization will be around 50%, but this ensures consistent performance and faster overall job completion, making it the preferred choice despite slightly higher vCPU costs.
+
+| Machine Type | vCPU | Memory (GB) | CPU_MILLI | MEMORY_MIB | Price (us-central1)* | Notes |
+|--------------|------|-------------|-----------|------------|---------------------|-------|
+| `e2-standard-2` | 2 | 8 | 2000 | 8192 | $0.06701142/hr | Most cost-effective, general purpose. |
+| `n2-standard-2` | 2 | 8 | 2000 | 8192 | $0.097118/hr | Better CPU performance than E2. Intel Cascade Lake/Ice Lake. |
+| `c4-standard-2` | 2 | 8 | 2000 | 8192 | $0.096866/hr | Intel compute-optimized. Intel Sapphire Rapids.  |
+| `c4d-standard-2` | 2 | 7 | 2000 | 7168 | $0.089876046/hr | AMD compute-optimized. AMD EPYC Genoa.  |
+| `c4d-highmem-2` | 2 | 15 | 2000 | 15360 | $0.11784067/hr | High memory + compute. AMD EPYC Genoa. |
+
+<!-- | `e2-standard-4` | 4 | 16 | 4000 | 16384 | $0.13402284/hr | Cost-effective | -->
+<!-- | `n2-standard-4` | 4 | 16 | 4000 | 16384 | $0.194236/hr | Balanced performance | -->
+<!-- | `c3-standard-4` | 4 | 16 | 4000 | 16384 | $0.201608/hr | Latest gen, high performance | -->
+<!-- | `c4-standard-4` | 4 | 16 | 4000 | 16384 | $0.19767/hr | Intel compute-optimized | -->
+<!-- | `c4d-standard-4` | 4 | 15 | 4000 | 15360 | 	$0.18324767/hr | AMD compute-optimized | -->
+<!-- | `c4d-highmem-4` | 4 | 31 | 4000 | 31744 | $0.239176918/hr | High memory + compute | -->
+
+*Prices are as of Oct 23, 2025. See [Google Cloud VM pricing](https://cloud.google.com/compute/vm-instance-pricing) for current rates, and the [doc](https://cloud.google.com/compute/docs/general-purpose-machines) for the details of machine types.
 
 **After modifying resources:**
 ```bash
@@ -764,8 +785,8 @@ make help           # Show all commands
   - **Avoid queueing**: Set explicit `STAGE_B_MACHINE_TYPE` with `TASK_COUNT_PER_NODE=1` for predictable VM provisioning
 * **VM Allocation Best Practices**:
   - **Set `TASK_COUNT_PER_NODE=1`** for parallel execution (one task per VM)
-  - **Set explicit `STAGE_B_MACHINE_TYPE`** (e.g., "e2-standard-2") for predictable scaling
-  - **Match `STAGE_B_CPU_MILLI` to machine capacity**: `e2-standard-2` (2 vCPU) → `CPU_MILLI=2000`
+  - **Set explicit `STAGE_B_MACHINE_TYPE`** (e.g., "c4d-standard-2") for predictable scaling
+  - **Match `STAGE_B_CPU_MILLI` to machine capacity**: `c4d-standard-2` (2 vCPU) → `CPU_MILLI=2000`
   - Monitor first job run in Cloud Console to verify expected number of VMs are created
 * **Security**:
   - Principle of least privilege (scoped IAM on bucket, read-only PAT for repos)
@@ -774,7 +795,26 @@ make help           # Show all commands
   - **Never commit GitHub PAT** - stored in Secret Manager only
   - Rotate PAT regularly and set appropriate expiration dates
 
-## 10) Implementation Summary
+## 11) Billing and Cost Tracking
+
+All resources are labeled with `component=epymodelingsuite` for billing tracking.
+
+**View costs in GCP Console:**
+1. Go to **Billing → Reports**
+2. Add filter: **Labels → component = epymodelingsuite**
+3. Group by: **Service** (to see Cloud Build, Batch, Workflows, etc.)
+
+**Billable resources tracked:**
+- Cloud Build (image builds)
+- Cloud Batch (compute for jobs)
+- Cloud Workflows (orchestration)
+- Artifact Registry (Docker image storage)
+- Secret Manager (GitHub PAT storage)
+- Cloud Logging (inherited from parent resources)
+
+**Note:** Cloud Storage costs are not tracked by labels since the bucket is shared with other projects. Track storage by prefix (`DIR_PREFIX`) if needed.
+
+## 12) Implementation Summary
 
 
 **📝 TODO (for production use):**
