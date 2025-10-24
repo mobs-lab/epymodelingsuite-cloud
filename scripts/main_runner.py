@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from util import storage
 
-from flumodelingsuite.workflow_dispatcher import dispatch_runner
+from flumodelingsuite.dispatcher import dispatch_runner
 
 
 def main():

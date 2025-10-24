@@ -23,9 +23,9 @@ from flumodelingsuite.config_loader import (
 )
 from flumodelingsuite.utils import identify_config_type
 
-from flumodelingsuite.workflow_dispatcher import dispatch_builder
+from flumodelingsuite.dispatcher import dispatch_builder
 
-from flumodelingsuite.validation.general_validator import validate_modelset_consistency
+from flumodelingsuite.schema.general import validate_modelset_consistency
 
 
 def load_all_configs(
