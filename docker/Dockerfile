@@ -3,9 +3,10 @@
 # =============================================================================
 FROM python:3.11-slim AS base
 
-# Install git (needed for cloning modeling suite)
+# Install git (needed for cloning modeling suite) and curl (needed for gcloud)
 RUN apt-get update && apt-get install -y \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast dependency management
