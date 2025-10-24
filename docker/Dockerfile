@@ -48,19 +48,19 @@ ENTRYPOINT ["/bin/bash", "/scripts/run_dispatcher.sh"]
 # =============================================================================
 # Cloud Stage - Full image with gcloud CLI for Secret Manager access
 # =============================================================================
+# Use official gcloud SDK image to get pre-installed gcloud CLI
+FROM gcr.io/google.com/cloudsdktool/cloud-sdk:slim AS gcloud
+
 FROM base AS cloud
 
-# Install curl and gcloud CLI for Secret Manager access
-RUN apt-get update && apt-get install -y \
-    curl \
-    && curl -sSL https://sdk.cloud.google.com | bash \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create symlink for gcloud (it expects /usr/bin/python3)
-RUN ln -s /usr/local/bin/python3 /usr/bin/python3
+# Copy gcloud SDK from the official image
+COPY --from=gcloud /usr/lib/google-cloud-sdk /usr/lib/google-cloud-sdk
 
 # Add gcloud to PATH
-ENV PATH="/root/google-cloud-sdk/bin:${PATH}"
+ENV PATH="/usr/lib/google-cloud-sdk/bin:${PATH}"
+
+# Create symlink for gcloud (it expects /usr/bin/python3)
+RUN ln -s /usr/local/bin/python3 /usr/bin/python3 || true
 
 # Default entrypoint - Workflows will override via commands
 ENTRYPOINT ["/bin/bash", "/scripts/run_dispatcher.sh"]
