@@ -30,8 +30,3 @@ availableSecrets:
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: E2_MEDIUM
-  labels:
-    component: epymodelingsuite
-    project: epymodelingsuite-cloud
-    environment: production
-    managed-by: terraform
