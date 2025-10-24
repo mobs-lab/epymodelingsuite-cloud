@@ -81,7 +81,9 @@ EXP_ID=test-sim TASK_INDEX=0 make run-task-local
 
 ## Building Docker Images
 
-### Build targets
+The pipeline runs in Docker containers. You can build images using Cloud Build (recommended for production) or locally for development and testing.
+
+### Build Targets
 There are three build targets:
 - `make build` - Cloud Build, pushed to Artifact Registry.
 - `make build-local` - Local build, pushed to Artifact Registry.
@@ -131,11 +133,10 @@ make build-dev
 ```
 
 
----
 
 ## Running the Pipeline
 
-There are two ways to run the pipeline: cloud or local (for development and testing).
+The pipeline can be executed on Google Cloud for production runs or locally using Docker for development and testing.
 
 ### A) Cloud Execution
 
@@ -185,7 +186,6 @@ make run-task-cloud
 
 This submits a single-task Batch job for debugging purposes.
 
----
 
 ### B) Local Execution
 
@@ -257,9 +257,10 @@ ls ./local/bucket/$EXP_ID/$RUN_ID/results/  # Verify: should show result_*.pkl f
 
 **Important:** Always set a unique `RUN_ID` for each run (e.g., `run-$(date +%Y%m%d-%H%M%S)`), otherwise it defaults to "unknown" and overwrites previous data. All local data is stored in `./local/bucket/{EXP_ID}/{RUN_ID}/`.
 
----
 
 ## Monitoring
+
+Monitor pipeline execution using Google Cloud Console dashboards, command-line tools, and logs.
 
 ### Workflow Executions
 
@@ -350,7 +351,7 @@ Three dashboards are available:
 
 ## Terraform Operations
 
-**Note:** All Terraform commands require `.env` to be loaded.
+Manage Google Cloud infrastructure using Terraform commands. All Terraform commands require `.env` to be loaded.
 
 ### Initialize Terraform
 
