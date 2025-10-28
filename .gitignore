@@ -40,7 +40,7 @@ jobs/stage-b.json
 # Logs
 *.log
 
-results/
+runner-artifacts/
 
 # Directories to store files for local execution
 local/

@@ -143,7 +143,7 @@ run-builder-local:
 		echo "  Run ID: $(RUN_ID)"; \
 	fi
 	@echo ""
-	@echo "Output will be in: ./local/bucket/$(EXP_ID)/<run_id>/inputs/"
+	@echo "Output will be in: ./local/bucket/$(EXP_ID)/<run_id>/builder-artifacts/"
 	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) docker compose run --rm builder
 	@echo ""
 	@echo "✓ Builder complete. Check ./local/bucket/ for outputs."
@@ -155,8 +155,8 @@ run-task-local:
 		echo "Usage: EXP_ID=your-experiment-id make run-task-local"; \
 		exit 1; \
 	fi
-	@echo "  Reading from: ./local/bucket/$(EXP_ID)/*/inputs/"
-	@echo "  Writing to: ./local/bucket/$(EXP_ID)/*/results/"
+	@echo "  Reading from: ./local/bucket/$(EXP_ID)/*/builder-artifacts/"
+	@echo "  Writing to: ./local/bucket/$(EXP_ID)/*/runner-artifacts/"
 	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) TASK_INDEX=$(TASK_INDEX) docker compose run --rm runner
 	@echo ""
 	@echo "✓ Task $(TASK_INDEX) complete."

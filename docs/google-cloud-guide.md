@@ -87,7 +87,7 @@ The pipeline is consisted from following tech stacks/components:
 
 * **Infrastructure-as-code (Terraform)** for:
   * Artifact Registry (container repo)
-  * GCS buckets/prefixes (inputs/results, optional logs)
+  * GCS buckets/prefixes (builder-artifacts/runner-artifacts, optional logs)
   * Service Accounts & IAM (Workflows runner, Batch runtime)
   * Workflows (deployed from YAML)
 * **Container image** (Dockerfile + requirements) with both Stage A / Stage B entrypoints
@@ -280,7 +280,7 @@ See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 **Key features:**
 - Takes runtime parameters: `count`, `seed`, `bucket`, `dirPrefix`, `exp_id`, `batchSaEmail`, `githubForecastRepo`, `maxParallelism` (optional, default: 100)
 - Auto-generates `run_id` from workflow execution ID for unique identification
-- Constructs paths: `{dirPrefix}{exp_id}/{run_id}/inputs/` and `/results/`
+- Constructs paths: `{dirPrefix}{exp_id}/{run_id}/builder-artifacts/` and `/runner-artifacts/`
 - Stage A: 2 CPU, 4 GB RAM, includes repo cloning via [run_builder.sh](scripts/run_builder.sh)
 - Stage B: 2 CPU, 8 GB RAM, configurable parallelism (default: 100, max: 5000 per Cloud Batch limits)
 - GitHub authentication via PAT from Secret Manager
@@ -606,7 +606,7 @@ The Docker Compose setup (defined in [docker-compose.yml](../docker-compose.yml)
 
 **Volume bindings:**
 - Mounts `./local` (host) to `/data` (container)
-  - `./local/bucket/` → `/data/bucket/` - Simulates GCS bucket for inputs/outputs
+  - `./local/bucket/` → `/data/bucket/` - Simulates GCS bucket for builder-artifacts/runner-artifacts
   - `./local/forecast/` → `/data/forecast/` - Forecast repository data (alternative to git clone)
 
 **Configuration:**
@@ -625,8 +625,8 @@ The Docker Compose setup (defined in [docker-compose.yml](../docker-compose.yml)
   bucket/                   # → /data/bucket/ (simulates GCS bucket)
     {exp_id}/
       {run_id}/
-        inputs/             # Generated input files (input_0000.pkl, ...)
-        results/            # Simulation results (result_0000.pkl, ...)
+        builder-artifacts/  # Generated input files (input_0000.pkl, ...)
+        runner-artifacts/   # Simulation results (result_0000.pkl, ...)
   forecast/                 # → /data/forecast/ (forecast repository)
     experiments/            # YAML experiment configurations
 ```
