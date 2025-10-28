@@ -123,7 +123,7 @@ def build_and_save_dispatch_outputs(
         data = dill.dumps(output)
 
         # Upload to storage (GCS or local)
-        path = storage.get_path("inputs", f"input_{idx:04d}.pkl")
+        path = storage.get_path("builder-artifacts", f"input_{idx:04d}.pkl")
         storage.save_bytes(path, data)
         print(f"  Saved: {path} ({len(data)} bytes)")
 

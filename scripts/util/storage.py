@@ -13,7 +13,7 @@ Usage:
     from util.storage import load_bytes, save_bytes, get_path
 
     # Build a path
-    input_path = get_path("inputs", "input_0000.pkl")
+    input_path = get_path("builder-artifacts", "input_0000.pkl")
 
     # Load/save works in both modes
     data = load_bytes(input_path)
@@ -76,16 +76,16 @@ def get_path(*parts: str) -> str:
     In cloud mode: Returns path like "{dir_prefix}/{exp_id}/{run_id}/{parts}"
 
     Args:
-        *parts: Path components to join (e.g., "inputs", "input_0000.pkl")
+        *parts: Path components to join (e.g., "builder-artifacts", "input_0000.pkl")
 
     Returns:
         Full storage path string
 
     Example:
         # With DIR_PREFIX=pipeline/flu/, EXP_ID=test-sim, RUN_ID=run-20241015
-        get_path("inputs", "input_0000.pkl")
-        # Local: "bucket/pipeline/flu/test-sim/run-20241015/inputs/input_0000.pkl"
-        # Cloud: "pipeline/flu/test-sim/run-20241015/inputs/input_0000.pkl"
+        get_path("builder-artifacts", "input_0000.pkl")
+        # Local: "bucket/pipeline/flu/test-sim/run-20241015/builder-artifacts/input_0000.pkl"
+        # Cloud: "pipeline/flu/test-sim/run-20241015/builder-artifacts/input_0000.pkl"
     """
     config = get_config()
     mode = config["mode"]

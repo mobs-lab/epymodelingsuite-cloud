@@ -34,7 +34,7 @@ def main():
         print(f"  Bucket: {config['bucket']}")
 
     # Load input file (workload from dispatcher)
-    input_path = storage.get_path("inputs", f"input_{idx:04d}.pkl")
+    input_path = storage.get_path("builder-artifacts", f"input_{idx:04d}.pkl")
     print(f"Loading input: {input_path}")
 
     try:
@@ -53,7 +53,7 @@ def main():
         raise
 
     # Save results
-    output_path = storage.get_path("results", f"result_{idx:04d}.pkl")
+    output_path = storage.get_path("runner-artifacts", f"result_{idx:04d}.pkl")
     print(f"Saving results: {output_path}")
 
     try:
