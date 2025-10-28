@@ -33,9 +33,9 @@ main:
           - expId: $${input.exp_id}
           - bucket: $${input.bucket}
           - basePath: $${dirPrefix + expId + "/" + runId + "/"}
-          - outPrefix: $${basePath + "inputs/"}
-          - inPrefix: $${basePath + "inputs/"}
-          - resPrefix: $${basePath + "results/"}
+          - outPrefix: $${basePath + "builder-artifacts/"}
+          - inPrefix: $${basePath + "builder-artifacts/"}
+          - resPrefix: $${basePath + "runner-artifacts/"}
 
           # Job parameters
           - batchSaEmail: $${input.batchSaEmail}

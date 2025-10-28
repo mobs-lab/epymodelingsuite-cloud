@@ -25,9 +25,9 @@ fi
 # Default values for job parameters (can be overridden)
 COUNT=${COUNT:-10}
 SEED=${SEED:-1234}
-OUT_PREFIX=${OUT_PREFIX:-"inputs/"}
-IN_PREFIX=${IN_PREFIX:-"inputs/"}
-RESULTS_PREFIX=${RESULTS_PREFIX:-"results/"}
+OUT_PREFIX=${OUT_PREFIX:-"builder-artifacts/"}
+IN_PREFIX=${IN_PREFIX:-"builder-artifacts/"}
+RESULTS_PREFIX=${RESULTS_PREFIX:-"runner-artifacts/"}
 TASK_COUNT=${TASK_COUNT:-10}
 PARALLELISM=${PARALLELISM:-100}
 

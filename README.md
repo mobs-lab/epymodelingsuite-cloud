@@ -70,7 +70,7 @@ Understanding the key concepts and terminology used throughout this pipeline:
 **Stage A (Builder)**
 - Generates N input configuration files (pickled Python objects)
 - Runs as a single Google Cloud Batch job with 1 task
-- Outputs: `{EXP_ID}/{RUN_ID}/inputs/input_0000.pkl` through `input_{N-1}.pkl`
+- Outputs: `{EXP_ID}/{RUN_ID}/builder-artifacts/input_0000.pkl` through `input_{N-1}.pkl`
 - Script: [scripts/main_builder.py](scripts/main_builder.py)
 
 **Builder**
@@ -82,7 +82,7 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Processes N simulations in parallel
 - Runs as a single Google Cloud Batch job with N tasks
 - Each task processes one input file (determined by `BATCH_TASK_INDEX`)
-- Outputs: `{EXP_ID}/{RUN_ID}/results/result_0000.pkl` through `result_{N-1}.pkl`
+- Outputs: `{EXP_ID}/{RUN_ID}/runner-artifacts/result_0000.pkl` through `result_{N-1}.pkl`
 - Script: [scripts/main_runner.py](scripts/main_runner.py)
 
 **Runner**
