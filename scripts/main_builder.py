@@ -194,6 +194,10 @@ def resolve_configs(
             unidentified_files.append((yaml_file.name, "Unknown config structure"))
             continue
 
+        # Skip output configs (not needed by builder)
+        if config_type == "output":
+            continue
+
         # Check for duplicates
         if configs[config_type] is not None:
             raise ValueError(
