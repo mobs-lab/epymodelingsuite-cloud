@@ -35,3 +35,22 @@ services:
     entrypoint: ["python", "/scripts/main_runner.py"]
     # Additional args can be passed with: docker compose run runner [args]
     command: []
+
+  output:
+    image: epymodelingsuite:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: local
+    volumes:
+      - ./local:/data    # Mount local directory as /data
+    env_file:
+      - .env.local
+    environment:
+      - EXECUTION_MODE=local
+      - EXP_ID=${EXP_ID}
+      - RUN_ID=${RUN_ID}
+      - NUM_TASKS=${NUM_TASKS:-1}
+    entrypoint: ["python", "/scripts/main_output.py"]
+    # Additional args can be passed with: docker compose run output [args]
+    command: []
