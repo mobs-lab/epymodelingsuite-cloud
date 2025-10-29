@@ -334,7 +334,156 @@ resource "google_monitoring_dashboard" "runner" {
   })
 }
 
-# Dashboard 3: Overall System View - All stages combined
+# Dashboard 3: Output (Stage C - Output Generation) - stage=output
+resource "google_monitoring_dashboard" "output" {
+  dashboard_json = jsonencode({
+    displayName = "epymodelingsuite - Output (Stage C)"
+    mosaicLayout = {
+      columns = 48
+      tiles = [
+        # CPU Utilization for Output
+        {
+          width  = 24
+          height = 16
+          widget = {
+            title = "Output CPU Utilization (%)"
+            xyChart = {
+              chartOptions = {
+                mode = "COLOR"
+              }
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  targetAxis = "Y1"
+                }
+              ]
+              yAxis = {
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Memory Usage for Output (%)
+        {
+          xPos   = 24
+          width  = 24
+          height = 16
+          widget = {
+            title = "Output Memory Usage (%)"
+            xyChart = {
+              chartOptions = {
+                mode = "COLOR"
+              }
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilterRatio = {
+                      numerator = {
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                        aggregation = {
+                          alignmentPeriod  = "60s"
+                          perSeriesAligner = "ALIGN_MEAN"
+                        }
+                      }
+                      denominator = {
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                        aggregation = {
+                          alignmentPeriod  = "60s"
+                          perSeriesAligner = "ALIGN_MEAN"
+                        }
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  targetAxis = "Y1"
+                }
+              ]
+              yAxis = {
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Memory Usage for Output (MiB)
+        {
+          yPos   = 16
+          width  = 24
+          height = 16
+          widget = {
+            title = "Output Memory Usage (MiB)"
+            xyChart = {
+              chartOptions = {
+                mode = "COLOR"
+              }
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  targetAxis = "Y1"
+                }
+              ]
+              yAxis = {
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # CPU Core Usage for Output (vCPU)
+        {
+          xPos   = 24
+          yPos   = 16
+          width  = 24
+          height = 16
+          widget = {
+            title = "Output CPU Core Usage (vCPU)"
+            xyChart = {
+              chartOptions = {
+                mode = "COLOR"
+              }
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_RATE"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  targetAxis = "Y1"
+                }
+              ]
+              yAxis = {
+                scale = "LINEAR"
+              }
+            }
+          }
+        }
+      ]
+    }
+  })
+}
+
+# Dashboard 4: Overall System View - All stages combined
 resource "google_monitoring_dashboard" "overall" {
   dashboard_json = jsonencode({
     displayName = "epymodelingsuite - Overall System"
@@ -404,9 +553,41 @@ resource "google_monitoring_dashboard" "overall" {
             }
           }
         },
+        # Overall CPU Utilization - Stage C
+        {
+          width  = 24
+          height = 16
+          yPos   = 16
+          widget = {
+            title = "Stage C (Output) - CPU Utilization (%)"
+            xyChart = {
+              chartOptions = {
+                mode = "COLOR"
+              }
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  targetAxis = "Y1"
+                }
+              ]
+              yAxis = {
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
         # Overall Memory - Stage A
         {
-          yPos   = 16
+          yPos   = 32
           width  = 24
           height = 16
           widget = {
@@ -439,7 +620,7 @@ resource "google_monitoring_dashboard" "overall" {
         # Overall Memory - Stage B
         {
           xPos   = 24
-          yPos   = 16
+          yPos   = 32
           width  = 24
           height = 16
           widget = {
@@ -469,13 +650,14 @@ resource "google_monitoring_dashboard" "overall" {
             }
           }
         },
-        # Active Instances - Both Stages
+        # Overall Memory - Stage C
         {
-          yPos   = 32
-          width  = 48
+          xPos   = 24
+          yPos   = 16
+          width  = 24
           height = 16
           widget = {
-            title = "Active Instances (Stage A + Stage B)"
+            title = "Stage C (Output) - Memory Usage (MiB)"
             xyChart = {
               chartOptions = {
                 mode = "COLOR"
@@ -484,7 +666,39 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" (metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\") OR metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\"))"
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  targetAxis = "Y1"
+                }
+              ]
+              yAxis = {
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Active Instances - All Stages
+        {
+          yPos   = 48
+          width  = 48
+          height = 16
+          widget = {
+            title = "Active Instances (All Stages)"
+            xyChart = {
+              chartOptions = {
+                mode = "COLOR"
+              }
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" (metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\") OR metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\") OR metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\"))"
                       aggregation = {
                         alignmentPeriod    = "60s"
                         perSeriesAligner   = "ALIGN_MEAN"

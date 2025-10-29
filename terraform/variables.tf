@@ -86,3 +86,34 @@ variable "task_count_per_node" {
   default     = 1
   description = "Maximum tasks per VM (1 = dedicated VM per task, 2+ = shared VMs)"
 }
+
+# Batch machine configuration - Stage C (Output)
+variable "stage_c_cpu_milli" {
+  type        = number
+  default     = 2000
+  description = "CPU allocation for Stage C in milli-cores (1000 = 1 vCPU)"
+}
+
+variable "stage_c_memory_mib" {
+  type        = number
+  default     = 8192
+  description = "Memory allocation for Stage C in MiB"
+}
+
+variable "stage_c_machine_type" {
+  type        = string
+  default     = ""
+  description = "Machine type for Stage C (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
+}
+
+variable "stage_c_max_run_duration" {
+  type        = number
+  default     = 7200
+  description = "Maximum runtime for Stage C in seconds (default: 7200s = 2 hours)"
+}
+
+variable "run_output_stage" {
+  type        = bool
+  default     = true
+  description = "Whether to run Stage C (Output generation). Set to false to skip output generation."
+}
