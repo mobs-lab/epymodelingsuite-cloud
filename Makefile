@@ -1,4 +1,4 @@
-.PHONY: build build-local build-dev run-builder-local run-task-local run-task-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
+.PHONY: build build-local build-dev run-builder-local run-task-local run-output-local run-task-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
 
 # Default values - override with environment variables
 PROJECT_ID ?= your-project
@@ -44,6 +44,7 @@ help:
 	@echo "  build-dev          - Build local development image (no push, for docker-compose)"
 	@echo "  run-builder-local  - Run builder locally with docker-compose"
 	@echo "  run-task-local     - Run a single task locally with docker-compose"
+	@echo "  run-output-local   - Run output generation locally with docker-compose"
 	@echo "  run-task-cloud     - Run a single task on Google Cloud Batch"
 	@echo "  tf-init            - Initialize Terraform"
 	@echo "  tf-plan            - Run Terraform plan"
@@ -161,6 +162,29 @@ run-task-local:
 	@echo ""
 	@echo "✓ Task $(TASK_INDEX) complete."
 
+run-output-local:
+	@echo "Running output generation locally..."
+	@if [ -z "$(EXP_ID)" ]; then \
+		echo "ERROR: EXP_ID is required but not set."; \
+		echo "Usage: EXP_ID=your-experiment-id NUM_TASKS=10 make run-output-local"; \
+		exit 1; \
+	fi
+	@if [ -z "$(NUM_TASKS)" ]; then \
+		echo "ERROR: NUM_TASKS is required but not set."; \
+		echo "Usage: EXP_ID=your-experiment-id NUM_TASKS=10 make run-output-local"; \
+		exit 1; \
+	fi
+	@echo "  Experiment ID: $(EXP_ID)"
+	@if [ -n "$(RUN_ID)" ]; then \
+		echo "  Run ID: $(RUN_ID)"; \
+	fi
+	@echo "  Number of tasks: $(NUM_TASKS)"
+	@echo "  Reading from: ./local/bucket/$(EXP_ID)/*/runner-artifacts/"
+	@echo "  Writing to: ./local/bucket/$(EXP_ID)/*/outputs/"
+	EXP_ID=$(EXP_ID) RUN_ID=$(RUN_ID) NUM_TASKS=$(NUM_TASKS) docker compose run --rm output
+	@echo ""
+	@echo "✓ Output generation complete. Check ./local/bucket/$(EXP_ID)/*/outputs/ for CSV files."
+
 run-task-cloud:
 	@echo "Submitting single task to Google Cloud Batch..."
 	@if [ -z "$(EXP_ID)" ]; then \
@@ -214,6 +238,11 @@ tf-plan:
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
 	  -var="stage_b_max_run_duration=$(STAGE_B_MAX_RUN_DURATION)" \
+	  -var="stage_c_cpu_milli=$(STAGE_C_CPU_MILLI)" \
+	  -var="stage_c_memory_mib=$(STAGE_C_MEMORY_MIB)" \
+	  -var="stage_c_machine_type=$(STAGE_C_MACHINE_TYPE)" \
+	  -var="stage_c_max_run_duration=$(STAGE_C_MAX_RUN_DURATION)" \
+	  -var="run_output_stage=$(RUN_OUTPUT_STAGE)" \
 	  -var="task_count_per_node=$(TASK_COUNT_PER_NODE)"
 
 tf-apply:
@@ -233,6 +262,11 @@ tf-apply:
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
 	  -var="stage_b_max_run_duration=$(STAGE_B_MAX_RUN_DURATION)" \
+	  -var="stage_c_cpu_milli=$(STAGE_C_CPU_MILLI)" \
+	  -var="stage_c_memory_mib=$(STAGE_C_MEMORY_MIB)" \
+	  -var="stage_c_machine_type=$(STAGE_C_MACHINE_TYPE)" \
+	  -var="stage_c_max_run_duration=$(STAGE_C_MAX_RUN_DURATION)" \
+	  -var="run_output_stage=$(RUN_OUTPUT_STAGE)" \
 	  -var="task_count_per_node=$(TASK_COUNT_PER_NODE)"
 
 tf-destroy:
