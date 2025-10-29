@@ -49,7 +49,12 @@ main:
           - memoryMibB: ${stage_b_memory_mib}
           - machineTypeB: "${stage_b_machine_type}"
           - maxRunDurationB: "${stage_b_max_run_duration}s"
+          - cpuMilliC: ${stage_c_cpu_milli}
+          - memoryMibC: ${stage_c_memory_mib}
+          - machineTypeC: "${stage_c_machine_type}"
+          - maxRunDurationC: "${stage_c_max_run_duration}s"
           - taskCountPerNode: ${task_count_per_node}
+          - runOutputStage: ${run_output_stage}
 
     # ========== STAGE A: Generate Input Files ==========
     - create_stageA_job:
@@ -229,12 +234,105 @@ main:
         args:
           name: $${jobB.body.name}
 
+    # ========== STAGE C: Generate Outputs (Conditional) ==========
+    - check_run_output_stage:
+        switch:
+          - condition: $${runOutputStage == true}
+            steps:
+              - create_stageC_job:
+                  call: http.post
+                  args:
+                    url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+                    auth:
+                      type: OAuth2
+                      scopes: https://www.googleapis.com/auth/cloud-platform
+                    body:
+                      labels:
+                        component: epymodelingsuite
+                        project: epymodelingsuite-cloud
+                        environment: production
+                        stage: output
+                        exp_id: $${expId}
+                        run_id: $${runId}
+                        managed-by: workflows
+                      taskGroups:
+                        - taskCount: 1
+                          taskSpec:
+                            runnables:
+                              - container:
+                                  imageUri: $${repoUri}
+                                  entrypoint: "python3"
+                                  commands:
+                                    - "-u"
+                                    - "/scripts/main_output.py"
+                            environment:
+                              variables:
+                                EXECUTION_MODE: "cloud"
+                                GCS_BUCKET: $${bucket}
+                                DIR_PREFIX: $${dirPrefix}
+                                EXP_ID: $${expId}
+                                RUN_ID: $${runId}
+                                NUM_TASKS: $${string(N)}
+                            computeResource:
+                              cpuMilli: $${cpuMilliC}
+                              memoryMib: $${memoryMibC}
+                            maxRunDuration: $${maxRunDurationC}
+                      logsPolicy:
+                        destination: "CLOUD_LOGGING"
+                      allocationPolicy:
+                        serviceAccount:
+                          email: $${batchSaEmail}
+                        %{~ if stage_c_machine_type != "" ~}
+                        instances:
+                          - %{~ if length(regexall("^c4d-", stage_c_machine_type)) > 0 ~}
+                            # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
+                            installGpuDrivers: false
+                            policy:
+                              machineType: $${machineTypeC}
+                              provisioningModel: STANDARD
+                              bootDisk:
+                                type: hyperdisk-balanced
+                                sizeGb: 50
+                            %{~ else ~}
+                            policy:
+                              machineType: $${machineTypeC}
+                            %{~ endif ~}
+                        %{~ endif ~}
+                    query:
+                      jobId: $${"stagec-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+                  result: jobC
+
+              - wait_for_stageC_creation:
+                  call: sys.sleep
+                  args:
+                    seconds: 5
+
+              - wait_for_stageC_completion:
+                  call: waitJob
+                  args:
+                    name: $${jobC.body.name}
+
+              - assign_stageC_job:
+                  assign:
+                    - stageCJobName: $${jobC.body.name}
+          - condition: $${runOutputStage == false}
+            steps:
+              - log_output_skipped:
+                  call: sys.log
+                  args:
+                    text: "Stage C (Output) skipped per configuration"
+                    severity: INFO
+              - assign_stageC_null:
+                  assign:
+                    - stageCJobName: null
+
     # ========== COMPLETION ==========
     - return_results:
         return:
           N: $${N}
           stageA_job: $${jobA.body.name}
           stageB_job: $${jobB.body.name}
+          stageC_job: $${stageCJobName}
 
 # ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
 waitJob:

@@ -200,7 +200,7 @@ resource "google_service_account_iam_member" "workflows_agent_use_runner" {
 # Workflows (deploy from local YAML with variable substitution)
 resource "google_workflows_workflow" "pipeline" {
   name            = "epydemix-pipeline"
-  description     = "Stage A (gen) → list GCS → Stage B (array)"
+  description     = "Stage A (gen) → list GCS → Stage B (array) → Stage C (output)"
   region          = var.region
   service_account = google_service_account.workflows_runner.email
   source_contents = templatefile("${path.module}/workflow.yaml", {
@@ -214,7 +214,12 @@ resource "google_workflows_workflow" "pipeline" {
     stage_b_memory_mib  = var.stage_b_memory_mib
     stage_b_machine_type = var.stage_b_machine_type
     stage_b_max_run_duration = var.stage_b_max_run_duration
+    stage_c_cpu_milli   = var.stage_c_cpu_milli
+    stage_c_memory_mib  = var.stage_c_memory_mib
+    stage_c_machine_type = var.stage_c_machine_type
+    stage_c_max_run_duration = var.stage_c_max_run_duration
     task_count_per_node = var.task_count_per_node
+    run_output_stage    = var.run_output_stage
   })
 
   labels = {

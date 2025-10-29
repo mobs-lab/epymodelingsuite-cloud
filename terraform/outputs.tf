@@ -44,6 +44,11 @@ output "dashboard_runner_url" {
   description = "URL to Runner (Stage B) dashboard"
 }
 
+output "dashboard_output_url" {
+  value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.output.id}?project=${var.project_id}"
+  description = "URL to Output (Stage C) dashboard"
+}
+
 output "dashboard_overall_url" {
   value       = "https://console.cloud.google.com/monitoring/dashboards/custom/${google_monitoring_dashboard.overall.id}?project=${var.project_id}"
   description = "URL to Overall System dashboard"
