@@ -31,22 +31,28 @@ from flumodelingsuite.schema.general import validate_modelset_consistency
 def load_all_configs(
     config_paths: dict[str, Optional[str]], validate_consistency: bool = True
 ) -> tuple:
-    """
-    Load all configuration files and optionally validate consistency.
+    """Load all configuration files and optionally validate consistency.
 
-    Args:
-        config_paths: Dictionary from resolve_configs with paths to config files
-        validate_consistency: Whether to validate modelset consistency (default: True)
-                            Validates basemodel against sampling and/or calibration if present
+    Parameters
+    ----------
+    config_paths : dict[str, Optional[str]]
+        Dictionary from resolve_configs with paths to config files
+    validate_consistency : bool, optional
+        Whether to validate modelset consistency (default: True)
+        Validates basemodel against sampling and/or calibration if present
 
-    Returns:
+    Returns
+    -------
+    tuple
         Tuple of (basemodel_config, sampling_config, calibration_config)
         - basemodel_config: Always present (required)
         - sampling_config: Optional, None if not found
         - calibration_config: Optional, None if not found
 
-    Raises:
-        ValueError: If basemodel config is not found (required)
+    Raises
+    ------
+    ValueError
+        If basemodel config is not found (required)
     """
     # Load basemodel config (required)
     if config_paths["basemodel"] is None:
@@ -86,15 +92,20 @@ def build_and_save_dispatch_outputs(
     sampling_config,
     calibration_config,
 ) -> int:
-    """
-    Build dispatch outputs and save as pickled input files to storage.
+    """Build dispatch outputs and save as pickled input files to storage.
 
-    Args:
-        basemodel_config: Loaded basemodel configuration
-        sampling_config: Loaded sampling configuration (optional, can be None)
-        calibration_config: Loaded calibration configuration (optional, can be None)
+    Parameters
+    ----------
+    basemodel_config
+        Loaded basemodel configuration
+    sampling_config
+        Loaded sampling configuration (optional, can be None)
+    calibration_config
+        Loaded calibration configuration (optional, can be None)
 
-    Returns:
+    Returns
+    -------
+    int
         Number of input files saved
     """
     print("\nBuilding dispatch...")
@@ -133,8 +144,7 @@ def build_and_save_dispatch_outputs(
 def resolve_configs(
     exp_id: str, config_dir: str = "/data/forecast/experiments"
 ) -> dict[str, Optional[str]]:
-    """
-    Resolve config files for an experiment by parsing YAML structure.
+    """Resolve config files for an experiment by parsing YAML structure.
 
     Searches for YAML files in {config_dir}/{exp_id}/config/ and identifies their type by
     parsing the file structure:
@@ -142,17 +152,25 @@ def resolve_configs(
     - Files with 'modelset.sampling' -> sampling config
     - Files with 'modelset.calibration' -> calibration config
 
-    Args:
-        exp_id: Experiment ID (e.g., 'test-sim', 'flu_round05')
-        config_dir: Base directory for experiments (default: '/data/forecast/experiments')
+    Parameters
+    ----------
+    exp_id : str
+        Experiment ID (e.g., 'test-sim', 'flu_round05')
+    config_dir : str, optional
+        Base directory for experiments (default: '/data/forecast/experiments')
 
-    Returns:
+    Returns
+    -------
+    dict[str, Optional[str]]
         Dictionary with keys 'basemodel', 'sampling', 'calibration' mapping to file paths or None
         Example: {'basemodel': '/path/to/config.yaml', 'sampling': None, 'calibration': None}
 
-    Raises:
-        FileNotFoundError: If the exp_id directory doesn't exist or no YAML files are found
-        ValueError: If multiple files of the same type are found
+    Raises
+    ------
+    FileNotFoundError
+        If the exp_id directory doesn't exist or no YAML files are found
+    ValueError
+        If multiple files of the same type are found
     """
     exp_config_dir = Path(config_dir) / exp_id / "config"
 
@@ -192,6 +210,10 @@ def resolve_configs(
         # Skip files that don't match any known type
         if config_type is None:
             unidentified_files.append((yaml_file.name, "Unknown config structure"))
+            continue
+
+        # Skip output configs (not needed by builder)
+        if config_type == "output":
             continue
 
         # Check for duplicates

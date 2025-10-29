@@ -36,9 +36,12 @@ See [.env.example](../.env.example) for all available configuration options, inc
 - Google Cloud infrastructure (project, region, bucket)
 - Docker image configuration
 - GitHub repositories
-- **Batch machine configuration** (CPU, memory, machine type)
-  - Stage A (Dispatcher): `STAGE_A_CPU_MILLI`, `STAGE_A_MEMORY_MIB`, `STAGE_A_MACHINE_TYPE`
-  - Stage B (Runner): `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`
+- **Batch machine configuration** (CPU, memory, machine type, runtime)
+  - Stage A (Builder): `STAGE_A_CPU_MILLI`, `STAGE_A_MEMORY_MIB`, `STAGE_A_MACHINE_TYPE`
+  - Stage B (Runner): `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`, `STAGE_B_MAX_RUN_DURATION`
+  - Stage C (Output): `STAGE_C_CPU_MILLI`, `STAGE_C_MEMORY_MIB`, `STAGE_C_MACHINE_TYPE`, `STAGE_C_MAX_RUN_DURATION`
+- **Pipeline control**
+  - `RUN_OUTPUT_STAGE`: Enable/disable Stage C output generation (default: `true`)
 
 ### Why Not terraform.tfvars?
 

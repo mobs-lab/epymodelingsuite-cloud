@@ -275,14 +275,16 @@ See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 1. **Stage A (Generator)**: Single Batch job that runs `main_builder.py` to generate N input files
 2. **List inputs**: Counts generated files in GCS
 3. **Stage B (Runner)**: Parallel Batch jobs (N tasks) running `main_runner.py`, each processing one input
-4. **Wait helper**: Polls Batch job status until completion
+4. **Stage C (Output)**: Single Batch job that runs `main_output.py` to aggregate results and generate CSV outputs
+5. **Wait helper**: Polls Batch job status until completion
 
 **Key features:**
 - Takes runtime parameters: `count`, `seed`, `bucket`, `dirPrefix`, `exp_id`, `batchSaEmail`, `githubForecastRepo`, `maxParallelism` (optional, default: 100)
 - Auto-generates `run_id` from workflow execution ID for unique identification
-- Constructs paths: `{dirPrefix}{exp_id}/{run_id}/builder-artifacts/` and `/runner-artifacts/`
+- Constructs paths: `{dirPrefix}{exp_id}/{run_id}/builder-artifacts/`, `/runner-artifacts/`, and `/outputs/`
 - Stage A: 2 CPU, 4 GB RAM, includes repo cloning via [run_builder.sh](scripts/run_builder.sh)
 - Stage B: 2 CPU, 8 GB RAM, configurable parallelism (default: 100, max: 5000 per Cloud Batch limits)
+- Stage C: 2 CPU, 8 GB RAM, aggregates all Stage B results and generates formatted CSV outputs
 - GitHub authentication via PAT from Secret Manager
 - Logs to Cloud Logging
 - Error handling for failed/deleted jobs
@@ -357,6 +359,18 @@ taskCountPerNode: ${TASK_COUNT_PER_NODE}  # Default: 1 (dedicated VM per task)
 - Configurable via `.env`: `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`, `STAGE_B_MAX_RUN_DURATION`, `TASK_COUNT_PER_NODE`
 - Default resources: 2 vCPUs, 4 GB RAM per task
 - Default timeout: 36000 seconds (10 hours) per task
+
+**Stage C Job (Output)**
+```yaml
+computeResource:
+  cpuMilli: ${STAGE_C_CPU_MILLI}    # Default: 2000 (2 vCPUs)
+  memoryMib: ${STAGE_C_MEMORY_MIB}  # Default: 8192 (8 GB RAM)
+maxRunDuration: ${STAGE_C_MAX_RUN_DURATION}s  # Default: 7200s (2 hours)
+```
+- Single task that aggregates all Stage B results
+- Configurable via `.env`: `STAGE_C_CPU_MILLI`, `STAGE_C_MEMORY_MIB`, `STAGE_C_MACHINE_TYPE`, `STAGE_C_MAX_RUN_DURATION`
+- Default resources: 2 vCPUs, 8 GB RAM
+- Default timeout: 7200 seconds (2 hours)
 
 ### Tuning Compute Resources
 
@@ -684,6 +698,22 @@ Processes individual tasks in parallel using `BATCH_TASK_INDEX`.
 
 **Note:** `BATCH_TASK_INDEX` is automatically set by Cloud Batch (0-indexed).
 
+### Stage C: [scripts/main_output.py](scripts/main_output.py)
+
+Aggregates all Stage B results and generates formatted CSV outputs.
+
+**Features:**
+- Environment variables: `GCS_BUCKET`, `EXP_ID`, `RUN_ID`, `NUM_TASKS`
+- Downloads all result files: `{RUN_ID}/runner-artifacts/result_*.pkl`
+- Automatically discovers output configuration from experiment directory
+- Generates formatted CSV outputs (quantiles, trajectories, posteriors, metadata)
+- Uploads to: `{RUN_ID}/outputs/*.csv.gz`
+- Error handling for missing result files
+
+**Wrapper:** [scripts/run_output.sh](scripts/run_output.sh)
+- Similar to `run_builder.sh`, handles cloud vs local mode
+- No repo cloning needed (uses already-installed flumodelingsuite)
+
 
 
 ## 8) Monitoring and Resource Groups
@@ -698,6 +728,7 @@ All resources use a consistent labeling scheme:
   - `imagebuild` - Cloud Build jobs that build Docker images
   - `builder` - Stage A Batch jobs (dispatcher that generates input files)
   - `runner` - Stage B Batch jobs (parallel simulation runners)
+  - `output` - Stage C Batch jobs (output aggregation and formatting)
 - **`exp_id`** - Dynamic label for experiment ID (Batch jobs only)
 - **`run_id`** - Dynamic label for workflow execution/run ID (Batch jobs only)
 - **`environment: production`** - Environment identifier
@@ -715,7 +746,11 @@ After running `make tf-apply`, three Cloud Monitoring dashboards are automatical
    - Filter: `component=epymodelingsuite AND stage=runner`
    - Metrics: CPU %, Memory %, Memory MiB, CPU cores, Active instances
 
-3. **Overall System Dashboard** - Monitors all stages combined
+3. **Output Dashboard** - Monitors Stage C (output generation) CPU/memory usage
+   - Filter: `component=epymodelingsuite AND stage=output`
+   - Metrics: CPU %, Memory %, Memory MiB, CPU cores
+
+4. **Overall System Dashboard** - Monitors all stages combined
    - Filter: `component=epymodelingsuite`
    - Metrics: Aggregated CPU/memory by stage, Active instances by stage
 
