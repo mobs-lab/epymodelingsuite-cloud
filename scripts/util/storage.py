@@ -212,6 +212,10 @@ def save_bytes(path: str, data: bytes) -> None:
         # Create parent directories if they don't exist
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Handle both bytes and str (in case to_csv returns str instead of bytes)
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+
         print(f"[Local Storage] Writing: {file_path} ({len(data)} bytes)")
         file_path.write_bytes(data)
 
@@ -222,6 +226,10 @@ def save_bytes(path: str, data: bytes) -> None:
         client = storage.Client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(final_path)
+
+        # Handle both bytes and str (in case to_csv returns str instead of bytes)
+        if isinstance(data, str):
+            data = data.encode('utf-8')
 
         print(f"[GCS] Uploading: gs://{bucket_name}/{final_path} ({len(data)} bytes)")
         blob.upload_from_string(data)
