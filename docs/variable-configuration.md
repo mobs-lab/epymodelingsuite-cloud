@@ -82,6 +82,40 @@ STAGE_B_MACHINE_TYPE="e2-standard-2"  # Explicit type for predictable scaling
 TASK_COUNT_PER_NODE=1                 # One task per VM (no queueing)
 ```
 
+### Batch Compute Resources - Stage C (Output)
+
+```bash
+STAGE_C_CPU_MILLI=2000             # CPU in milli-cores (2000 = 2 vCPUs)
+STAGE_C_MEMORY_MIB=8192            # Memory in MiB (8192 = 8 GB)
+STAGE_C_MACHINE_TYPE=""            # VM type (e.g., "e2-standard-2", empty = auto-select)
+STAGE_C_MAX_RUN_DURATION=7200      # Maximum task duration in seconds (7200s = 2 hours)
+```
+
+**Stage C Configuration:**
+- Stage C aggregates all Stage B results into formatted CSV outputs
+- Single task job (not parallelized)
+- Memory requirements increase with number of Stage B tasks
+- Default: 8 GB (suitable for up to ~1000 tasks)
+- Increase memory for larger runs (10,000+ tasks may need 16-32 GB)
+
+**Timeout Guidelines:**
+- Default: 7200 seconds (2 hours)
+- Small runs (< 100 tasks): 1800 seconds (30 minutes)
+- Medium runs (100-1000 tasks): 7200 seconds (2 hours)
+- Large runs (1000-10,000 tasks): 14400 seconds (4 hours)
+- Very large runs (10,000+ tasks): Increase as needed
+
+### Pipeline Control
+
+```bash
+RUN_OUTPUT_STAGE=true              # Enable/disable Stage C execution (default: true)
+```
+
+**Stage C Control:**
+- `RUN_OUTPUT_STAGE=true`: Stage C runs automatically after Stage B completes
+- `RUN_OUTPUT_STAGE=false`: Stage C is skipped, workflow ends after Stage B
+- Useful for debugging or when you only need raw result files
+
 
 ## Output Structure
 
@@ -89,8 +123,17 @@ Workflow outputs are organized in GCS as:
 
 ```
 gs://{BUCKET_NAME}/{DIR_PREFIX}{EXP_ID}/{RUN_ID}/
-  builder-artifacts/input_0000.pkl, input_0001.pkl, ...
-  runner-artifacts/result_0000.pkl, result_0001.pkl, ...
+  builder-artifacts/
+    input_0000.pkl, input_0001.pkl, ...
+  runner-artifacts/
+    result_0000.pkl, result_0001.pkl, ...
+  outputs/
+    quantiles_compartments.csv.gz
+    quantiles_transitions.csv.gz
+    trajectories_compartments.csv.gz
+    trajectories_transitions.csv.gz
+    model_metadata.csv.gz
+    posteriors.csv.gz  (calibration only)
 ```
 
 **Path components:**
@@ -98,6 +141,11 @@ gs://{BUCKET_NAME}/{DIR_PREFIX}{EXP_ID}/{RUN_ID}/
 - `DIR_PREFIX` - Organizational prefix (from `.env`, optional trailing slash)
 - `EXP_ID` - Experiment identifier (user provides when running workflow)
 - `RUN_ID` - Auto-generated timestamp-uuid (unique per workflow execution)
+
+**Output directories:**
+- `builder-artifacts/` - Stage A input files (N pickle files)
+- `runner-artifacts/` - Stage B result files (N pickle files)
+- `outputs/` - Stage C formatted CSV files (only created if `RUN_OUTPUT_STAGE=true`)
 
 
 ## GitHub Authentication
