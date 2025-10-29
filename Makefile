@@ -238,6 +238,11 @@ tf-plan:
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
 	  -var="stage_b_max_run_duration=$(STAGE_B_MAX_RUN_DURATION)" \
+	  -var="stage_c_cpu_milli=$(STAGE_C_CPU_MILLI)" \
+	  -var="stage_c_memory_mib=$(STAGE_C_MEMORY_MIB)" \
+	  -var="stage_c_machine_type=$(STAGE_C_MACHINE_TYPE)" \
+	  -var="stage_c_max_run_duration=$(STAGE_C_MAX_RUN_DURATION)" \
+	  -var="run_output_stage=$(RUN_OUTPUT_STAGE)" \
 	  -var="task_count_per_node=$(TASK_COUNT_PER_NODE)"
 
 tf-apply:
@@ -257,6 +262,11 @@ tf-apply:
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
 	  -var="stage_b_max_run_duration=$(STAGE_B_MAX_RUN_DURATION)" \
+	  -var="stage_c_cpu_milli=$(STAGE_C_CPU_MILLI)" \
+	  -var="stage_c_memory_mib=$(STAGE_C_MEMORY_MIB)" \
+	  -var="stage_c_machine_type=$(STAGE_C_MACHINE_TYPE)" \
+	  -var="stage_c_max_run_duration=$(STAGE_C_MAX_RUN_DURATION)" \
+	  -var="run_output_stage=$(RUN_OUTPUT_STAGE)" \
 	  -var="task_count_per_node=$(TASK_COUNT_PER_NODE)"
 
 tf-destroy:
