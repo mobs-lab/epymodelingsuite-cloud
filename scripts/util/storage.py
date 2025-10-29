@@ -57,11 +57,14 @@ def get_config() -> dict:
             "Set it before running: export EXP_ID=your-experiment-id"
         )
 
+    # Get RUN_ID - if not set or empty, use "unknown"
+    run_id = os.getenv("RUN_ID") or "unknown"
+
     return {
         "mode": _get_execution_mode(),
         "bucket": os.getenv("GCS_BUCKET", ""),
         "exp_id": exp_id,
-        "run_id": os.getenv("RUN_ID", "unknown"),
+        "run_id": run_id,
         "dir_prefix": os.getenv("DIR_PREFIX", "pipeline/flu/").rstrip("/"),
     }
 
