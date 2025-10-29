@@ -21,6 +21,7 @@ This pipeline orchestrates two-stage job runs on Google Cloud with [Workflows](h
 **Pipeline Flow:**
 - **Stage A (Dispatcher/Builder)** - Single task that generates N input configuration files → GCS
 - **Stage B (Runner)** - N parallel tasks, each processing one input file → results to GCS
+- **Stage C (Output)** - Single task that aggregates all results and generates formatted CSV outputs → GCS
 - **Orchestration** - Cloud Workflows coordinates stage transitions with automatic retry logic
 
 
@@ -96,6 +97,18 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Each simulation processes one input configuration file and produces one result file
 - Example: Running 100 simulations = Stage B job with 100 tasks
 
+**Stage C (Output)**
+- Aggregates all Stage B results and generates formatted outputs
+- Runs as a single Google Cloud Batch job with 1 task
+- Reads all result files from Stage B and produces CSV.gz files
+- Outputs: `{EXP_ID}/{RUN_ID}/outputs/*.csv.gz` (quantiles, trajectories, metadata, etc.)
+- Script: [scripts/main_output.py](scripts/main_output.py)
+
+**Output**
+- Another name for Stage C
+- The component that "outputs" formatted results for downstream analysis
+- Labeled with `stage: output` in Google Cloud resources
+
 </details>
 
 <details>
@@ -169,7 +182,9 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - **[scripts/](scripts/)** - Application code
   - [main_builder.py](scripts/main_builder.py) - Stage A generator
   - [main_runner.py](scripts/main_runner.py) - Stage B runner
+  - [main_output.py](scripts/main_output.py) - Stage C output generator
   - [run_builder.sh](scripts/run_builder.sh) - Stage A wrapper for repo cloning
+  - [run_output.sh](scripts/run_output.sh) - Stage C wrapper
 - **[docker/](docker/)** - Container config
   - [Dockerfile](docker/Dockerfile) - Multi-stage build (local and cloud targets)
 - **[docker-compose.yml](docker-compose.yml)** - Local development setup
