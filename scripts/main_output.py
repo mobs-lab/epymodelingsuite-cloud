@@ -22,17 +22,22 @@ from flumodelingsuite.utils import identify_config_type
 
 
 def detect_result_type(result) -> str:
-    """
-    Detect whether a result is a simulation or calibration.
+    """Detect whether a result is a simulation or calibration.
 
-    Args:
-        result: Result object from Stage B
+    Parameters
+    ----------
+    result
+        Result object from Stage B
 
-    Returns:
+    Returns
+    -------
+    str
         "simulation" or "calibration"
 
-    Raises:
-        ValueError: If result type cannot be determined
+    Raises
+    ------
+    ValueError
+        If result type cannot be determined
     """
     type_name = type(result).__name__
     if "Simulation" in type_name:
@@ -44,17 +49,22 @@ def detect_result_type(result) -> str:
 
 
 def load_all_results(num_tasks: int) -> tuple[list, str]:
-    """
-    Load all result pickle files from Stage B.
+    """Load all result pickle files from Stage B.
 
-    Args:
-        num_tasks: Number of result files to load
+    Parameters
+    ----------
+    num_tasks : int
+        Number of result files to load
 
-    Returns:
+    Returns
+    -------
+    tuple[list, str]
         Tuple of (results_list, result_type) where result_type is 'simulation' or 'calibration'
 
-    Raises:
-        ValueError: If any result files are missing or if no results could be loaded
+    Raises
+    ------
+    ValueError
+        If any result files are missing or if no results could be loaded
     """
     results = []
     result_type = None
@@ -118,14 +128,18 @@ def load_all_results(num_tasks: int) -> tuple[list, str]:
 
 
 def resolve_output_config(exp_id: str, config_dir: str = "/data/forecast/experiments") -> str | None:
-    """
-    Resolve output config file for an experiment (same pattern as resolve_configs in main_builder.py).
+    """Resolve output config file for an experiment (same pattern as resolve_configs in main_builder.py).
 
-    Args:
-        exp_id: Experiment ID
-        config_dir: Base directory for experiments (default: '/data/forecast/experiments')
+    Parameters
+    ----------
+    exp_id : str
+        Experiment ID
+    config_dir : str, optional
+        Base directory for experiments (default: '/data/forecast/experiments')
 
-    Returns:
+    Returns
+    -------
+    str | None
         Path to output config file or None if not found
     """
     exp_config_dir = Path(config_dir) / exp_id / "config"
