@@ -218,7 +218,7 @@ def main():
 
         dispatch_kwargs = {
             dispatch_key: results,
-            "outputs": output_config.outputs
+            "output_config": output_config
         }
 
         output_dict = dispatch_output_generator(**dispatch_kwargs)
