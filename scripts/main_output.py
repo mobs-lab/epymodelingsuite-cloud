@@ -15,10 +15,9 @@ import dill
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from util import storage
+from util.config import resolve_configs
 
-from flumodelingsuite.config_loader import load_output_config_from_file
 from flumodelingsuite.dispatcher import dispatch_output_generator
-from flumodelingsuite.utils import identify_config_type
 
 
 def detect_result_type(result) -> str:
@@ -127,41 +126,6 @@ def load_all_results(num_tasks: int) -> tuple[list, str]:
     return results, result_type
 
 
-def resolve_output_config(exp_id: str, config_dir: str = "/data/forecast/experiments") -> str | None:
-    """Resolve output config file for an experiment (same pattern as resolve_configs in main_builder.py).
-
-    Parameters
-    ----------
-    exp_id : str
-        Experiment ID
-    config_dir : str, optional
-        Base directory for experiments (default: '/data/forecast/experiments')
-
-    Returns
-    -------
-    str | None
-        Path to output config file or None if not found
-    """
-    exp_config_dir = Path(config_dir) / exp_id / "config"
-
-    if not exp_config_dir.exists():
-        return None
-
-    # Find all YAML files
-    yaml_files = list(exp_config_dir.glob("*.yml")) + list(exp_config_dir.glob("*.yaml"))
-
-    # Use identify_config_type to find output config
-    for yaml_file in yaml_files:
-        try:
-            config_type = identify_config_type(str(yaml_file))
-            if config_type == "output":
-                return str(yaml_file)
-        except Exception:
-            continue
-
-    return None
-
-
 def main():
     # Get configuration
     config = storage.get_config()
@@ -178,8 +142,12 @@ def main():
     num_tasks = int(os.getenv("NUM_TASKS", config.get("num_tasks", 1)))
     print(f"  Number of tasks: {num_tasks}")
 
-    # Load output configuration (auto-detect, same pattern as stages A and B)
-    output_config_path = resolve_output_config(config["exp_id"])
+    # Resolve config files for this experiment
+    print(f"\nResolving config files for exp_id: {config['exp_id']}")
+    config_files = resolve_configs(config["exp_id"])
+
+    # Load output configuration
+    output_config_path = config_files["output"]
 
     if not output_config_path:
         exp_config_dir = Path("/data/forecast/experiments") / config["exp_id"] / "config"
@@ -191,6 +159,7 @@ def main():
 
     print(f"Output config: {output_config_path}")
     try:
+        from flumodelingsuite.config_loader import load_output_config_from_file
         output_config = load_output_config_from_file(output_config_path)
         print("  Output config loaded successfully")
     except Exception as e:
