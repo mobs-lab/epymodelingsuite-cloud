@@ -1,4 +1,4 @@
-.PHONY: build build-local build-dev run-builder-local run-task-local run-output-local run-task-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
+.PHONY: build build-local build-dev run-builder-local run-task-local run-output-local run-task-cloud run-output-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
 
 # Default values - override with environment variables
 PROJECT_ID ?= your-project
@@ -27,6 +27,10 @@ STAGE_B_CPU_MILLI ?= 2000
 STAGE_B_MEMORY_MIB ?= 8192
 STAGE_B_MACHINE_TYPE ?=
 STAGE_B_MAX_RUN_DURATION ?= 36000
+STAGE_C_CPU_MILLI ?= 2000
+STAGE_C_MEMORY_MIB ?= 8192
+STAGE_C_MACHINE_TYPE ?=
+STAGE_C_MAX_RUN_DURATION ?= 7200
 TASK_COUNT_PER_NODE ?= 1
 
 # Local execution parameters
@@ -46,6 +50,7 @@ help:
 	@echo "  run-task-local     - Run a single task locally with docker-compose"
 	@echo "  run-output-local   - Run output generation locally with docker-compose"
 	@echo "  run-task-cloud     - Run a single task on Google Cloud Batch"
+	@echo "  run-output-cloud   - Run output generation on Google Cloud Batch"
 	@echo "  tf-init            - Initialize Terraform"
 	@echo "  tf-plan            - Run Terraform plan"
 	@echo "  tf-apply           - Apply Terraform configuration"
@@ -75,6 +80,10 @@ help:
 	@echo "  STAGE_B_MEMORY_MIB      - Stage B memory in MiB (current: $(STAGE_B_MEMORY_MIB))"
 	@echo "  STAGE_B_MACHINE_TYPE    - Stage B machine type (current: $(STAGE_B_MACHINE_TYPE))"
 	@echo "  STAGE_B_MAX_RUN_DURATION - Stage B max duration in seconds (current: $(STAGE_B_MAX_RUN_DURATION))"
+	@echo "  STAGE_C_CPU_MILLI       - Stage C CPU in milli-cores (current: $(STAGE_C_CPU_MILLI))"
+	@echo "  STAGE_C_MEMORY_MIB      - Stage C memory in MiB (current: $(STAGE_C_MEMORY_MIB))"
+	@echo "  STAGE_C_MACHINE_TYPE    - Stage C machine type (current: $(STAGE_C_MACHINE_TYPE))"
+	@echo "  STAGE_C_MAX_RUN_DURATION - Stage C max duration in seconds (current: $(STAGE_C_MAX_RUN_DURATION))"
 	@echo "  TASK_COUNT_PER_NODE     - Max tasks per VM (current: $(TASK_COUNT_PER_NODE))"
 
 build:
@@ -216,6 +225,40 @@ run-task-cloud:
 	RUN_ID=$(RUN_ID) \
 	TASK_INDEX=$(TASK_INDEX) \
 	./scripts/run-task-cloud.sh
+
+run-output-cloud:
+	@echo "Submitting output generation to Google Cloud Batch..."
+	@if [ -z "$(EXP_ID)" ]; then \
+		echo "ERROR: EXP_ID is required but not set."; \
+		echo "Usage: EXP_ID=test-flu RUN_ID=20251101-120000-abc123 NUM_TASKS=10 make run-output-cloud"; \
+		exit 1; \
+	fi
+	@if [ -z "$(RUN_ID)" ]; then \
+		echo "ERROR: RUN_ID is required but not set."; \
+		echo "Usage: EXP_ID=test-flu RUN_ID=20251101-120000-abc123 NUM_TASKS=10 make run-output-cloud"; \
+		exit 1; \
+	fi
+	@if [ -z "$(NUM_TASKS)" ]; then \
+		echo "ERROR: NUM_TASKS is required but not set."; \
+		echo "Usage: EXP_ID=test-flu RUN_ID=20251101-120000-abc123 NUM_TASKS=10 make run-output-cloud"; \
+		exit 1; \
+	fi
+	PROJECT_ID=$(PROJECT_ID) \
+	REGION=$(REGION) \
+	BUCKET_NAME=$(BUCKET_NAME) \
+	REPO_NAME=$(REPO_NAME) \
+	IMAGE_NAME=$(IMAGE_NAME) \
+	IMAGE_TAG=$(IMAGE_TAG) \
+	DIR_PREFIX=$(DIR_PREFIX) \
+	STAGE_C_CPU_MILLI=$(STAGE_C_CPU_MILLI) \
+	STAGE_C_MEMORY_MIB=$(STAGE_C_MEMORY_MIB) \
+	STAGE_C_MACHINE_TYPE=$(STAGE_C_MACHINE_TYPE) \
+	STAGE_C_MAX_RUN_DURATION=$(STAGE_C_MAX_RUN_DURATION) \
+	GITHUB_FORECAST_REPO=$(GITHUB_FORECAST_REPO) \
+	EXP_ID=$(EXP_ID) \
+	RUN_ID=$(RUN_ID) \
+	NUM_TASKS=$(NUM_TASKS) \
+	./scripts/run-output-cloud.sh
 
 tf-init:
 	@echo "Initializing Terraform..."
