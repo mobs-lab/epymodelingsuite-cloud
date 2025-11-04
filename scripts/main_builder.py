@@ -87,7 +87,45 @@ def build_and_save_dispatch_outputs(
 
 
 def main() -> None:
-    """Generate dispatch inputs for parallel processing (Stage A)."""
+    """
+    Stage A (Builder): Generate dispatch inputs for parallel processing.
+
+    This stage:
+    1. Resolves and loads experiment configuration files (basemodel, sampling, calibration)
+    2. Validates configuration consistency
+    3. Calls flumodelingsuite.dispatcher.dispatch_builder() to generate workloads
+    4. Saves N pickled input files to storage (one per parallel task)
+    5. Saves telemetry summary for Stage A
+
+    Environment Variables
+    ---------------------
+    EXP_ID : str (required)
+        Experiment identifier
+    RUN_ID : str (optional)
+        Run identifier (defaults to "unknown")
+    EXECUTION_MODE : str
+        Storage mode: "cloud" (GCS) or "local" (filesystem)
+    DIR_PREFIX : str (optional)
+        Base directory prefix (default: "pipeline/flu/")
+    LOG_LEVEL : str (optional)
+        Logging level: DEBUG, INFO, WARNING, ERROR (default: INFO)
+
+    Outputs
+    -------
+    Saves to storage:
+        - builder-artifacts/input_{00000..N-1}.pkl : Pickled workload inputs
+        - summaries/json/builder_summary.json : Telemetry metadata
+        - summaries/txt/builder_summary.txt : Human-readable telemetry
+
+    Raises
+    ------
+    ValueError
+        If required configuration files are missing or invalid
+    FileNotFoundError
+        If experiment config directory doesn't exist
+    SystemExit
+        Exits with code 1 on any fatal error
+    """
     try:
         # Get configuration
         config = storage.get_config()
