@@ -17,8 +17,8 @@ from util import storage
 from flumodelingsuite.dispatcher import dispatch_runner
 from flumodelingsuite.telemetry import ExecutionTelemetry
 
-# Task index formatting (supports up to 9999 tasks)
-INDEX_WIDTH = 4
+# Task index formatting (supports up to 99999 tasks)
+INDEX_WIDTH = 5
 
 
 def main() -> None:
