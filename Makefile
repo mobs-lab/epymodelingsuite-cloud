@@ -23,6 +23,7 @@ MAX_PARALLELISM ?= 100
 STAGE_A_CPU_MILLI ?= 2000
 STAGE_A_MEMORY_MIB ?= 4096
 STAGE_A_MACHINE_TYPE ?=
+STAGE_A_MAX_RUN_DURATION ?= 3600
 STAGE_B_CPU_MILLI ?= 2000
 STAGE_B_MEMORY_MIB ?= 8192
 STAGE_B_MACHINE_TYPE ?=
@@ -277,6 +278,7 @@ tf-plan:
 	  -var="stage_a_cpu_milli=$(STAGE_A_CPU_MILLI)" \
 	  -var="stage_a_memory_mib=$(STAGE_A_MEMORY_MIB)" \
 	  -var="stage_a_machine_type=$(STAGE_A_MACHINE_TYPE)" \
+	  -var="stage_a_max_run_duration=$(STAGE_A_MAX_RUN_DURATION)" \
 	  -var="stage_b_cpu_milli=$(STAGE_B_CPU_MILLI)" \
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
@@ -301,6 +303,7 @@ tf-apply:
 	  -var="stage_a_cpu_milli=$(STAGE_A_CPU_MILLI)" \
 	  -var="stage_a_memory_mib=$(STAGE_A_MEMORY_MIB)" \
 	  -var="stage_a_machine_type=$(STAGE_A_MACHINE_TYPE)" \
+	  -var="stage_a_max_run_duration=$(STAGE_A_MAX_RUN_DURATION)" \
 	  -var="stage_b_cpu_milli=$(STAGE_B_CPU_MILLI)" \
 	  -var="stage_b_memory_mib=$(STAGE_B_MEMORY_MIB)" \
 	  -var="stage_b_machine_type=$(STAGE_B_MACHINE_TYPE)" \
