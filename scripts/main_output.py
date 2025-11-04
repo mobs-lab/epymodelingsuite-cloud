@@ -20,8 +20,8 @@ from util.config import resolve_configs
 from flumodelingsuite.dispatcher import dispatch_output_generator
 from flumodelingsuite.telemetry import ExecutionTelemetry, create_workflow_telemetry
 
-# Task index formatting (supports up to 9999 tasks)
-INDEX_WIDTH = 4
+# Task index formatting (supports up to 99999 tasks)
+INDEX_WIDTH = 5
 
 
 def detect_result_type(result) -> str:
