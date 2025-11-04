@@ -57,6 +57,11 @@ main:
           - taskCountPerNode: ${task_count_per_node}
           - runOutputStage: ${run_output_stage}
 
+          # Network configuration
+          - networkName: "${network_name}"
+          - subnetName: "${subnet_name}"
+          - subnetSelfLink: "${subnet_self_link}"
+
     # ========== STAGE A: Generate Input Files ==========
     - create_stageA_job:
         call: http.post
@@ -103,6 +108,11 @@ main:
             allocationPolicy:
               serviceAccount:
                 email: $${batchSaEmail}
+              network:
+                networkInterfaces:
+                  - network: $${networkName}
+                    subnetwork: $${subnetSelfLink}
+                    noExternalIpAddress: true
               %{~ if stage_a_machine_type != "" ~}
               instances:
                 - %{~ if length(regexall("^c4d-", stage_a_machine_type)) > 0 ~}
@@ -205,6 +215,11 @@ main:
             allocationPolicy:
               serviceAccount:
                 email: $${batchSaEmail}
+              network:
+                networkInterfaces:
+                  - network: $${networkName}
+                    subnetwork: $${subnetSelfLink}
+                    noExternalIpAddress: true
               %{~ if stage_b_machine_type != "" ~}
               instances:
                 - %{~ if length(regexall("^c4d-", stage_b_machine_type)) > 0 ~}
@@ -287,6 +302,11 @@ main:
                       allocationPolicy:
                         serviceAccount:
                           email: $${batchSaEmail}
+                        network:
+                          networkInterfaces:
+                            - network: $${networkName}
+                              subnetwork: $${subnetSelfLink}
+                              noExternalIpAddress: true
                         %{~ if stage_c_machine_type != "" ~}
                         instances:
                           - %{~ if length(regexall("^c4d-", stage_c_machine_type)) > 0 ~}
