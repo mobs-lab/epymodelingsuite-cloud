@@ -21,11 +21,23 @@ Usage:
 """
 
 import os
+import logging
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from flumodelingsuite.telemetry import ExecutionTelemetry
+
+# Module-level logger for utility logging
+# Use standard logging.getLogger for utility modules (not setup_logger)
+_logger = logging.getLogger(__name__)
+
+# Storage logger for verbose I/O operations
+from util.logger import StorageLogger
+_storage_logger = StorageLogger(_logger)
+
+# GCS client cache for cloud mode (optimization)
+_gcs_client = None
 
 
 def _get_execution_mode() -> str:
@@ -36,6 +48,25 @@ def _get_execution_mode() -> str:
 def _get_local_base_path() -> Path:
     """Get the base path for local storage."""
     return Path(os.getenv("LOCAL_DATA_PATH", "/data"))
+
+
+def _get_gcs_client():
+    """Get or create cached GCS client.
+
+    Returns a cached google.cloud.storage.Client instance to avoid
+    creating new clients on every operation. This improves performance
+    for high-frequency operations.
+
+    Returns
+    -------
+    google.cloud.storage.Client
+        Cached GCS client instance
+    """
+    global _gcs_client
+    if _gcs_client is None:
+        from google.cloud import storage
+        _gcs_client = storage.Client()
+    return _gcs_client
 
 
 def get_config() -> dict:
@@ -194,19 +225,19 @@ def load_bytes(path: str) -> bytes:
         if not file_path.exists():
             raise FileNotFoundError(f"Local file not found: {file_path}")
 
-        print(f"[Local Storage] Reading: {file_path}")
-        return file_path.read_bytes()
+        data = file_path.read_bytes()
+        _storage_logger.log_read(str(file_path), len(data))
+        return data
 
     else:
         # Cloud mode - use GCS
-        from google.cloud import storage
-
-        client = storage.Client()
+        client = _get_gcs_client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(final_path)
 
-        print(f"[GCS] Downloading: gs://{bucket_name}/{final_path}")
-        return blob.download_as_bytes()
+        data = blob.download_as_bytes()
+        _storage_logger.log_read(f"gs://{bucket_name}/{final_path}", len(data))
+        return data
 
 
 def save_bytes(path: str, data: bytes) -> None:
@@ -244,14 +275,12 @@ def save_bytes(path: str, data: bytes) -> None:
         if isinstance(data, str):
             data = data.encode('utf-8')
 
-        print(f"[Local Storage] Writing: {file_path} ({len(data)} bytes)")
         file_path.write_bytes(data)
+        _storage_logger.log_write(str(file_path), len(data))
 
     else:
         # Cloud mode - use GCS
-        from google.cloud import storage
-
-        client = storage.Client()
+        client = _get_gcs_client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(final_path)
 
@@ -259,8 +288,8 @@ def save_bytes(path: str, data: bytes) -> None:
         if isinstance(data, str):
             data = data.encode('utf-8')
 
-        print(f"[GCS] Uploading: gs://{bucket_name}/{final_path} ({len(data)} bytes)")
         blob.upload_from_string(data)
+        _storage_logger.log_write(f"gs://{bucket_name}/{final_path}", len(data))
 
 
 def save_json(path: str, data: dict) -> None:
@@ -364,14 +393,14 @@ def save_telemetry_summary(
     json_path = get_path("summaries", "json", f"{summary_name}.json")
     save_json(json_path, telemetry.to_dict())
     if verbose:
-        print(f"  Saved JSON summary: {json_path}")
+        _logger.debug(f"Saved JSON summary: {json_path}")
 
     # Save as TXT
     txt_path = get_path("summaries", "txt", f"{summary_name}.txt")
     txt_content = telemetry.to_text()
     save_bytes(txt_path, txt_content.encode('utf-8'))
     if verbose:
-        print(f"  Saved TXT summary: {txt_path}")
+        _logger.debug(f"Saved TXT summary: {txt_path}")
 
     return json_path, txt_path
 
@@ -413,9 +442,7 @@ def list_blobs(bucket_name: Optional[str], prefix: str = "") -> list[str]:
 
     else:
         # Cloud mode - use GCS
-        from google.cloud import storage
-
-        client = storage.Client()
+        client = _get_gcs_client()
         bucket = client.bucket(bucket_name)
         blobs = bucket.list_blobs(prefix=prefix)
 
