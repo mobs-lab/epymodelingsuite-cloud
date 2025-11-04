@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from util import storage
 from util.config import load_all_configs, resolve_configs
+from util.logger import setup_logger
+from util.error_handling import handle_stage_error
 
 from flumodelingsuite.dispatcher import dispatch_builder
 from flumodelingsuite.telemetry import ExecutionTelemetry
@@ -26,6 +28,7 @@ def build_and_save_dispatch_outputs(
     basemodel_config,
     sampling_config,
     calibration_config,
+    logger,
 ) -> int:
     """Build dispatch outputs and save as pickled input files to storage.
 
@@ -37,13 +40,15 @@ def build_and_save_dispatch_outputs(
         Loaded sampling configuration (optional, can be None)
     calibration_config
         Loaded calibration configuration (optional, can be None)
+    logger
+        Logger instance for output
 
     Returns
     -------
     int
         Number of input files saved
     """
-    print("\nBuilding dispatch...")
+    logger.info("Building dispatch")
 
     # Wrap builder in telemetry context
     with ExecutionTelemetry() as builder_telemetry:
@@ -52,11 +57,11 @@ def build_and_save_dispatch_outputs(
 
         if sampling_config is not None:
             dispatch_kwargs["sampling_config"] = sampling_config
-            print("  Using sampling config")
+            logger.info("Using sampling config")
 
         if calibration_config is not None:
             dispatch_kwargs["calibration_config"] = calibration_config
-            print("  Using calibration config")
+            logger.info("Using calibration config")
 
         # Build dispatch outputs
         outputs = dispatch_builder(**dispatch_kwargs)
@@ -73,7 +78,7 @@ def build_and_save_dispatch_outputs(
             # Upload to storage (GCS or local)
             path = storage.get_path("builder-artifacts", f"input_{idx:0{INDEX_WIDTH}d}.pkl")
             storage.save_bytes(path, data)
-            print(f"  Saved: {path} ({len(data)} bytes)")
+            logger.debug(f"Saved: {path} ({len(data):,} bytes)")
 
         # Save telemetry summary
         storage.save_telemetry_summary(builder_telemetry, "builder_summary")
@@ -87,23 +92,36 @@ def main() -> None:
         # Get configuration
         config = storage.get_config()
 
-        print("Starting Stage A: Generating dispatch inputs")
-        print(f"  Storage mode: {config['mode']}")
-        print(f"  Dir prefix: {config['dir_prefix']}")
-        print(f"  Experiment ID: {config['exp_id']}")
-        print(f"  Run ID: {config['run_id']}")
-        if config["mode"] == "cloud":
-            print(f"  Bucket: {config['bucket']}")
+        # Setup logger with context
+        logger = setup_logger(
+            "builder",
+            exp_id=config["exp_id"],
+            run_id=config["run_id"],
+        )
+
+        logger.info("Starting Stage A: Generating dispatch inputs")
+        logger.info(
+            "Storage configuration",
+            extra={
+                "mode": config["mode"],
+                "dir_prefix": config["dir_prefix"],
+                "bucket": config.get("bucket", "N/A"),
+            }
+        )
 
         # Resolve config files for this experiment
-        print(f"\nResolving config files for exp_id: {config['exp_id']}")
+        logger.info(f"Resolving config files for exp_id: {config['exp_id']}")
         config_files = resolve_configs(config["exp_id"])
 
-        print("  Found configs:")
-        print(f"    Basemodel: {config_files['basemodel']}")
-        print(f"    Sampling: {config_files['sampling']}")
-        print(f"    Calibration: {config_files['calibration']}")
-        print(f"    Output: {config_files['output']}")
+        logger.debug(
+            "Found config files",
+            extra={
+                "basemodel": config_files["basemodel"],
+                "sampling": config_files["sampling"],
+                "calibration": config_files["calibration"],
+                "output": config_files["output"],
+            }
+        )
 
         # Load all configs and validate consistency
         basemodel_config, sampling_config, calibration_config, output_config = load_all_configs(
@@ -112,16 +130,13 @@ def main() -> None:
 
         # Build dispatch and save input files
         num_files = build_and_save_dispatch_outputs(
-            basemodel_config, sampling_config, calibration_config
+            basemodel_config, sampling_config, calibration_config, logger
         )
 
-        print(f"\nStage A complete: {num_files} input files saved")
+        logger.info(f"Stage A complete: {num_files} input files saved", extra={"num_files": num_files})
 
     except Exception as e:
-        print(f"ERROR: Stage A (Builder) failed: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        handle_stage_error("Stage A (Builder)", e, logger)
 
 
 if __name__ == "__main__":

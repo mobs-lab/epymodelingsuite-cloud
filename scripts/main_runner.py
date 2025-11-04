@@ -13,6 +13,8 @@ import dill  # Use dill instead of pickle for better serialization support
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from util import storage
+from util.logger import setup_logger
+from util.error_handling import handle_stage_error
 
 from flumodelingsuite.dispatcher import dispatch_runner
 from flumodelingsuite.telemetry import ExecutionTelemetry
@@ -30,24 +32,34 @@ def main() -> None:
         # Get configuration
         config = storage.get_config()
 
-        print(f"Starting Stage B task {idx}")
-        print(f"  Storage mode: {config['mode']}")
-        print(f"  Dir prefix: {config['dir_prefix']}")
-        print(f"  Experiment ID: {config['exp_id']}")
-        print(f"  Run ID: {config['run_id']}")
-        if config["mode"] == "cloud":
-            print(f"  Bucket: {config['bucket']}")
+        # Setup logger with task context
+        logger = setup_logger(
+            "runner",
+            task_index=idx,
+            exp_id=config["exp_id"],
+            run_id=config["run_id"],
+        )
+
+        logger.info("Starting task")
+        logger.info(
+            "Storage configuration",
+            extra={
+                "mode": config["mode"],
+                "dir_prefix": config["dir_prefix"],
+                "bucket": config.get("bucket", "N/A"),
+            }
+        )
 
         # Load input file (workload from dispatcher)
         input_path = storage.get_path("builder-artifacts", f"input_{idx:0{INDEX_WIDTH}d}.pkl")
-        print(f"Loading input: {input_path}")
+        logger.debug(f"Loading input: {input_path}")
 
         try:
             raw_data = storage.load_bytes(input_path)
             workload = dill.loads(raw_data)
-            print(f"  Input loaded: {len(raw_data)} bytes")
+            logger.debug(f"Input loaded: {len(raw_data):,} bytes")
         except Exception as e:
-            print(f"ERROR: Failed to load input: {e}")
+            logger.error(f"Failed to load input: {e}")
             raise
 
         # Wrap runner in telemetry context
@@ -56,31 +68,28 @@ def main() -> None:
             try:
                 result = dispatch_runner(workload)
             except Exception as e:
-                print(f"ERROR: Run failed: {e}")
+                logger.error(f"Run failed: {e}")
                 raise
 
             # Save results
             output_path = storage.get_path("runner-artifacts", f"result_{idx:0{INDEX_WIDTH}d}.pkl")
-            print(f"Saving results: {output_path}")
+            logger.debug(f"Saving results: {output_path}")
 
             try:
                 output_data = dill.dumps(result)
                 storage.save_bytes(output_path, output_data)
-                print(f"  Results saved: {len(output_data)} bytes")
+                logger.debug(f"Results saved: {len(output_data):,} bytes")
             except Exception as e:
-                print(f"ERROR: Failed to save results: {e}")
+                logger.error(f"Failed to save results: {e}")
                 raise
 
             # Save telemetry as JSON and TXT (will be aggregated in Stage C)
             storage.save_telemetry_summary(runner_telemetry, f"runner_{idx:0{INDEX_WIDTH}d}_summary")
 
-        print(f"Task {idx} complete")
+        logger.info("Task complete")
 
     except Exception as e:
-        print(f"ERROR: Stage B (Runner) failed: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        handle_stage_error(f"Task {idx}", e, logger)
 
 
 if __name__ == "__main__":

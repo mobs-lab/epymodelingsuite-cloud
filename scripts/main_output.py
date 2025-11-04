@@ -7,6 +7,7 @@ dispatch_output_generator, and saves CSV.gz files to storage.
 
 import os
 import sys
+import logging
 from pathlib import Path
 
 import dill
@@ -16,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from util import storage
 from util.config import resolve_configs
+from util.logger import setup_logger
+from util.error_handling import handle_stage_error
 
 from flumodelingsuite.dispatcher import dispatch_output_generator
 from flumodelingsuite.telemetry import ExecutionTelemetry, create_workflow_telemetry
@@ -51,13 +54,15 @@ def detect_result_type(result) -> str:
         raise ValueError(f"Unknown result type: {type_name}")
 
 
-def load_all_results(num_tasks: int) -> tuple[list, str]:
+def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]:
     """Load all result pickle files from Stage B.
 
     Parameters
     ----------
     num_tasks : int
         Number of result files to load
+    logger : logging.Logger
+        Logger instance for output
 
     Returns
     -------
@@ -74,12 +79,12 @@ def load_all_results(num_tasks: int) -> tuple[list, str]:
     missing_tasks = []
     failed_tasks = []
 
-    print(f"Loading {num_tasks} result files from Stage B...")
+    logger.info(f"Loading {num_tasks} result files from Stage B")
 
     # First pass: Check which files exist and load them
     for i in range(num_tasks):
         result_path = storage.get_path("runner-artifacts", f"result_{i:0{INDEX_WIDTH}d}.pkl")
-        print(f"  Checking: {result_path}")
+        logger.debug(f"Checking: {result_path}")
 
         try:
             raw_data = storage.load_bytes(result_path)
@@ -89,24 +94,29 @@ def load_all_results(num_tasks: int) -> tuple[list, str]:
             # Determine result type from first result
             if result_type is None:
                 result_type = detect_result_type(result)
-                print(f"  Detected result type: {result_type}")
+                logger.info(f"Detected result type: {result_type}")
 
-            print(f"    Loaded: {len(raw_data)} bytes")
+            logger.debug(f"Loaded: {len(raw_data):,} bytes")
         except FileNotFoundError:
-            print(f"    MISSING: File not found")
+            logger.warning(f"MISSING: File not found: {result_path}")
             missing_tasks.append(i)
         except Exception as e:
-            print(f"    FAILED: {type(e).__name__}: {e}")
+            logger.warning(f"FAILED: {type(e).__name__}: {e}")
             failed_tasks.append(i)
 
     # Report results
     successful = len(results)
     total_failed = len(missing_tasks) + len(failed_tasks)
 
-    print(f"\nLoad Summary:")
-    print(f"  Successfully loaded: {successful}/{num_tasks}")
-    print(f"  Missing files: {len(missing_tasks)}")
-    print(f"  Failed to load: {len(failed_tasks)}")
+    logger.info(
+        "Load summary",
+        extra={
+            "successful": successful,
+            "total_tasks": num_tasks,
+            "missing": len(missing_tasks),
+            "failed": len(failed_tasks),
+        }
+    )
 
     # If any tasks failed, raise detailed error
     if total_failed > 0:
@@ -126,17 +136,19 @@ def load_all_results(num_tasks: int) -> tuple[list, str]:
     if successful == 0:
         raise ValueError("No results loaded - all tasks failed or no tasks were run")
 
-    print(f"\nSuccessfully loaded {len(results)} {result_type} results")
+    logger.info(f"Successfully loaded {len(results)} {result_type} results")
     return results, result_type
 
 
-def load_configuration(config: dict):
+def load_configuration(config: dict, logger: logging.Logger):
     """Load and validate output configuration for the experiment.
 
     Parameters
     ----------
     config : dict
         Storage configuration containing exp_id and other settings
+    logger : logging.Logger
+        Logger instance for output
 
     Returns
     -------
@@ -151,7 +163,7 @@ def load_configuration(config: dict):
         If config file cannot be loaded or validated
     """
     # Resolve config files for this experiment
-    print(f"\nResolving config files for exp_id: {config['exp_id']}")
+    logger.info(f"Resolving config files for exp_id: {config['exp_id']}")
     config_files = resolve_configs(config["exp_id"])
 
     # Load output configuration
@@ -159,20 +171,20 @@ def load_configuration(config: dict):
 
     if not output_config_path:
         exp_config_dir = Path("/data/forecast/experiments") / config["exp_id"] / "config"
-        print("ERROR: No output config found")
-        print(f"  Searched in: {exp_config_dir}")
-        print("  Looking for YAML files with 'outputs' key")
-        print("Please add output.yaml with 'outputs' key to your experiment config directory")
+        logger.error("No output config found")
+        logger.error(f"Searched in: {exp_config_dir}")
+        logger.error("Looking for YAML files with 'outputs' key")
+        logger.error("Please add output.yaml with 'outputs' key to your experiment config directory")
         sys.exit(1)
 
-    print(f"Output config: {output_config_path}")
+    logger.debug(f"Output config: {output_config_path}")
     from flumodelingsuite.config_loader import load_output_config_from_file
     output_config = load_output_config_from_file(output_config_path)
-    print("  Output config loaded successfully")
+    logger.info("Output config loaded successfully")
     return output_config
 
 
-def generate_outputs(results: list, result_type: str, output_config) -> dict:
+def generate_outputs(results: list, result_type: str, output_config, logger: logging.Logger) -> dict:
     """Generate output files using the dispatcher.
 
     Parameters
@@ -183,6 +195,8 @@ def generate_outputs(results: list, result_type: str, output_config) -> dict:
         Type of results ('simulation' or 'calibration')
     output_config : object
         Output configuration object
+    logger : logging.Logger
+        Logger instance for output
 
     Returns
     -------
@@ -194,7 +208,7 @@ def generate_outputs(results: list, result_type: str, output_config) -> dict:
     ValueError
         If result_type is unknown or if output generation fails
     """
-    print(f"\nGenerating outputs for {result_type}...")
+    logger.info(f"Generating outputs for {result_type}")
 
     # Prepare kwargs for dispatcher based on result type
     # Note: Registry expects plural form (simulations/calibrations)
@@ -215,59 +229,63 @@ def generate_outputs(results: list, result_type: str, output_config) -> dict:
     if output_dict is None:
         raise ValueError("dispatch_output_generator returned None - no outputs generated")
 
-    print(f"  Generated {len(output_dict)} output files")
+    logger.info(f"Generated {len(output_dict)} output files")
     for filename in output_dict.keys():
-        print(f"    - {filename}")
+        logger.debug(f"  - {filename}")
 
     return output_dict
 
 
-def save_output_files(output_dict: dict) -> None:
+def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
     """Save output files to storage.
 
     Parameters
     ----------
     output_dict : dict
         Dictionary mapping filenames to gzipped data bytes
+    logger : logging.Logger
+        Logger instance for output
 
     Raises
     ------
     Exception
         If any file save operation fails
     """
-    print("\nSaving output files to storage...")
+    logger.info("Saving output files to storage")
 
     for filename, gzipped_data in output_dict.items():
         output_path = storage.get_path("outputs", filename)
-        print(f"  Saving: {output_path}")
+        logger.debug(f"Saving: {output_path}")
         storage.save_bytes(output_path, gzipped_data)
-        print(f"    Saved: {len(gzipped_data)} bytes")
+        logger.debug(f"Saved: {len(gzipped_data):,} bytes")
 
-    print(f"\nSuccessfully saved {len(output_dict)} output files")
+    logger.info(f"Successfully saved {len(output_dict)} output files")
 
 
-def aggregate_telemetry(num_tasks: int) -> None:
+def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
     """Load all stage telemetries and create workflow summary.
 
     Parameters
     ----------
     num_tasks : int
         Number of runner tasks to load telemetry from
+    logger : logging.Logger
+        Logger instance for output
 
     Notes
     -----
     This function is called in the finally block and continues even if
     individual telemetry files are missing.
     """
-    print("\nAggregating telemetry summaries...")
+    logger.info("Aggregating telemetry summaries")
 
     # Load builder telemetry
     try:
         builder_telemetry_data = storage.load_json(storage.get_path("summaries", "json", "builder_summary.json"))
         builder_telemetry = ExecutionTelemetry.from_dict(builder_telemetry_data)
-        print("  Loaded builder telemetry")
+        logger.debug("Loaded builder telemetry")
     except (FileNotFoundError, Exception) as e:
-        print(f"  Warning: Could not load builder telemetry: {e}")
+        logger.warning(f"Could not load builder telemetry: {e}")
         builder_telemetry = None
 
     # Load runner telemetries
@@ -278,15 +296,15 @@ def aggregate_telemetry(num_tasks: int) -> None:
             runner_telemetries.append(ExecutionTelemetry.from_dict(runner_telemetry_data))
         except (FileNotFoundError, Exception):
             pass
-    print(f"  Loaded {len(runner_telemetries)} runner telemetries")
+    logger.info(f"Loaded {len(runner_telemetries)} runner telemetries")
 
     # Load output telemetry
     try:
         output_telemetry_data = storage.load_json(storage.get_path("summaries", "json", "output_summary.json"))
         output_telemetry = ExecutionTelemetry.from_dict(output_telemetry_data)
-        print("  Loaded output telemetry")
+        logger.debug("Loaded output telemetry")
     except (FileNotFoundError, Exception) as e:
-        print(f"  Warning: Could not load output telemetry: {e}")
+        logger.warning(f"Could not load output telemetry: {e}")
         output_telemetry = None
 
     # Create and save workflow telemetry
@@ -297,12 +315,12 @@ def aggregate_telemetry(num_tasks: int) -> None:
             runner_telemetries=runner_telemetries,
             output_telemetry=output_telemetry,
         )
-        print("  Created workflow telemetry")
+        logger.debug("Created workflow telemetry")
 
         # Save workflow telemetry summary
         storage.save_telemetry_summary(workflow_telemetry, "workflow_summary")
     except Exception as e:
-        print(f"  Warning: Failed to create workflow telemetry: {e}")
+        logger.warning(f"Failed to create workflow telemetry: {e}")
 
 
 def main() -> None:
@@ -343,47 +361,53 @@ def main() -> None:
     # Get configuration
     config = storage.get_config()
 
-    print("Starting Stage C: Output Generation")
-    print(f"  Storage mode: {config['mode']}")
-    print(f"  Dir prefix: {config['dir_prefix']}")
-    print(f"  Experiment ID: {config['exp_id']}")
-    print(f"  Run ID: {config['run_id']}")
-    if config["mode"] == "cloud":
-        print(f"  Bucket: {config['bucket']}")
+    # Setup logger with context
+    logger = setup_logger(
+        "output",
+        exp_id=config["exp_id"],
+        run_id=config["run_id"],
+    )
+
+    logger.info("Starting Stage C: Output Generation")
+    logger.info(
+        "Storage configuration",
+        extra={
+            "mode": config["mode"],
+            "dir_prefix": config["dir_prefix"],
+            "bucket": config.get("bucket", "N/A"),
+        }
+    )
 
     # Get number of tasks from environment or config
     num_tasks = int(os.getenv("NUM_TASKS", config.get("num_tasks", 1)))
-    print(f"  Number of tasks: {num_tasks}")
+    logger.info(f"Number of tasks: {num_tasks}")
 
     try:
         # Load and validate configuration
-        output_config = load_configuration(config)
+        output_config = load_configuration(config, logger)
 
         # Load all result files from Stage B
-        results, result_type = load_all_results(num_tasks)
+        results, result_type = load_all_results(num_tasks, logger)
 
         # Wrap output generation in telemetry context
         with ExecutionTelemetry() as output_telemetry:
             # Generate output files using dispatcher
-            output_dict = generate_outputs(results, result_type, output_config)
+            output_dict = generate_outputs(results, result_type, output_config, logger)
 
             # Save output files to storage
-            save_output_files(output_dict)
+            save_output_files(output_dict, logger)
 
             # Save output telemetry summary
             storage.save_telemetry_summary(output_telemetry, "output_summary")
 
-        print("\nStage C complete!")
+        logger.info("Stage C complete!")
 
     except Exception as e:
-        print(f"ERROR: Stage C (Output) failed: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        handle_stage_error("Stage C (Output)", e, logger)
 
     finally:
         # ALWAYS aggregate summaries (even on failure)
-        aggregate_telemetry(num_tasks)
+        aggregate_telemetry(num_tasks, logger)
 
 
 if __name__ == "__main__":
