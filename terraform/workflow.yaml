@@ -45,6 +45,7 @@ main:
           - cpuMilliA: ${stage_a_cpu_milli}
           - memoryMibA: ${stage_a_memory_mib}
           - machineTypeA: "${stage_a_machine_type}"
+          - maxRunDurationA: "${stage_a_max_run_duration}s"
           - cpuMilliB: ${stage_b_cpu_milli}
           - memoryMibB: ${stage_b_memory_mib}
           - machineTypeB: "${stage_b_machine_type}"
@@ -96,6 +97,7 @@ main:
                   computeResource:
                     cpuMilli: $${cpuMilliA}
                     memoryMib: $${memoryMibA}
+                  maxRunDuration: $${maxRunDurationA}
             logsPolicy:
               destination: "CLOUD_LOGGING"
             allocationPolicy:
