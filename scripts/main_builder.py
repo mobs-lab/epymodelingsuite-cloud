@@ -18,8 +18,8 @@ from util.config import load_all_configs, resolve_configs
 from flumodelingsuite.dispatcher import dispatch_builder
 from flumodelingsuite.telemetry import ExecutionTelemetry
 
-# Task index formatting (supports up to 9999 tasks)
-INDEX_WIDTH = 4
+# Task index formatting (supports up to 99999 tasks)
+INDEX_WIDTH = 5
 
 
 def build_and_save_dispatch_outputs(
