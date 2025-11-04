@@ -11,7 +11,7 @@ variable "region" {
 
 variable "repo_name" {
   type        = string
-  default     = "epydemix"
+  default     = "epymodelingsuite-repo"
   description = "Artifact Registry repository name"
 }
 
@@ -122,4 +122,23 @@ variable "run_output_stage" {
   type        = bool
   default     = true
   description = "Whether to run Stage C (Output generation). Set to false to skip output generation."
+}
+
+# Network configuration
+variable "network_name" {
+  type        = string
+  default     = "epymodelingsuite-network"
+  description = "VPC network name for Cloud Batch"
+}
+
+variable "subnet_name" {
+  type        = string
+  default     = "epymodelingsuite-subnet"
+  description = "Subnet name for Cloud Batch"
+}
+
+variable "subnet_cidr" {
+  type        = string
+  default     = "10.0.0.0/20"
+  description = "CIDR range for subnet (10.0.0.0/20 = 4096 IPs)"
 }
