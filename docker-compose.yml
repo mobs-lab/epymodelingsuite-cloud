@@ -13,6 +13,8 @@ services:
       - EXECUTION_MODE=local
       - EXP_ID=${EXP_ID}
       - RUN_ID=${RUN_ID}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - STORAGE_VERBOSE=${STORAGE_VERBOSE:-true}
     entrypoint: ["/bin/bash", "/scripts/run_builder.sh"]
     # Default args (can be overridden with: docker compose run builder --myarg foo)
     command: []
@@ -32,6 +34,8 @@ services:
       - TASK_INDEX=${TASK_INDEX:-0}
       - EXP_ID=${EXP_ID}
       - RUN_ID=${RUN_ID}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - STORAGE_VERBOSE=${STORAGE_VERBOSE:-true}
     entrypoint: ["python", "/scripts/main_runner.py"]
     # Additional args can be passed with: docker compose run runner [args]
     command: []
@@ -51,6 +55,8 @@ services:
       - EXP_ID=${EXP_ID}
       - RUN_ID=${RUN_ID}
       - NUM_TASKS=${NUM_TASKS:-1}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - STORAGE_VERBOSE=${STORAGE_VERBOSE:-true}
     entrypoint: ["python", "/scripts/main_output.py"]
     # Additional args can be passed with: docker compose run output [args]
     command: []
