@@ -45,6 +45,7 @@ main:
           - cpuMilliA: ${stage_a_cpu_milli}
           - memoryMibA: ${stage_a_memory_mib}
           - machineTypeA: "${stage_a_machine_type}"
+          - maxRunDurationA: "${stage_a_max_run_duration}s"
           - cpuMilliB: ${stage_b_cpu_milli}
           - memoryMibB: ${stage_b_memory_mib}
           - machineTypeB: "${stage_b_machine_type}"
@@ -55,6 +56,11 @@ main:
           - maxRunDurationC: "${stage_c_max_run_duration}s"
           - taskCountPerNode: ${task_count_per_node}
           - runOutputStage: ${run_output_stage}
+
+          # Network configuration
+          - networkName: "${network_name}"
+          - subnetName: "${subnet_name}"
+          - subnetSelfLink: "${subnet_self_link}"
 
     # ========== STAGE A: Generate Input Files ==========
     - create_stageA_job:
@@ -96,11 +102,17 @@ main:
                   computeResource:
                     cpuMilli: $${cpuMilliA}
                     memoryMib: $${memoryMibA}
+                  maxRunDuration: $${maxRunDurationA}
             logsPolicy:
               destination: "CLOUD_LOGGING"
             allocationPolicy:
               serviceAccount:
                 email: $${batchSaEmail}
+              network:
+                networkInterfaces:
+                  - network: $${networkName}
+                    subnetwork: $${subnetSelfLink}
+                    noExternalIpAddress: true
               %{~ if stage_a_machine_type != "" ~}
               instances:
                 - %{~ if length(regexall("^c4d-", stage_a_machine_type)) > 0 ~}
@@ -203,6 +215,11 @@ main:
             allocationPolicy:
               serviceAccount:
                 email: $${batchSaEmail}
+              network:
+                networkInterfaces:
+                  - network: $${networkName}
+                    subnetwork: $${subnetSelfLink}
+                    noExternalIpAddress: true
               %{~ if stage_b_machine_type != "" ~}
               instances:
                 - %{~ if length(regexall("^c4d-", stage_b_machine_type)) > 0 ~}
@@ -285,6 +302,11 @@ main:
                       allocationPolicy:
                         serviceAccount:
                           email: $${batchSaEmail}
+                        network:
+                          networkInterfaces:
+                            - network: $${networkName}
+                              subnetwork: $${subnetSelfLink}
+                              noExternalIpAddress: true
                         %{~ if stage_c_machine_type != "" ~}
                         instances:
                           - %{~ if length(regexall("^c4d-", stage_c_machine_type)) > 0 ~}

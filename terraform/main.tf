@@ -210,6 +210,7 @@ resource "google_workflows_workflow" "pipeline" {
     stage_a_cpu_milli   = var.stage_a_cpu_milli
     stage_a_memory_mib  = var.stage_a_memory_mib
     stage_a_machine_type = var.stage_a_machine_type
+    stage_a_max_run_duration = var.stage_a_max_run_duration
     stage_b_cpu_milli   = var.stage_b_cpu_milli
     stage_b_memory_mib  = var.stage_b_memory_mib
     stage_b_machine_type = var.stage_b_machine_type
@@ -220,6 +221,9 @@ resource "google_workflows_workflow" "pipeline" {
     stage_c_max_run_duration = var.stage_c_max_run_duration
     task_count_per_node = var.task_count_per_node
     run_output_stage    = var.run_output_stage
+    network_name        = google_compute_network.batch_network.name
+    subnet_name         = google_compute_subnetwork.batch_subnet.name
+    subnet_self_link    = google_compute_subnetwork.batch_subnet.self_link
   })
 
   labels = {

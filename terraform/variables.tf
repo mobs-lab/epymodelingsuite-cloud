@@ -11,7 +11,7 @@ variable "region" {
 
 variable "repo_name" {
   type        = string
-  default     = "epydemix"
+  default     = "epymodelingsuite-repo"
   description = "Artifact Registry repository name"
 }
 
@@ -54,6 +54,12 @@ variable "stage_a_machine_type" {
   type        = string
   default     = ""
   description = "Machine type for Stage A (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
+}
+
+variable "stage_a_max_run_duration" {
+  type        = number
+  default     = 3600
+  description = "Maximum runtime for Stage A in seconds (default: 3600s = 1 hour)"
 }
 
 # Batch machine configuration - Stage B (Runner)
@@ -116,4 +122,23 @@ variable "run_output_stage" {
   type        = bool
   default     = true
   description = "Whether to run Stage C (Output generation). Set to false to skip output generation."
+}
+
+# Network configuration
+variable "network_name" {
+  type        = string
+  default     = "epymodelingsuite-network"
+  description = "VPC network name for Cloud Batch"
+}
+
+variable "subnet_name" {
+  type        = string
+  default     = "epymodelingsuite-subnet"
+  description = "Subnet name for Cloud Batch"
+}
+
+variable "subnet_cidr" {
+  type        = string
+  default     = "10.0.0.0/20"
+  description = "CIDR range for subnet (10.0.0.0/20 = 4096 IPs)"
 }
