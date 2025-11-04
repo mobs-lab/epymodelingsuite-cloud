@@ -1,5 +1,6 @@
 """Configuration file resolution and loading utilities."""
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +12,9 @@ from flumodelingsuite.config_loader import (
 )
 from flumodelingsuite.utils import identify_config_type
 from flumodelingsuite.schema.general import validate_modelset_consistency
+
+# Module-level logger for utility logging
+_logger = logging.getLogger(__name__)
 
 
 def resolve_configs(
@@ -97,9 +101,9 @@ def resolve_configs(
 
     # Log unidentified files as warnings (not errors)
     if unidentified_files:
-        print(f"  Warning: Could not identify {len(unidentified_files)} file(s):")
+        _logger.warning(f"Could not identify {len(unidentified_files)} file(s)")
         for filename, reason in unidentified_files:
-            print(f"    - {filename}: {reason}")
+            _logger.warning(f"  - {filename}: {reason}")
 
     return configs
 
@@ -135,19 +139,19 @@ def load_all_configs(
     if config_paths["basemodel"] is None:
         raise ValueError("Basemodel config is required but was not found")
 
-    print(f"\nLoading basemodel config: {config_paths['basemodel']}")
+    _logger.debug(f"Loading basemodel config: {config_paths['basemodel']}")
     basemodel_config = load_basemodel_config_from_file(config_paths["basemodel"])
 
     # Load sampling config (optional)
     sampling_config = None
     if config_paths["sampling"] is not None:
-        print(f"Loading sampling config: {config_paths['sampling']}")
+        _logger.debug(f"Loading sampling config: {config_paths['sampling']}")
         sampling_config = load_sampling_config_from_file(config_paths["sampling"])
 
     # Load calibration config (optional)
     calibration_config = None
     if config_paths["calibration"] is not None:
-        print(f"Loading calibration config: {config_paths['calibration']}")
+        _logger.debug(f"Loading calibration config: {config_paths['calibration']}")
         calibration_config = load_calibration_config_from_file(
             config_paths["calibration"]
         )
@@ -155,16 +159,16 @@ def load_all_configs(
     # Load output config (optional)
     output_config = None
     if config_paths["output"] is not None:
-        print(f"Loading output config: {config_paths['output']}")
+        _logger.debug(f"Loading output config: {config_paths['output']}")
         output_config = load_output_config_from_file(config_paths["output"])
 
     # Validate modelset consistency if any modelset config is provided
     if validate_consistency:
         if sampling_config is not None:
-            print("Validating modelset consistency (basemodel + sampling)...")
+            _logger.debug("Validating modelset consistency (basemodel + sampling)")
             validate_modelset_consistency(basemodel_config, sampling_config)
         if calibration_config is not None:
-            print("Validating modelset consistency (basemodel + calibration)...")
+            _logger.debug("Validating modelset consistency (basemodel + calibration)")
             validate_modelset_consistency(basemodel_config, calibration_config)
 
     return basemodel_config, sampling_config, calibration_config, output_config
