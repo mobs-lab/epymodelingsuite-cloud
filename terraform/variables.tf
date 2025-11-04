@@ -56,6 +56,12 @@ variable "stage_a_machine_type" {
   description = "Machine type for Stage A (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
 }
 
+variable "stage_a_max_run_duration" {
+  type        = number
+  default     = 3600
+  description = "Maximum runtime for Stage A in seconds (default: 3600s = 1 hour)"
+}
+
 # Batch machine configuration - Stage B (Runner)
 variable "stage_b_cpu_milli" {
   type        = number

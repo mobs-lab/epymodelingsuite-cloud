@@ -210,6 +210,7 @@ resource "google_workflows_workflow" "pipeline" {
     stage_a_cpu_milli   = var.stage_a_cpu_milli
     stage_a_memory_mib  = var.stage_a_memory_mib
     stage_a_machine_type = var.stage_a_machine_type
+    stage_a_max_run_duration = var.stage_a_max_run_duration
     stage_b_cpu_milli   = var.stage_b_cpu_milli
     stage_b_memory_mib  = var.stage_b_memory_mib
     stage_b_machine_type = var.stage_b_machine_type
