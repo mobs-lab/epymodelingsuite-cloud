@@ -36,6 +36,9 @@ _logger = logging.getLogger(__name__)
 from util.logger import StorageLogger
 _storage_logger = StorageLogger(_logger)
 
+# GCS client cache for cloud mode (optimization)
+_gcs_client = None
+
 
 def _get_execution_mode() -> str:
     """Get the execution mode from environment variable."""
@@ -45,6 +48,25 @@ def _get_execution_mode() -> str:
 def _get_local_base_path() -> Path:
     """Get the base path for local storage."""
     return Path(os.getenv("LOCAL_DATA_PATH", "/data"))
+
+
+def _get_gcs_client():
+    """Get or create cached GCS client.
+
+    Returns a cached google.cloud.storage.Client instance to avoid
+    creating new clients on every operation. This improves performance
+    for high-frequency operations.
+
+    Returns
+    -------
+    google.cloud.storage.Client
+        Cached GCS client instance
+    """
+    global _gcs_client
+    if _gcs_client is None:
+        from google.cloud import storage
+        _gcs_client = storage.Client()
+    return _gcs_client
 
 
 def get_config() -> dict:
@@ -209,9 +231,7 @@ def load_bytes(path: str) -> bytes:
 
     else:
         # Cloud mode - use GCS
-        from google.cloud import storage
-
-        client = storage.Client()
+        client = _get_gcs_client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(final_path)
 
@@ -260,9 +280,7 @@ def save_bytes(path: str, data: bytes) -> None:
 
     else:
         # Cloud mode - use GCS
-        from google.cloud import storage
-
-        client = storage.Client()
+        client = _get_gcs_client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(final_path)
 
@@ -424,9 +442,7 @@ def list_blobs(bucket_name: Optional[str], prefix: str = "") -> list[str]:
 
     else:
         # Cloud mode - use GCS
-        from google.cloud import storage
-
-        client = storage.Client()
+        client = _get_gcs_client()
         bucket = client.bucket(bucket_name)
         blobs = bucket.list_blobs(prefix=prefix)
 
