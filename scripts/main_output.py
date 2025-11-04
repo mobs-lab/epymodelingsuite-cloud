@@ -18,6 +18,10 @@ from util import storage
 from util.config import resolve_configs
 
 from flumodelingsuite.dispatcher import dispatch_output_generator
+from flumodelingsuite.telemetry import ExecutionTelemetry, create_workflow_telemetry
+
+# Task index formatting (supports up to 9999 tasks)
+INDEX_WIDTH = 4
 
 
 def detect_result_type(result) -> str:
@@ -74,7 +78,7 @@ def load_all_results(num_tasks: int) -> tuple[list, str]:
 
     # First pass: Check which files exist and load them
     for i in range(num_tasks):
-        result_path = storage.get_path("runner-artifacts", f"result_{i:04d}.pkl")
+        result_path = storage.get_path("runner-artifacts", f"result_{i:0{INDEX_WIDTH}d}.pkl")
         print(f"  Checking: {result_path}")
 
         try:
@@ -126,7 +130,8 @@ def load_all_results(num_tasks: int) -> tuple[list, str]:
     return results, result_type
 
 
-def main():
+def main() -> None:
+    """Generate output files from runner results (Stage C)."""
     # Get configuration
     config = storage.get_config()
 
@@ -166,57 +171,110 @@ def main():
         print(f"ERROR: Failed to load output config: {e}")
         raise
 
-    # Load all result files from Stage B
     try:
-        results, result_type = load_all_results(num_tasks)
-    except Exception as e:
-        print(f"ERROR: Failed to load results: {e}")
-        raise
+        # Load all result files from Stage B
+        try:
+            results, result_type = load_all_results(num_tasks)
+        except Exception as e:
+            print(f"ERROR: Failed to load results: {e}")
+            raise
 
-    # Generate outputs using dispatch_output_generator
-    print(f"\nGenerating outputs for {result_type}...")
-    try:
-        # Prepare kwargs for dispatcher based on result type
-        # Note: Registry expects plural form (simulations/calibrations)
-        if result_type == "simulation":
-            dispatch_key = "simulations"
-        elif result_type == "calibration":
-            dispatch_key = "calibrations"
-        else:
-            raise ValueError(f"Unknown result type: {result_type}")
+        # Wrap output generation in telemetry context
+        with ExecutionTelemetry() as output_telemetry:
+            # Generate outputs using dispatch_output_generator
+            print(f"\nGenerating outputs for {result_type}...")
+            try:
+                # Prepare kwargs for dispatcher based on result type
+                # Note: Registry expects plural form (simulations/calibrations)
+                if result_type == "simulation":
+                    dispatch_key = "simulations"
+                elif result_type == "calibration":
+                    dispatch_key = "calibrations"
+                else:
+                    raise ValueError(f"Unknown result type: {result_type}")
 
-        dispatch_kwargs = {
-            dispatch_key: results,
-            "output_config": output_config
-        }
+                dispatch_kwargs = {
+                    dispatch_key: results,
+                    "output_config": output_config
+                }
 
-        output_dict = dispatch_output_generator(**dispatch_kwargs)
+                output_dict = dispatch_output_generator(**dispatch_kwargs)
 
-        if output_dict is None:
-            raise ValueError("dispatch_output_generator returned None - no outputs generated")
+                if output_dict is None:
+                    raise ValueError("dispatch_output_generator returned None - no outputs generated")
 
-        print(f"  Generated {len(output_dict)} output files")
-        for filename in output_dict.keys():
-            print(f"    - {filename}")
-    except Exception as e:
-        print(f"ERROR: Output generation failed: {e}")
-        raise
+                print(f"  Generated {len(output_dict)} output files")
+                for filename in output_dict.keys():
+                    print(f"    - {filename}")
+            except Exception as e:
+                print(f"ERROR: Output generation failed: {e}")
+                raise
 
-    # Save output files to storage
-    print("\nSaving output files to storage...")
-    try:
-        for filename, gzipped_data in output_dict.items():
-            output_path = storage.get_path("outputs", filename)
-            print(f"  Saving: {output_path}")
-            storage.save_bytes(output_path, gzipped_data)
-            print(f"    Saved: {len(gzipped_data)} bytes")
+            # Save output files to storage
+            print("\nSaving output files to storage...")
+            try:
+                for filename, gzipped_data in output_dict.items():
+                    output_path = storage.get_path("outputs", filename)
+                    print(f"  Saving: {output_path}")
+                    storage.save_bytes(output_path, gzipped_data)
+                    print(f"    Saved: {len(gzipped_data)} bytes")
 
-        print(f"\nSuccessfully saved {len(output_dict)} output files")
-    except Exception as e:
-        print(f"ERROR: Failed to save outputs: {e}")
-        raise
+                print(f"\nSuccessfully saved {len(output_dict)} output files")
+            except Exception as e:
+                print(f"ERROR: Failed to save outputs: {e}")
+                raise
 
-    print("\nStage C complete!")
+            # Save output telemetry summary
+            storage.save_telemetry_summary(output_telemetry, "output_summary")
+
+        print("\nStage C complete!")
+
+    finally:
+        # ALWAYS aggregate summaries (even on failure)
+        print("\nAggregating telemetry summaries...")
+
+        # Load builder telemetry
+        try:
+            builder_telemetry_data = storage.load_json(storage.get_path("summaries", "json", "builder_summary.json"))
+            builder_telemetry = ExecutionTelemetry.from_dict(builder_telemetry_data)
+            print("  Loaded builder telemetry")
+        except (FileNotFoundError, Exception) as e:
+            print(f"  Warning: Could not load builder telemetry: {e}")
+            builder_telemetry = None
+
+        # Load runner telemetries
+        runner_telemetries = []
+        for i in range(num_tasks):
+            try:
+                runner_telemetry_data = storage.load_json(storage.get_path("summaries", "json", f"runner_{i:0{INDEX_WIDTH}d}_summary.json"))
+                runner_telemetries.append(ExecutionTelemetry.from_dict(runner_telemetry_data))
+            except (FileNotFoundError, Exception):
+                pass
+        print(f"  Loaded {len(runner_telemetries)} runner telemetries")
+
+        # Load output telemetry
+        try:
+            output_telemetry_data = storage.load_json(storage.get_path("summaries", "json", "output_summary.json"))
+            output_telemetry = ExecutionTelemetry.from_dict(output_telemetry_data)
+            print("  Loaded output telemetry")
+        except (FileNotFoundError, Exception) as e:
+            print(f"  Warning: Could not load output telemetry: {e}")
+            output_telemetry = None
+
+        # Create and save workflow telemetry
+        try:
+            # Create workflow telemetry from all stages
+            workflow_telemetry = create_workflow_telemetry(
+                builder_telemetry=builder_telemetry,
+                runner_telemetries=runner_telemetries,
+                output_telemetry=output_telemetry,
+            )
+            print("  Created workflow telemetry")
+
+            # Save workflow telemetry summary
+            storage.save_telemetry_summary(workflow_telemetry, "workflow_summary")
+        except Exception as e:
+            print(f"  Warning: Failed to create workflow telemetry: {e}")
 
 
 if __name__ == "__main__":
