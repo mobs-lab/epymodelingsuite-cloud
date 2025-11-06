@@ -63,7 +63,7 @@ source .env
 EXP_ID=experiment-01 make run-workflow
 
 # 2. Monitor workflow
-gcloud workflows executions list epydemix-pipeline --location=$REGION
+gcloud workflows executions list epymodelingsuite-pipeline --location=$REGION
 
 # ======================= Testing locally ========================
 # 0. Setup local experiment configs in ./local/forecast/experiments/{EXP_ID}/config/
@@ -296,14 +296,14 @@ https://console.cloud.google.com/workflows
 List recent workflow runs:
 
 ```bash
-gcloud workflows executions list epydemix-pipeline --location=$REGION
+gcloud workflows executions list epymodelingsuite-pipeline --location=$REGION
 ```
 
 Get details of a specific execution:
 
 ```bash
 gcloud workflows executions describe <execution-id> \
-  --workflow=epydemix-pipeline \
+  --workflow=epymodelingsuite-pipeline \
   --location=$REGION
 ```
 

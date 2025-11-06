@@ -1,4 +1,4 @@
-# Epydemix Pipeline Workflow
+# Epymodelingsuite Pipeline Workflow
 
 main:
   params: [input]
@@ -130,7 +130,7 @@ main:
                   %{~ endif ~}
               %{~ endif ~}
           query:
-            jobId: $${"stagea-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+            jobId: $${"epy-" + string(int(sys.now())) + "-stage-a"}
         result: jobA
 
     - wait_for_stageA_creation:
@@ -238,7 +238,7 @@ main:
                   %{~ endif ~}
               %{~ endif ~}
           query:
-            jobId: $${"stageb-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+            jobId: $${"epy-" + string(int(sys.now())) + "-stage-b"}
         result: jobB
 
     - wait_for_stageB_creation:
@@ -324,7 +324,7 @@ main:
                             %{~ endif ~}
                         %{~ endif ~}
                     query:
-                      jobId: $${"stagec-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+                      jobId: $${"epy-" + string(int(sys.now())) + "-stage-c"}
                   result: jobC
 
               - wait_for_stageC_creation:
