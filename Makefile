@@ -88,10 +88,19 @@ help:
 	@echo "  TASK_COUNT_PER_NODE     - Max tasks per VM (current: $(TASK_COUNT_PER_NODE))"
 
 build:
-	@echo "Building and pushing image with Cloud Build..."
+	@echo "Building and pushing image with Cloud Build (async)..."
 	@echo "Image: $(IMAGE)"
-	gcloud builds submit --project=$(PROJECT_ID) --region $(REGION) --config cloudbuild.yaml \
-	  --substitutions=_REGION=$(REGION),_REPO_NAME=$(REPO_NAME),_IMAGE_NAME=$(IMAGE_NAME),_IMAGE_TAG=$(IMAGE_TAG),_GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO),_GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF)
+	@BUILD_ID=$$(gcloud builds submit --project=$(PROJECT_ID) --region $(REGION) --config cloudbuild.yaml --async \
+	  --substitutions=_REGION=$(REGION),_REPO_NAME=$(REPO_NAME),_IMAGE_NAME=$(IMAGE_NAME),_IMAGE_TAG=$(IMAGE_TAG),_GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO),_GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF) \
+	  --format="value(id)") && \
+	echo "" && \
+	echo "✓ Build submitted successfully!" && \
+	echo "  Build ID: $$BUILD_ID" && \
+	echo "" && \
+	echo "Monitor with:" && \
+	echo "  gcloud builds describe $$BUILD_ID --region=$(REGION)" && \
+	echo "  gcloud builds log $$BUILD_ID --region=$(REGION) --stream" && \
+	echo "  gcloud builds list --region=$(REGION) --ongoing"
 
 build-local:
 	@echo "Building cloud image locally and pushing to Artifact Registry..."
