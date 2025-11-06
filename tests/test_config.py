@@ -210,7 +210,7 @@ class TestLoadAllConfigs:
         ), patch(
             "util.config.load_output_config_from_file", return_value=mock_output
         ), patch(
-            "util.config.validate_modelset_consistency"
+            "util.config.validate_all_config_consistency"
         ):
             basemodel, sampling, calibration, output = config.load_all_configs(
                 config_paths
@@ -238,12 +238,12 @@ class TestLoadAllConfigs:
         ), patch(
             "util.config.load_sampling_config_from_file", return_value=mock_sampling
         ), patch(
-            "util.config.validate_modelset_consistency"
+            "util.config.validate_all_config_consistency"
         ) as mock_validate:
             config.load_all_configs(config_paths, validate_consistency=True)
 
-        # Should validate basemodel + sampling
-        mock_validate.assert_called_once_with(mock_basemodel, mock_sampling)
+        # Should validate all configs (basemodel, sampling, None, None)
+        mock_validate.assert_called_once_with(mock_basemodel, mock_sampling, None, None)
 
     def test_load_all_configs_validates_consistency_with_calibration(self):
         """Test load_all_configs validates consistency when calibration config present."""
@@ -263,15 +263,15 @@ class TestLoadAllConfigs:
             "util.config.load_calibration_config_from_file",
             return_value=mock_calibration,
         ), patch(
-            "util.config.validate_modelset_consistency"
+            "util.config.validate_all_config_consistency"
         ) as mock_validate:
             config.load_all_configs(config_paths, validate_consistency=True)
 
-        # Should validate basemodel + calibration
-        mock_validate.assert_called_once_with(mock_basemodel, mock_calibration)
+        # Should validate all configs (basemodel, None, calibration, None)
+        mock_validate.assert_called_once_with(mock_basemodel, None, mock_calibration, None)
 
     def test_load_all_configs_validates_both_when_present(self):
-        """Test load_all_configs validates both sampling and calibration when present."""
+        """Test load_all_configs validates all configs when sampling and calibration present."""
         config_paths = {
             "basemodel": "/path/to/basemodel.yaml",
             "sampling": "/path/to/sampling.yaml",
@@ -291,14 +291,96 @@ class TestLoadAllConfigs:
             "util.config.load_calibration_config_from_file",
             return_value=mock_calibration,
         ), patch(
-            "util.config.validate_modelset_consistency"
+            "util.config.validate_all_config_consistency"
         ) as mock_validate:
             config.load_all_configs(config_paths, validate_consistency=True)
 
-        # Should validate both
-        assert mock_validate.call_count == 2
-        mock_validate.assert_any_call(mock_basemodel, mock_sampling)
-        mock_validate.assert_any_call(mock_basemodel, mock_calibration)
+        # Should validate all configs once (basemodel, sampling, calibration, None)
+        mock_validate.assert_called_once_with(mock_basemodel, mock_sampling, mock_calibration, None)
+
+    def test_load_all_configs_validates_with_output_only(self):
+        """Test load_all_configs validates when only output config is present (no sampling/calibration)."""
+        config_paths = {
+            "basemodel": "/path/to/basemodel.yaml",
+            "sampling": None,
+            "calibration": None,
+            "output": "/path/to/output.yaml",
+        }
+
+        mock_basemodel = MagicMock()
+        mock_output = MagicMock()
+
+        with patch(
+            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
+        ), patch(
+            "util.config.load_output_config_from_file", return_value=mock_output
+        ), patch(
+            "util.config.validate_all_config_consistency"
+        ) as mock_validate:
+            config.load_all_configs(config_paths, validate_consistency=True)
+
+        # Should validate all configs (basemodel, None, None, output)
+        mock_validate.assert_called_once_with(mock_basemodel, None, None, mock_output)
+
+    def test_load_all_configs_validates_with_output_config(self):
+        """Test load_all_configs validates when output config is present with sampling."""
+        config_paths = {
+            "basemodel": "/path/to/basemodel.yaml",
+            "sampling": "/path/to/sampling.yaml",
+            "calibration": None,
+            "output": "/path/to/output.yaml",
+        }
+
+        mock_basemodel = MagicMock()
+        mock_sampling = MagicMock()
+        mock_output = MagicMock()
+
+        with patch(
+            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
+        ), patch(
+            "util.config.load_sampling_config_from_file", return_value=mock_sampling
+        ), patch(
+            "util.config.load_output_config_from_file", return_value=mock_output
+        ), patch(
+            "util.config.validate_all_config_consistency"
+        ) as mock_validate:
+            config.load_all_configs(config_paths, validate_consistency=True)
+
+        # Should validate all configs including output (basemodel, sampling, None, output)
+        mock_validate.assert_called_once_with(mock_basemodel, mock_sampling, None, mock_output)
+
+    def test_load_all_configs_validates_all_four_configs(self):
+        """Test load_all_configs validates when all four config types are present."""
+        config_paths = {
+            "basemodel": "/path/to/basemodel.yaml",
+            "sampling": "/path/to/sampling.yaml",
+            "calibration": "/path/to/calibration.yaml",
+            "output": "/path/to/output.yaml",
+        }
+
+        mock_basemodel = MagicMock()
+        mock_sampling = MagicMock()
+        mock_calibration = MagicMock()
+        mock_output = MagicMock()
+
+        with patch(
+            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
+        ), patch(
+            "util.config.load_sampling_config_from_file", return_value=mock_sampling
+        ), patch(
+            "util.config.load_calibration_config_from_file",
+            return_value=mock_calibration,
+        ), patch(
+            "util.config.load_output_config_from_file", return_value=mock_output
+        ), patch(
+            "util.config.validate_all_config_consistency"
+        ) as mock_validate:
+            config.load_all_configs(config_paths, validate_consistency=True)
+
+        # Should validate all four configs (basemodel, sampling, calibration, output)
+        mock_validate.assert_called_once_with(
+            mock_basemodel, mock_sampling, mock_calibration, mock_output
+        )
 
     def test_load_all_configs_skips_validation_when_disabled(self):
         """Test load_all_configs skips validation when validate_consistency=False."""
@@ -317,7 +399,7 @@ class TestLoadAllConfigs:
         ), patch(
             "util.config.load_sampling_config_from_file", return_value=mock_sampling
         ), patch(
-            "util.config.validate_modelset_consistency"
+            "util.config.validate_all_config_consistency"
         ) as mock_validate:
             config.load_all_configs(config_paths, validate_consistency=False)
 
