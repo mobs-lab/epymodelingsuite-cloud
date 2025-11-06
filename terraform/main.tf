@@ -221,7 +221,7 @@ resource "google_workflows_workflow" "pipeline" {
     stage_c_max_run_duration = var.stage_c_max_run_duration
     task_count_per_node = var.task_count_per_node
     run_output_stage    = var.run_output_stage
-    network_name        = google_compute_network.batch_network.name
+    network_self_link   = google_compute_network.batch_network.self_link
     subnet_name         = google_compute_subnetwork.batch_subnet.name
     subnet_self_link    = google_compute_subnetwork.batch_subnet.self_link
   })
