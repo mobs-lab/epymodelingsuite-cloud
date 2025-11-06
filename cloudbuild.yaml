@@ -4,7 +4,13 @@ steps:
     args:
       - '-c'
       - |
+        # Pull previous image for cache (ignore if doesn't exist)
+        docker pull ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG} || true
+
+        # Build with cache
         docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG} \
+          --cache-from ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG} \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
           --build-arg GITHUB_MODELING_SUITE_REPO=${_GITHUB_MODELING_SUITE_REPO} \
           --build-arg GITHUB_MODELING_SUITE_REF=${_GITHUB_MODELING_SUITE_REF} \
           --build-arg GITHUB_PAT=$$GITHUB_PAT \
