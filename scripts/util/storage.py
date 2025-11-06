@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from flumodelingsuite.telemetry import ExecutionTelemetry
+    from epymodelingsuite.telemetry import ExecutionTelemetry
 
 # Module-level logger for utility logging
 # Use standard logging.getLogger for utility modules (not setup_logger)

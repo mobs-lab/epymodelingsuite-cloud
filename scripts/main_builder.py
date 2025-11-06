@@ -17,8 +17,8 @@ from util.config import load_all_configs, resolve_configs
 from util.logger import setup_logger
 from util.error_handling import handle_stage_error
 
-from flumodelingsuite.dispatcher import dispatch_builder
-from flumodelingsuite.telemetry import ExecutionTelemetry
+from epymodelingsuite.dispatcher import dispatch_builder
+from epymodelingsuite.telemetry import ExecutionTelemetry
 
 # Task index formatting (supports up to 99999 tasks)
 INDEX_WIDTH = 5
@@ -93,7 +93,7 @@ def main() -> None:
     This stage:
     1. Resolves and loads experiment configuration files (basemodel, sampling, calibration)
     2. Validates configuration consistency
-    3. Calls flumodelingsuite.dispatcher.dispatch_builder() to generate workloads
+    3. Calls epymodelingsuite.dispatcher.dispatch_builder() to generate workloads
     4. Saves N pickled input files to storage (one per parallel task)
     5. Saves telemetry summary for Stage A
 
