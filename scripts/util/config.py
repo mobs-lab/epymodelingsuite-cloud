@@ -11,7 +11,7 @@ from epymodelingsuite.config_loader import (
     load_output_config_from_file,
 )
 from epymodelingsuite.utils import identify_config_type
-from epymodelingsuite.schema.general import validate_all_config_consistency
+from epymodelingsuite.schema.general import validate_cross_config_consistency
 
 # Module-level logger for utility logging
 _logger = logging.getLogger(__name__)
@@ -164,10 +164,12 @@ def load_all_configs(
         output_config = load_output_config_from_file(config_paths["output"])
 
     # Validate consistency across all configs if any modelset/output config is provided
-    if validate_consistency and (sampling_config is not None or calibration_config is not None or output_config is not None):
+    if validate_consistency and (sampling_config is not None or calibration_config is not None):
         _logger.debug("Validating config consistency across all provided configs")
-        validate_all_config_consistency(
-            basemodel_config, sampling_config, calibration_config, output_config
+        # validate_cross_config_consistency expects either sampling or calibration, not both
+        modelset_config = sampling_config if sampling_config is not None else calibration_config
+        validate_cross_config_consistency(
+            basemodel_config, modelset_config, output_config
         )
 
     return basemodel_config, sampling_config, calibration_config, output_config
