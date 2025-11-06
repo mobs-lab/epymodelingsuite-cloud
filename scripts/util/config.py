@@ -4,14 +4,14 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from flumodelingsuite.config_loader import (
+from epymodelingsuite.config_loader import (
     load_basemodel_config_from_file,
     load_sampling_config_from_file,
     load_calibration_config_from_file,
     load_output_config_from_file,
 )
-from flumodelingsuite.utils import identify_config_type
-from flumodelingsuite.schema.general import validate_modelset_consistency
+from epymodelingsuite.utils import identify_config_type
+from epymodelingsuite.schema.general import validate_cross_config_consistency
 
 # Module-level logger for utility logging
 _logger = logging.getLogger(__name__)
@@ -118,8 +118,9 @@ def load_all_configs(
     config_paths : dict[str, Optional[str]]
         Dictionary from resolve_configs with paths to config files
     validate_consistency : bool, optional
-        Whether to validate modelset consistency (default: True)
-        Validates basemodel against sampling and/or calibration if present
+        Whether to validate config consistency (default: True)
+        Validates consistency across basemodel, sampling, calibration, and output configs
+        when any of them (sampling/calibration/output) are present
 
     Returns
     -------
@@ -162,13 +163,13 @@ def load_all_configs(
         _logger.debug(f"Loading output config: {config_paths['output']}")
         output_config = load_output_config_from_file(config_paths["output"])
 
-    # Validate modelset consistency if any modelset config is provided
-    if validate_consistency:
-        if sampling_config is not None:
-            _logger.debug("Validating modelset consistency (basemodel + sampling)")
-            validate_modelset_consistency(basemodel_config, sampling_config)
-        if calibration_config is not None:
-            _logger.debug("Validating modelset consistency (basemodel + calibration)")
-            validate_modelset_consistency(basemodel_config, calibration_config)
+    # Validate consistency across all configs if any modelset/output config is provided
+    if validate_consistency and (sampling_config is not None or calibration_config is not None):
+        _logger.debug("Validating config consistency across all provided configs")
+        # validate_cross_config_consistency expects either sampling or calibration, not both
+        modelset_config = sampling_config if sampling_config is not None else calibration_config
+        validate_cross_config_consistency(
+            basemodel_config, modelset_config, output_config
+        )
 
     return basemodel_config, sampling_config, calibration_config, output_config

@@ -194,7 +194,7 @@ export BUCKET_NAME=your-bucket-name  # Assumes existing bucket
 
 # GitHub Private Repositories
 export GITHUB_FORECAST_REPO=owner/forecasting-repo  # Forecast data (format: owner/repo)
-export GITHUB_MODELING_SUITE_REPO=owner/flumodelingsuite  # Modeling suite package (format: owner/repo)
+export GITHUB_MODELING_SUITE_REPO=owner/epymodelingsuite  # Modeling suite package (format: owner/repo)
 export GITHUB_MODELING_SUITE_REF=main  # Branch or commit to build from
 
 # After editing, load the variables
@@ -502,13 +502,13 @@ The Dockerfile uses multi-stage builds with three stages:
    - Base image: `python:3.11-slim`
    - Installs `uv` for fast dependency management
    - Installs `google-cloud-storage` and other Python dependencies
-   - **Clones and installs flumodelingsuite package** from private GitHub repository (if configured)
+   - **Clones and installs epymodelingsuite package** from private GitHub repository (if configured)
    - Copies scripts from [scripts/](scripts/) directory
 
 2. **local** - Minimal image for local development
    - Builds from `base` stage
    - Size: ~300-400 MB
-   - Includes Python deps, git, scripts, and flumodelingsuite
+   - Includes Python deps, git, scripts, and epymodelingsuite
    - No gcloud CLI (uses local filesystem instead of GCS)
    - Used by Docker Compose for local testing
 
@@ -561,17 +561,17 @@ gcloud builds submit --region ${REGION} --config cloudbuild.yaml
 - **Fetches GitHub PAT from Secret Manager** for private repository access
 - Passes `GITHUB_MODELING_SUITE_REPO` and `GITHUB_MODELING_SUITE_REF` as build arguments
 
-**How flumodelingsuite is installed:**
+**How epymodelingsuite is installed:**
 
-The flumodelingsuite package is installed during the Docker build in the `base` stage. The [Dockerfile](docker/Dockerfile) clones the private repository using GitHub PAT and installs it via `uv`:
+The epymodelingsuite package is installed during the Docker build in the `base` stage. The [Dockerfile](docker/Dockerfile) clones the private repository using GitHub PAT and installs it via `uv`:
 
 - Installs at **build time** (baked into the Docker image, not at runtime)
 - Uses GitHub PAT from Secret Manager (Cloud Build) or `.env.local` (local builds)
 - Supports specific branch/commit via `GITHUB_MODELING_SUITE_REF` build argument
-- Repository is cloned to `/tmp/flumodelingsuite`, installed, then removed to keep image clean
+- Repository is cloned to `/tmp/epymodelingsuite`, installed, then removed to keep image clean
 - PAT is not persisted in image layers (security best practice)
 
-This approach ensures all containers have the same version of flumodelingsuite and eliminates runtime dependencies on GitHub.
+This approach ensures all containers have the same version of epymodelingsuite and eliminates runtime dependencies on GitHub.
 
 ### Local execution with Docker Compose
 
@@ -712,7 +712,7 @@ Aggregates all Stage B results and generates formatted CSV outputs.
 
 **Wrapper:** [scripts/run_output.sh](scripts/run_output.sh)
 - Similar to `run_builder.sh`, handles cloud vs local mode
-- No repo cloning needed (uses already-installed flumodelingsuite)
+- No repo cloning needed (uses already-installed epymodelingsuite)
 
 
 

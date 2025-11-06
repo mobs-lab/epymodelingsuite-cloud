@@ -20,18 +20,18 @@ COPY docker/requirements.txt .
 # Install dependencies with uv (much faster than pip)
 RUN uv pip install --system --no-cache -r requirements.txt
 
-# Clone and install flumodelingsuite package
+# Clone and install epymodelingsuite package
 # Expects GITHUB_MODELING_SUITE_REPO, GITHUB_MODELING_SUITE_REF, and GITHUB_PAT to be passed as build args
 ARG GITHUB_MODELING_SUITE_REPO
 ARG GITHUB_MODELING_SUITE_REF=main
 ARG GITHUB_PAT
 
-# Clone the flumodelingsuite repository and install it in editable mode
+# Clone the epymodelingsuite repository and install it in editable mode
 # Using editable install (-e) to work around missing validation subpackage issue
 RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
     git clone --branch ${GITHUB_MODELING_SUITE_REF} \
-        https://${GITHUB_PAT}@github.com/${GITHUB_MODELING_SUITE_REPO}.git /opt/flumodelingsuite && \
-    uv pip install --system -e /opt/flumodelingsuite; \
+        https://${GITHUB_PAT}@github.com/${GITHUB_MODELING_SUITE_REPO}.git /opt/epymodelingsuite && \
+    uv pip install --system -e /opt/epymodelingsuite; \
     fi
 
 # Copy application scripts

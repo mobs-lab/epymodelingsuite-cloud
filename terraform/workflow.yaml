@@ -106,6 +106,9 @@ main:
             logsPolicy:
               destination: "CLOUD_LOGGING"
             allocationPolicy:
+              location:
+                allowedLocations:
+                  - $${"regions/" + location}
               serviceAccount:
                 email: $${batchSaEmail}
               network:
@@ -213,6 +216,9 @@ main:
             logsPolicy:
               destination: "CLOUD_LOGGING"
             allocationPolicy:
+              location:
+                allowedLocations:
+                  - $${"regions/" + location}
               serviceAccount:
                 email: $${batchSaEmail}
               network:
@@ -300,6 +306,9 @@ main:
                       logsPolicy:
                         destination: "CLOUD_LOGGING"
                       allocationPolicy:
+                        location:
+                          allowedLocations:
+                            - $${"regions/" + location}
                         serviceAccount:
                           email: $${batchSaEmail}
                         network:
