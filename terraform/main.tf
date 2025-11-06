@@ -50,7 +50,7 @@ resource "google_artifact_registry_repository" "repo" {
   location      = var.region
   repository_id = var.repo_name
   format        = "DOCKER"
-  description   = "Docker repository for epydemix pipeline"
+  description   = "Docker repository for epymodelingsuite pipeline"
 
   labels = {
     component   = "epymodelingsuite"
@@ -199,7 +199,7 @@ resource "google_service_account_iam_member" "workflows_agent_use_runner" {
 
 # Workflows (deploy from local YAML with variable substitution)
 resource "google_workflows_workflow" "pipeline" {
-  name            = "epydemix-pipeline"
+  name            = "epymodelingsuite-pipeline"
   description     = "Stage A (gen) → list GCS → Stage B (array) → Stage C (output)"
   region          = var.region
   service_account = google_service_account.workflows_runner.email

@@ -58,8 +58,8 @@ else
 fi
 
 # Generate unique job ID
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-JOB_ID="stagec-manual-${TIMESTAMP}"
+TIMESTAMP=$(date +%s)
+JOB_ID="epy-${TIMESTAMP}-stage-c-manual"
 
 echo "========================================="
 echo "Submitting Stage C (output) job to Cloud Batch"

@@ -349,15 +349,15 @@ run-workflow:
 	  -H "Authorization: Bearer $$(gcloud auth print-access-token)" \
 	  -H "Content-Type: application/json" \
 	  -d '{"argument":"{\"bucket\":\"$(BUCKET_NAME)\",\"dirPrefix\":\"$(DIR_PREFIX)\",\"exp_id\":\"$(EXP_ID)\",\"githubForecastRepo\":\"$(GITHUB_FORECAST_REPO)\",\"batchSaEmail\":\"'$$BATCH_SA'\"}"}' \
-	  "https://workflowexecutions.googleapis.com/v1/projects/$(PROJECT_ID)/locations/$(REGION)/workflows/epydemix-pipeline/executions" \
+	  "https://workflowexecutions.googleapis.com/v1/projects/$(PROJECT_ID)/locations/$(REGION)/workflows/epymodelingsuite-pipeline/executions" \
 	  -s | jq -r '.name' | tee /tmp/workflow_execution.txt && \
 	echo "" && \
 	echo "✓ Workflow submitted successfully!" && \
 	echo "  Execution: $$(cat /tmp/workflow_execution.txt)" && \
 	echo "" && \
 	echo "Monitor with:" && \
-	echo "  gcloud workflows executions describe $$(basename $$(cat /tmp/workflow_execution.txt)) --workflow=epydemix-pipeline --location=$(REGION)" && \
-	echo "  gcloud workflows executions list epydemix-pipeline --location=$(REGION)"
+	echo "  gcloud workflows executions describe $$(basename $$(cat /tmp/workflow_execution.txt)) --workflow=epymodelingsuite-pipeline --location=$(REGION)" && \
+	echo "  gcloud workflows executions list epymodelingsuite-pipeline --location=$(REGION)"
 
 clean:
 	@echo "Cleaning local artifacts..."

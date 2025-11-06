@@ -24,7 +24,7 @@ resource "google_monitoring_dashboard" "builder" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -57,14 +57,14 @@ resource "google_monitoring_dashboard" "builder" {
                   timeSeriesQuery = {
                     timeSeriesFilterRatio = {
                       numerator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\")"
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
                         }
                       }
                       denominator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\")"
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
@@ -97,7 +97,7 @@ resource "google_monitoring_dashboard" "builder" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -130,7 +130,7 @@ resource "google_monitoring_dashboard" "builder" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_RATE"
@@ -173,7 +173,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -206,14 +206,14 @@ resource "google_monitoring_dashboard" "runner" {
                   timeSeriesQuery = {
                     timeSeriesFilterRatio = {
                       numerator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
                         }
                       }
                       denominator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
@@ -246,7 +246,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -279,7 +279,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_RATE"
@@ -311,7 +311,7 @@ resource "google_monitoring_dashboard" "runner" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                       aggregation = {
                         alignmentPeriod    = "60s"
                         perSeriesAligner   = "ALIGN_MEAN"
@@ -355,7 +355,7 @@ resource "google_monitoring_dashboard" "output" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -388,14 +388,14 @@ resource "google_monitoring_dashboard" "output" {
                   timeSeriesQuery = {
                     timeSeriesFilterRatio = {
                       numerator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
                         }
                       }
                       denominator = {
-                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                        filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_size\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\")"
                         aggregation = {
                           alignmentPeriod  = "60s"
                           perSeriesAligner = "ALIGN_MEAN"
@@ -428,7 +428,7 @@ resource "google_monitoring_dashboard" "output" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -461,7 +461,7 @@ resource "google_monitoring_dashboard" "output" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/usage_time\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_RATE"
@@ -504,7 +504,7 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -536,7 +536,7 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -568,7 +568,7 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -600,7 +600,7 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -633,7 +633,7 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -666,7 +666,7 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\")"
+                      filter = "metric.type=\"compute.googleapis.com/instance/memory/balloon/ram_used\" resource.type=\"gce_instance\" metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\")"
                       aggregation = {
                         alignmentPeriod  = "60s"
                         perSeriesAligner = "ALIGN_MEAN"
@@ -698,7 +698,7 @@ resource "google_monitoring_dashboard" "overall" {
                 {
                   timeSeriesQuery = {
                     timeSeriesFilter = {
-                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" (metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagea-.*\") OR metric.label.\"instance_name\"=monitoring.regex.full_match(\"stageb-.*\") OR metric.label.\"instance_name\"=monitoring.regex.full_match(\"stagec-.*\"))"
+                      filter = "metric.type=\"compute.googleapis.com/instance/cpu/utilization\" resource.type=\"gce_instance\" (metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-a\") OR metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-b.*\") OR metric.label.\"instance_name\"=monitoring.regex.full_match(\"epy-.*-stage-c.*\"))"
                       aggregation = {
                         alignmentPeriod    = "60s"
                         perSeriesAligner   = "ALIGN_MEAN"
