@@ -4,14 +4,14 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from flumodelingsuite.config_loader import (
+from epymodelingsuite.config_loader import (
     load_basemodel_config_from_file,
     load_sampling_config_from_file,
     load_calibration_config_from_file,
     load_output_config_from_file,
 )
-from flumodelingsuite.utils import identify_config_type
-from flumodelingsuite.schema.general import validate_all_config_consistency
+from epymodelingsuite.utils import identify_config_type
+from epymodelingsuite.schema.general import validate_all_config_consistency
 
 # Module-level logger for utility logging
 _logger = logging.getLogger(__name__)

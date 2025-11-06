@@ -20,8 +20,8 @@ from util.config import resolve_configs
 from util.logger import setup_logger
 from util.error_handling import handle_stage_error
 
-from flumodelingsuite.dispatcher import dispatch_output_generator
-from flumodelingsuite.telemetry import ExecutionTelemetry, create_workflow_telemetry
+from epymodelingsuite.dispatcher import dispatch_output_generator
+from epymodelingsuite.telemetry import ExecutionTelemetry, create_workflow_telemetry
 
 # Task index formatting (supports up to 99999 tasks)
 INDEX_WIDTH = 5
@@ -178,7 +178,7 @@ def load_configuration(config: dict, logger: logging.Logger):
         sys.exit(1)
 
     logger.debug(f"Output config: {output_config_path}")
-    from flumodelingsuite.config_loader import load_output_config_from_file
+    from epymodelingsuite.config_loader import load_output_config_from_file
     output_config = load_output_config_from_file(output_config_path)
     logger.info("Output config loaded successfully")
     return output_config
