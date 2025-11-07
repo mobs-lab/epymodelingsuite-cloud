@@ -186,7 +186,7 @@ def _watch_status(
                 _display_status(workflows, jobs, exp_id)
 
                 # Show refresh time
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                now = format_timestamp_full(datetime.now().isoformat())
                 print(f"Last updated: {now} (refreshing every {interval}s)")
 
             except Exception as e:
@@ -316,20 +316,9 @@ def _get_access_token(verbose: bool = False) -> str:
         Access token
 
     Raises:
-        Exception: If unable to get token
+        CloudAPIError: If unable to get token
     """
-    try:
-        result = subprocess.run(
-            ["gcloud", "auth", "print-access-token"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        if verbose:
-            print(e.stderr, file=sys.stderr)
-        raise Exception("Failed to get access token")
+    return get_gcloud_access_token(verbose)
 
 
 def _display_status(
@@ -375,11 +364,7 @@ def _display_status(
             # Format start time
             start_time = workflow.get("startTime", "")
             if start_time:
-                try:
-                    dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                    start_time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-                except (ValueError, IndexError):
-                    start_time_str = start_time[:19]
+                start_time_str = format_timestamp_full(start_time)
             else:
                 start_time_str = "unknown"
 
@@ -429,14 +414,7 @@ def _display_status(
                 tasks_str = "N/A"
 
             # Color code status
-            if state == "RUNNING":
-                status_display = f"\033[33m{state}\033[0m"
-            elif state == "SUCCEEDED":
-                status_display = f"\033[32m{state}\033[0m"
-            elif state == "FAILED":
-                status_display = f"\033[31m{state}\033[0m"
-            else:
-                status_display = state
+            status_display = format_status(state, "batch")
 
             print(f"{job_name:<50} {stage:<8} {status_display:<20} {tasks_str:<15}")
 
