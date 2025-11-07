@@ -53,12 +53,13 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Import and register command parsers
-    from epycloud.commands import build, config_cmd, profile, run
+    from epycloud.commands import build, config_cmd, profile, run, workflow
 
     config_cmd.register_parser(subparsers)
     profile.register_parser(subparsers)
     build.register_parser(subparsers)
     run.register_parser(subparsers)
+    workflow.register_parser(subparsers)
 
     return parser
 
@@ -127,6 +128,9 @@ def main() -> int:
         elif args.command == "run":
             from epycloud.commands import run
             return run.handle(ctx)
+        elif args.command == "workflow":
+            from epycloud.commands import workflow
+            return workflow.handle(ctx)
         else:
             error(f"Command '{args.command}' not yet implemented")
             return 1
