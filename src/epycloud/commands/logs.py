@@ -5,10 +5,9 @@ import json
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
 from typing import Any
 
-from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.exceptions import ConfigError, ValidationError
 from epycloud.lib.command_helpers import (
     get_google_cloud_config,
     require_config,
@@ -98,7 +97,7 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Get and validate config
     try:
-        config = require_config(ctx)
+        require_config(ctx)
         gcloud_config = get_google_cloud_config(ctx)
         project_id = gcloud_config["project_id"]
     except (ConfigError, KeyError) as e:

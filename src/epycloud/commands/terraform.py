@@ -3,7 +3,6 @@
 import argparse
 import os
 import subprocess
-from pathlib import Path
 from typing import Any
 
 from epycloud.exceptions import ConfigError
@@ -107,7 +106,7 @@ def handle(ctx: dict[str, Any]) -> int:
     args = ctx["args"]
 
     try:
-        config = require_config(ctx)
+        require_config(ctx)
     except ConfigError as e:
         error(str(e))
         return 2
@@ -143,7 +142,7 @@ def _handle_init(ctx: dict[str, Any]) -> int:
     """
     config = ctx["config"]
     verbose = ctx["verbose"]
-    dry_run = ctx["dry_run"]
+    ctx["dry_run"]
 
     info("Initializing Terraform...")
 
@@ -208,7 +207,7 @@ def _handle_plan(ctx: dict[str, Any]) -> int:
     args = ctx["args"]
     config = ctx["config"]
     verbose = ctx["verbose"]
-    dry_run = ctx["dry_run"]
+    ctx["dry_run"]
 
     info("Planning infrastructure changes...")
 
@@ -447,7 +446,7 @@ def _handle_output(ctx: dict[str, Any]) -> int:
     args = ctx["args"]
     config = ctx["config"]
     verbose = ctx["verbose"]
-    dry_run = ctx["dry_run"]
+    ctx["dry_run"]
 
     # Get terraform directory
     project_root = get_project_root()

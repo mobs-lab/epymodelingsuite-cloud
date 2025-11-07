@@ -10,7 +10,6 @@ from typing import Any
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
     get_project_root,
-    handle_dry_run,
     require_config,
 )
 from epycloud.lib.output import error, info, success, warning
@@ -241,7 +240,8 @@ def _build_cloud(
         cmd.append("--async")
         cmd.append("--format=value(id)")
 
-    if handle_dry_run(ctx, f"Execute: {' '.join(cmd)}"):
+    if dry_run:
+        info(f"Would execute: {' '.join(cmd)}")
         return 0
 
     # Change to project root
@@ -351,14 +351,14 @@ def _build_local(
 
     cmd.append(".")
 
-    if ctx["dry_run"]:
+    if dry_run:
         # Mask GitHub PAT in output
         cmd_display = [
             arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg
             for arg in cmd
         ]
-        if handle_dry_run(ctx, f"Execute: {' '.join(cmd_display)}"):
-            return 0
+        info(f"Would execute: {' '.join(cmd_display)}")
+        return 0
 
     # Change to project root
     original_dir = Path.cwd()
@@ -449,14 +449,14 @@ def _build_dev(
 
     cmd.append(".")
 
-    if ctx["dry_run"]:
+    if dry_run:
         # Mask GitHub PAT in output
         cmd_display = [
             arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg
             for arg in cmd
         ]
-        if handle_dry_run(ctx, f"Execute: {' '.join(cmd_display)}"):
-            return 0
+        info(f"Would execute: {' '.join(cmd_display)}")
+        return 0
 
     # Change to project root
     original_dir = Path.cwd()

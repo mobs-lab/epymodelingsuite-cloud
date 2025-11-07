@@ -7,13 +7,12 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
     get_gcloud_access_token,
-    get_google_cloud_config,
     require_config,
 )
 from epycloud.lib.formatters import (
@@ -25,7 +24,6 @@ from epycloud.lib.formatters import (
     parse_since_time,
 )
 from epycloud.lib.output import error, info, success, warning
-from epycloud.lib.validation import validate_exp_id
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -146,7 +144,7 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Validate configuration
     try:
-        config = require_config(ctx)
+        require_config(ctx)
     except ConfigError as e:
         error(str(e))
         return 2

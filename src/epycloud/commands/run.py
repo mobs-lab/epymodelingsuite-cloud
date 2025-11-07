@@ -15,7 +15,6 @@ from uuid import uuid4
 from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
 from epycloud.lib.command_helpers import (
     get_gcloud_access_token,
-    get_google_cloud_config,
     get_project_root,
     handle_dry_run,
     prepare_subprocess_env,

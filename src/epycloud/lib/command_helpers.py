@@ -16,12 +16,11 @@ prepare_subprocess_env : Prepare environment variables for subprocess calls
 
 import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import TypedDict
 
-from epycloud.exceptions import ConfigError, CloudAPIError
-from epycloud.lib.output import error, info
+from epycloud.exceptions import CloudAPIError, ConfigError
+from epycloud.lib.output import info
 
 
 class CommandContext(TypedDict):

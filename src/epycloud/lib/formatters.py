@@ -17,7 +17,7 @@ parse_since_time : Parse relative time strings like "1h", "30m", "2d"
 parse_duration_string : Parse duration strings to timedelta objects
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 def format_timestamp(iso_string: str, format: str = "full") -> str:
@@ -145,7 +145,7 @@ def format_duration(start: str, end: str = None) -> str:
         if end:
             end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
         else:
-            end_dt = datetime.now(timezone.utc)
+            end_dt = datetime.now(UTC)
 
         delta = end_dt - start_dt
         total_seconds = int(delta.total_seconds())
@@ -383,16 +383,16 @@ def parse_since_time(since: str) -> datetime | None:
         # Parse format: <number><unit>
         if since.endswith("h"):
             hours = int(since[:-1])
-            return datetime.now(timezone.utc) - timedelta(hours=hours)
+            return datetime.now(UTC) - timedelta(hours=hours)
         elif since.endswith("m"):
             minutes = int(since[:-1])
-            return datetime.now(timezone.utc) - timedelta(minutes=minutes)
+            return datetime.now(UTC) - timedelta(minutes=minutes)
         elif since.endswith("d"):
             days = int(since[:-1])
-            return datetime.now(timezone.utc) - timedelta(days=days)
+            return datetime.now(UTC) - timedelta(days=days)
         elif since.endswith("s"):
             seconds = int(since[:-1])
-            return datetime.now(timezone.utc) - timedelta(seconds=seconds)
+            return datetime.now(UTC) - timedelta(seconds=seconds)
         else:
             # No unit specified, assume it's an ISO timestamp
             return datetime.fromisoformat(since.replace("Z", "+00:00"))

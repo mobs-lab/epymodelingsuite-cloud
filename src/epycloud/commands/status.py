@@ -3,14 +3,13 @@
 import argparse
 import json
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime
 from typing import Any
 
-from epycloud.exceptions import CloudAPIError, ConfigError
+from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
     get_gcloud_access_token,
     get_google_cloud_config,
@@ -65,7 +64,7 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Validate configuration
     try:
-        config = require_config(ctx)
+        require_config(ctx)
         gcloud_config = get_google_cloud_config(ctx)
         project_id = gcloud_config["project_id"]
         region = gcloud_config.get("region", "us-central1")
