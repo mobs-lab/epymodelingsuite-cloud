@@ -53,7 +53,7 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Import and register command parsers
-    from epycloud.commands import build, config_cmd, profile, run, terraform, workflow
+    from epycloud.commands import build, config_cmd, profile, run, terraform, validate, workflow
 
     config_cmd.register_parser(subparsers)
     profile.register_parser(subparsers)
@@ -61,6 +61,7 @@ def create_parser() -> argparse.ArgumentParser:
     run.register_parser(subparsers)
     workflow.register_parser(subparsers)
     terraform.register_parser(subparsers)
+    validate.register_parser(subparsers)
 
     return parser
 
@@ -135,6 +136,9 @@ def main() -> int:
         elif args.command == "terraform" or args.command == "tf":
             from epycloud.commands import terraform
             return terraform.handle(ctx)
+        elif args.command == "validate":
+            from epycloud.commands import validate
+            return validate.handle(ctx)
         else:
             error(f"Command '{args.command}' not yet implemented")
             return 1
