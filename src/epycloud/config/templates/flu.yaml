@@ -1,6 +1,8 @@
 # Influenza forecasting profile
-name: flu
-description: Influenza forecasting models
+profile:
+  name: flu
+  description: Influenza forecasting models
+  version: "1.0"
 
 # Flu-specific forecast repository
 github:

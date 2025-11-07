@@ -215,7 +215,8 @@ def print_dict(data: dict, indent: int = 0) -> None:
     Print dictionary with hierarchical formatting.
 
     Recursively prints nested dictionaries with proper indentation
-    and color coding.
+    and color coding. At the top level (indent=0), adds blank lines
+    between sections for better readability.
 
     Parameters
     ----------
@@ -224,10 +225,14 @@ def print_dict(data: dict, indent: int = 0) -> None:
     indent : int, optional
         Indentation level (number of 2-space indents), by default 0.
     """
-    for key, value in data.items():
+    items = list(data.items())
+    for i, (key, value) in enumerate(items):
         if isinstance(value, dict):
             key_colored = colorize(key, Colors.CYAN)
             print(f"{'  ' * indent}{key_colored}:")
             print_dict(value, indent + 1)
+            # Add blank line after top-level sections (except the last one)
+            if indent == 0 and i < len(items) - 1:
+                print()
         else:
             print_key_value(key, str(value), indent)

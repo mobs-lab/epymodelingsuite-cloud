@@ -175,17 +175,28 @@ def handle_show(ctx: dict) -> int:
         yaml.dump(config, sys.stdout, default_flow_style=False, sort_keys=False)
     else:
         # Show formatted
-        info(f"Environment: {ctx['environment']}")
-        info(f"Profile: {ctx['profile'] or '(none)'}")
-        info("\nConfiguration:")
+        print(f"Environment: {ctx['environment']}")
+
+        # Show profile with metadata if available
+        profile = config.get("_meta", {}).get("profile")
+        if profile:
+            print(f"Profile: {profile.get('name', ctx['profile'])}")
+            if "description" in profile:
+                print(f"  Description: {profile['description']}")
+            if "version" in profile:
+                print(f"  Version: {profile['version']}")
+        else:
+            print(f"Profile: {ctx['profile'] or '(none)'}")
+
+        print("\nConfiguration:")
         print_dict(config)
 
         # Show sources
         sources = config.get("_meta", {}).get("config_sources", [])
         if sources:
-            info("\nLoaded from:")
+            print("\nLoaded from:")
             for source in sources:
-                info(f"  - {source}")
+                print(f"  - {source}")
 
     return 0
 
@@ -264,7 +275,7 @@ def handle_validate(ctx: dict) -> int:
 
         # Check GitHub token
         github_token = get_config_value(config, "github.personal_access_token")
-        if not github_token or github_token == "ghp_xxxxxxxxxxxxxxxxxxxx":
+        if not github_token or github_token in ("ghp_xxxxxxxxxxxxxxxxxxxx", "github_pat_xxxxxxxxxxxxxxxxxxxx"):
             warnings_list.append("GitHub token not configured in secrets.yaml")
 
         # Report results

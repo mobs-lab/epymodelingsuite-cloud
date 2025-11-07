@@ -231,6 +231,7 @@ class ConfigLoader:
         """
         # Start with empty config
         config = {}
+        profile_metadata = None
 
         # 1. Load base config
         config = self._deep_merge(config, self._load_yaml_file(self.config_path))
@@ -242,7 +243,13 @@ class ConfigLoader:
         # 3. Load profile config
         if self.profile:
             profile_file = get_profile_file(self.profile)
-            config = self._deep_merge(config, self._load_yaml_file(profile_file))
+            profile_config = self._load_yaml_file(profile_file)
+
+            # Extract profile metadata if present
+            if "profile" in profile_config:
+                profile_metadata = profile_config.pop("profile")
+
+            config = self._deep_merge(config, profile_config)
 
         # 4. Load project config (optional)
         project_config = get_project_config_file()
@@ -261,7 +268,7 @@ class ConfigLoader:
         # Add metadata
         config["_meta"] = {
             "environment": self.environment,
-            "profile": self.profile,
+            "profile": profile_metadata,
             "config_sources": self._get_loaded_sources(),
         }
 
