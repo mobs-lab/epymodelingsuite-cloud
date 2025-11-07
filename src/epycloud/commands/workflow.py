@@ -18,6 +18,7 @@ from epycloud.lib.command_helpers import (
 )
 from epycloud.lib.formatters import (
     format_duration,
+    format_severity,
     format_status,
     format_timestamp_full,
     format_timestamp_time,
