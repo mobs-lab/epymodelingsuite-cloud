@@ -102,7 +102,8 @@ def validate_run_id(run_id: str) -> str:
     >>> validate_run_id("2025-11-07")
     Traceback (most recent call last):
         ...
-    ValidationError: Invalid run ID format: 2025-11-07. Expected YYYYMMDD-HHMMSS-xxxxxxxx or alphanumeric with dash/underscore
+    ValidationError: Invalid run ID format: 2025-11-07. Expected
+        YYYYMMDD-HHMMSS-xxxxxxxx or alphanumeric with dash/underscore
     """
     if not run_id or not run_id.strip():
         raise ValidationError("Run ID cannot be empty")
@@ -210,7 +211,8 @@ def validate_github_token(token: str) -> str:
     """Validate GitHub personal access token format.
 
     GitHub tokens start with specific prefixes depending on token type:
-    - ghp_ : Personal access token
+    - ghp_ : Classic personal access token
+    - github_pat_ : Fine-grained personal access token
     - gho_ : OAuth access token
     - ghu_ : User-to-server token
     - ghs_ : Server-to-server token
@@ -235,25 +237,28 @@ def validate_github_token(token: str) -> str:
     --------
     >>> validate_github_token("ghp_1234567890abcdef1234567890abcdef1234")
     'ghp_1234567890abcdef1234567890abcdef1234'
+    >>> validate_github_token("github_pat_11AAAAAA0xxxxxxxxxxxxxxxxx_yyyyyyyyyyyyyyyyyy")
+    'github_pat_11AAAAAA0xxxxxxxxxxxxxxxxx_yyyyyyyyyyyyyyyyyy'
     >>> validate_github_token("not-a-token")
     Traceback (most recent call last):
         ...
-    ValidationError: Invalid GitHub token format. Expected to start with ghp_, gho_, ghu_, ghs_, or ghr_
+    ValidationError: Invalid GitHub token format. Expected to start with
+        github_pat_, ghp_, gho_, ghu_, ghs_, or ghr_
     """
     if not token or not token.strip():
         raise ValidationError("GitHub token cannot be empty")
 
     token = token.strip()
 
-    # GitHub tokens start with ghp_, gho_, etc.
-    if not token.startswith(("ghp_", "gho_", "ghu_", "ghs_", "ghr_")):
+    # GitHub tokens start with github_pat_, ghp_, gho_, etc.
+    if not token.startswith(("github_pat_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_")):
         raise ValidationError(
             "Invalid GitHub token format. "
-            "Expected to start with ghp_, gho_, ghu_, ghs_, or ghr_"
+            "Expected to start with github_pat_, ghp_, gho_, ghu_, ghs_, or ghr_"
         )
 
-    # Reasonable length (GitHub PATs are typically 40-100 chars)
-    if len(token) < 20 or len(token) > 200:
+    # Reasonable length (GitHub PATs are typically 40-200 chars, fine-grained can be longer)
+    if len(token) < 20 or len(token) > 300:
         raise ValidationError(f"GitHub token length unusual: {len(token)} chars")
 
     return token

@@ -167,9 +167,12 @@ class TestValidateGithubToken:
 
     def test_valid_github_token(self):
         """Test valid GitHub token formats."""
+        # Classic tokens
         assert validate_github_token("ghp_1234567890abcdef1234567890abcdef1234")
         assert validate_github_token("gho_1234567890abcdef1234567890abcdef1234")
         assert validate_github_token("ghu_1234567890abcdef1234567890abcdef1234")
+        # Fine-grained tokens
+        assert validate_github_token("github_pat_11AAAAAA0xxxxxxxxxxxxxxxxx_yyyyyyyyyyyyyyyyyy")
 
     def test_invalid_github_token_wrong_prefix(self):
         """Test GitHub token with wrong prefix."""

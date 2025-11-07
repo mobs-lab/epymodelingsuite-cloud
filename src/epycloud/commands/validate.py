@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.exceptions import ConfigError, ValidationError
 from epycloud.lib.command_helpers import handle_dry_run, require_config
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id, validate_github_token, validate_local_path
@@ -169,7 +169,7 @@ def handle(ctx: dict[str, Any]) -> int:
             error("GitHub token not found")
             info("Provide via:")
             info("  --github-token TOKEN")
-            info("  export GITHUB_TOKEN=ghp_xxxxx")
+            info("  export GITHUB_TOKEN=github_pat_xxxxx (or ghp_xxxxx for classic)")
             info("  config secrets.yaml: github.personal_access_token")
             return 2
 
