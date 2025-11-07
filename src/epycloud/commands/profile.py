@@ -237,10 +237,6 @@ def handle_create(ctx: dict) -> int:
                     "max_parallelism": 100,
                 },
             },
-            "settings": {
-                "typical_runtime_hours": 4,
-                "estimated_cost_per_run": 40,
-            },
         }
 
     # Ensure profiles directory exists
