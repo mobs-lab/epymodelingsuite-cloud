@@ -8,7 +8,17 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from epycloud.exceptions import ValidationError
+from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.lib.command_helpers import (
+    get_google_cloud_config,
+    require_config,
+)
+from epycloud.lib.formatters import (
+    format_severity,
+    format_timestamp_full,
+    format_timestamp_time,
+    parse_since_time,
+)
 from epycloud.lib.output import error, info, warning
 from epycloud.lib.validation import validate_exp_id, validate_run_id, validate_stage_name
 
@@ -84,19 +94,15 @@ def handle(ctx: dict[str, Any]) -> int:
         Exit code
     """
     args = ctx["args"]
-    config = ctx["config"]
     verbose = ctx["verbose"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
-        return 2
-
-    # Get config values
-    google_cloud_config = config.get("google_cloud", {})
-    project_id = google_cloud_config.get("project_id")
-
-    if not project_id:
-        error("google_cloud.project_id not configured")
+    # Get and validate config
+    try:
+        config = require_config(ctx)
+        gcloud_config = get_google_cloud_config(ctx)
+        project_id = gcloud_config["project_id"]
+    except (ConfigError, KeyError) as e:
+        error(str(e))
         return 2
 
     # Validate inputs
@@ -288,23 +294,12 @@ def _stream_logs(
 
                     # Format timestamp
                     if timestamp:
-                        try:
-                            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                            time_str = dt.strftime("%H:%M:%S")
-                        except (ValueError, IndexError):
-                            time_str = timestamp[11:19]
+                        time_str = format_timestamp_time(timestamp)
                     else:
                         time_str = ""
 
                     # Color code severity
-                    if severity == "ERROR":
-                        severity_display = f"\033[31m{severity}\033[0m"
-                    elif severity == "WARNING":
-                        severity_display = f"\033[33m{severity}\033[0m"
-                    elif severity == "DEBUG":
-                        severity_display = f"\033[90m{severity}\033[0m"
-                    else:
-                        severity_display = severity
+                    severity_display = format_severity(severity)
 
                     # Display message
                     if text_payload:
@@ -359,25 +354,12 @@ def _display_logs(logs: list[dict[str, Any]]) -> None:
 
         # Format timestamp
         if timestamp:
-            try:
-                dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except (ValueError, IndexError):
-                time_str = timestamp[:19]
+            time_str = format_timestamp_full(timestamp)
         else:
             time_str = "unknown"
 
         # Color code severity
-        if severity == "ERROR":
-            severity_display = f"\033[31m{severity}\033[0m"
-        elif severity == "WARNING":
-            severity_display = f"\033[33m{severity}\033[0m"
-        elif severity == "INFO":
-            severity_display = f"\033[34m{severity}\033[0m"
-        elif severity == "DEBUG":
-            severity_display = f"\033[90m{severity}\033[0m"
-        else:
-            severity_display = severity
+        severity_display = format_severity(severity)
 
         # Build context string
         context_parts = []
@@ -430,22 +412,4 @@ def _parse_since_time(since: str) -> str | None:
     Returns:
         ISO timestamp string or None if invalid
     """
-    from datetime import datetime, timedelta
-
-    try:
-        if since.endswith("h"):
-            hours = int(since[:-1])
-            dt = datetime.now(UTC) - timedelta(hours=hours)
-        elif since.endswith("m"):
-            minutes = int(since[:-1])
-            dt = datetime.now(UTC) - timedelta(minutes=minutes)
-        elif since.endswith("d"):
-            days = int(since[:-1])
-            dt = datetime.now(UTC) - timedelta(days=days)
-        else:
-            return None
-
-        return dt.isoformat()
-
-    except ValueError:
-        return None
+    return parse_since_time(since)
