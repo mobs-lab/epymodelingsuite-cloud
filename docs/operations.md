@@ -99,11 +99,22 @@ Build and push Docker image using Google Cloud Build:
 # Load configuration
 source .env
 
-# Build image on cloud
+# Build image on cloud (async - returns immediately)
 make build
 ```
 
-This uses the cloud infrastructure and automatically pushes to Artifact Registry.
+This submits the build asynchronously and returns immediately with a build ID. Monitor progress with:
+
+```bash
+# View ongoing builds
+gcloud builds list --region=$REGION --ongoing
+
+# Stream logs for specific build
+gcloud builds log <BUILD_ID> --region=$REGION --stream
+
+# Check build status
+gcloud builds describe <BUILD_ID> --region=$REGION
+```
 
 ### Local Build and Push
 

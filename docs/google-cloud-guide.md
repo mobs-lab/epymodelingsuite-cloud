@@ -330,12 +330,12 @@ See [Google Cloud Batch documentation](https://cloud.google.com/batch/docs/creat
 
 ### Current Resource Allocation
 
-**Cloud Build** - [cloudbuild.yaml:22](../cloudbuild.yaml#L22)
+**Cloud Build** - [cloudbuild.yaml:38](../cloudbuild.yaml#L38)
 ```yaml
-machineType: E2_MEDIUM
+machineType: E2_HIGHCPU_8
 ```
 - [Predefined instance type](https://cloud.google.com/build/pricing?hl=en) for build operations. Note that the only options for CloudBuild are `e2-medium`, `e2-standard-2`, `e2-highcpu-8`, and `e2-highcpu-32`. See documentation for details.
-- `e2-medium`: 1 vCPU, 4 GB RAM
+- `e2-highcpu-8`: 8 vCPU, 8 GB RAM (provides faster builds with more CPU)
 
 **Stage A Job (Generator)**
 ```yaml
@@ -555,11 +555,13 @@ gcloud builds submit --region ${REGION} --config cloudbuild.yaml
 - Cloud builds use Secret Manager instead
 
 **Cloud Build configuration** in [cloudbuild.yaml](cloudbuild.yaml):
-- Uses `E2_MEDIUM` machine type
+- Uses `E2_HIGHCPU_8` machine type for faster builds
+- Enables layer caching with `--cache-from` and `BUILDKIT_INLINE_CACHE`
 - Logs to Cloud Logging only
 - Automatically pushes to Artifact Registry
 - **Fetches GitHub PAT from Secret Manager** for private repository access
 - Passes `GITHUB_MODELING_SUITE_REPO` and `GITHUB_MODELING_SUITE_REF` as build arguments
+- Submits builds asynchronously via Makefile for non-blocking operation
 
 **How epymodelingsuite is installed:**
 
