@@ -10,7 +10,19 @@ import urllib.request
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from epycloud.exceptions import CloudAPIError, ValidationError
+from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.lib.command_helpers import (
+    get_gcloud_access_token,
+    get_google_cloud_config,
+    require_config,
+)
+from epycloud.lib.formatters import (
+    format_duration,
+    format_status,
+    format_timestamp_full,
+    format_timestamp_time,
+    parse_since_time,
+)
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id
 
@@ -130,10 +142,12 @@ def handle(ctx: dict[str, Any]) -> int:
         Exit code
     """
     args = ctx["args"]
-    config = ctx["config"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
+    # Validate configuration
+    try:
+        config = require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
         return 2
 
     if not args.workflow_subcommand:
@@ -200,7 +214,7 @@ def _handle_list(ctx: dict[str, Any]) -> int:
 
     # Get auth token
     try:
-        token = _get_access_token(verbose)
+        token = get_gcloud_access_token(verbose)
     except Exception as e:
         error(f"Failed to get access token: {e}")
         return 1
@@ -228,7 +242,7 @@ def _handle_list(ctx: dict[str, Any]) -> int:
                 ]
 
             if args.since:
-                cutoff_time = _parse_since(args.since)
+                cutoff_time = parse_since_time(args.since)
                 if cutoff_time:
                     executions = [
                         e
@@ -290,7 +304,7 @@ def _handle_describe(ctx: dict[str, Any]) -> int:
 
     # Get auth token
     try:
-        token = _get_access_token(verbose)
+        token = get_gcloud_access_token(verbose)
     except Exception as e:
         error(f"Failed to get access token: {e}")
         return 1
@@ -458,7 +472,7 @@ def _handle_cancel(ctx: dict[str, Any]) -> int:
 
     # Get auth token
     try:
-        token = _get_access_token(verbose)
+        token = get_gcloud_access_token(verbose)
     except Exception as e:
         error(f"Failed to get access token: {e}")
         return 1
@@ -532,7 +546,7 @@ def _handle_retry(ctx: dict[str, Any]) -> int:
     describe_url = f"https://workflowexecutions.googleapis.com/v1/{execution_name}"
 
     try:
-        token = _get_access_token(verbose)
+        token = get_gcloud_access_token(verbose)
     except Exception as e:
         error(f"Failed to get access token: {e}")
         return 1
@@ -610,32 +624,6 @@ def _handle_retry(ctx: dict[str, Any]) -> int:
 # ========== Helper Functions ==========
 
 
-def _get_access_token(verbose: bool = False) -> str:
-    """Get GCP access token using gcloud.
-
-    Args:
-        verbose: Verbose output
-
-    Returns:
-        Access token
-
-    Raises:
-        Exception: If unable to get token
-    """
-    try:
-        result = subprocess.run(
-            ["gcloud", "auth", "print-access-token"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        if verbose:
-            print(e.stderr, file=sys.stderr)
-        raise Exception("Failed to get access token")
-
-
 def _parse_execution_name(
     execution_id: str, project_id: str, region: str, workflow_name: str
 ) -> str:
@@ -658,30 +646,6 @@ def _parse_execution_name(
         f"projects/{project_id}/locations/{region}/"
         f"workflows/{workflow_name}/executions/{execution_id}"
     )
-
-
-def _parse_since(since: str) -> datetime | None:
-    """Parse since duration string.
-
-    Args:
-        since: Duration string (e.g., 24h, 7d, 30m)
-
-    Returns:
-        Cutoff datetime or None if invalid
-    """
-    try:
-        if since.endswith("h"):
-            hours = int(since[:-1])
-            return datetime.now(UTC) - timedelta(hours=hours)
-        elif since.endswith("d"):
-            days = int(since[:-1])
-            return datetime.now(UTC) - timedelta(days=days)
-        elif since.endswith("m"):
-            minutes = int(since[:-1])
-            return datetime.now(UTC) - timedelta(minutes=minutes)
-    except ValueError:
-        pass
-    return None
 
 
 def _parse_timestamp(timestamp: str) -> datetime:
@@ -730,24 +694,10 @@ def _display_execution_list(executions: list[dict[str, Any]], region: str) -> No
             pass
 
         # Format start time
-        if start_time:
-            try:
-                dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                start_time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except (ValueError, IndexError):
-                start_time_str = start_time[:19]
-        else:
-            start_time_str = "unknown"
+        start_time_str = format_timestamp_full(start_time) if start_time else "unknown"
 
         # Color code status
-        if state == "SUCCEEDED":
-            status_display = f"\033[32m{state}\033[0m"
-        elif state == "FAILED":
-            status_display = f"\033[31m{state}\033[0m"
-        elif state == "ACTIVE":
-            status_display = f"\033[33m{state}\033[0m"
-        else:
-            status_display = state
+        status_display = format_status(state, "workflow")
 
         print(f"{execution_id:<40} {status_display:<20} {start_time_str:<20} {exp_id:<20}")
 
@@ -773,14 +723,7 @@ def _display_execution_details(execution: dict[str, Any]) -> None:
 
     # Basic info
     state = execution.get("state", "UNKNOWN")
-    if state == "SUCCEEDED":
-        print(f"Status: \033[32m{state}\033[0m")
-    elif state == "FAILED":
-        print(f"Status: \033[31m{state}\033[0m")
-    elif state == "ACTIVE":
-        print(f"Status: \033[33m{state}\033[0m")
-    else:
-        print(f"Status: {state}")
+    print(f"Status: {format_status(state, 'workflow')}")
 
     # Timestamps
     start_time = execution.get("startTime", "")
@@ -792,13 +735,8 @@ def _display_execution_details(execution: dict[str, Any]) -> None:
         print(f"End Time: {end_time}")
 
         # Calculate duration
-        try:
-            start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-            end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-            duration = end_dt - start_dt
-            print(f"Duration: {duration}")
-        except (ValueError, TypeError):
-            pass
+        duration_str = format_duration(start_time, end_time)
+        print(f"Duration: {duration_str}")
 
     # Workflow info
     workflow_revision_id = execution.get("workflowRevisionId", "")
@@ -868,24 +806,10 @@ def _display_logs(logs: list[dict[str, Any]]) -> None:
         json_payload = entry.get("jsonPayload", {})
 
         # Format timestamp
-        if timestamp:
-            try:
-                dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except (ValueError, IndexError):
-                time_str = timestamp[:19]
-        else:
-            time_str = "unknown"
+        time_str = format_timestamp_full(timestamp) if timestamp else "unknown"
 
         # Color code severity
-        if severity == "ERROR":
-            severity_display = f"\033[31m{severity}\033[0m"
-        elif severity == "WARNING":
-            severity_display = f"\033[33m{severity}\033[0m"
-        elif severity == "INFO":
-            severity_display = f"\033[34m{severity}\033[0m"
-        else:
-            severity_display = severity
+        severity_display = format_severity(severity)
 
         # Display log entry
         print(f"[{time_str}] {severity_display}")
@@ -962,22 +886,10 @@ def _stream_logs(project_id: str, execution_id: str, region: str, verbose: bool)
                     text_payload = entry.get("textPayload", "")
 
                     # Format timestamp
-                    if timestamp:
-                        try:
-                            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                            time_str = dt.strftime("%H:%M:%S")
-                        except (ValueError, IndexError):
-                            time_str = timestamp[11:19]
-                    else:
-                        time_str = ""
+                    time_str = format_timestamp_time(timestamp) if timestamp else ""
 
                     # Color code severity
-                    if severity == "ERROR":
-                        severity_display = f"\033[31m{severity}\033[0m"
-                    elif severity == "WARNING":
-                        severity_display = f"\033[33m{severity}\033[0m"
-                    else:
-                        severity_display = severity
+                    severity_display = format_severity(severity)
 
                     print(f"[{time_str}] {severity_display}: {text_payload}")
 
