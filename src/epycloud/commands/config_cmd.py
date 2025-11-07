@@ -10,6 +10,8 @@ from typing import Any
 import yaml
 
 from epycloud.config.loader import ConfigLoader, get_config_value, set_config_value
+from epycloud.exceptions import ConfigError
+from epycloud.lib.command_helpers import require_config
 from epycloud.lib.output import error, info, print_dict, success, warning
 from epycloud.lib.paths import (
     get_config_dir,
@@ -160,11 +162,12 @@ def handle_show(ctx: dict) -> int:
     Returns:
         Exit code
     """
-    config = ctx["config"]
     args = ctx["args"]
 
-    if not config:
-        error("No configuration loaded")
+    try:
+        config = require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
         return 1
 
     if args.raw:
