@@ -13,6 +13,14 @@ from typing import Any
 from uuid import uuid4
 
 from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.lib.command_helpers import (
+    get_gcloud_access_token,
+    get_google_cloud_config,
+    get_project_root,
+    handle_dry_run,
+    prepare_subprocess_env,
+    require_config,
+)
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id, validate_run_id
 
@@ -159,12 +167,14 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
         Exit code
     """
     args = ctx["args"]
-    config = ctx["config"]
     verbose = ctx["verbose"]
     dry_run = ctx["dry_run"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
+    # Validate configuration
+    try:
+        config = require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
         return 2
 
     # Validate inputs
@@ -212,12 +222,14 @@ def _handle_job(ctx: dict[str, Any]) -> int:
         Exit code
     """
     args = ctx["args"]
-    config = ctx["config"]
     verbose = ctx["verbose"]
     dry_run = ctx["dry_run"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
+    # Validate configuration
+    try:
+        config = require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
         return 2
 
     # Normalize stage name
@@ -360,17 +372,9 @@ def _run_workflow_cloud(
 
     # Get auth token
     try:
-        token_result = subprocess.run(
-            ["gcloud", "auth", "print-access-token"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        access_token = token_result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        error("Failed to get access token")
-        if verbose:
-            print(e.stderr, file=sys.stderr)
+        access_token = get_gcloud_access_token(verbose=verbose)
+    except CloudAPIError as e:
+        error(str(e))
         return 1
 
     # Construct API URL
@@ -382,10 +386,11 @@ def _run_workflow_cloud(
     # Build request body
     request_body = {"argument": json.dumps(workflow_arg)}
 
-    if dry_run:
-        info("Would submit workflow with:")
-        print(json.dumps(workflow_arg, indent=2))
-        info(f"URL: {workflow_url}")
+    if handle_dry_run(
+        {"dry_run": dry_run},
+        "Submit workflow",
+        {"url": workflow_url, "arguments": json.dumps(workflow_arg, indent=2)},
+    ):
         return 0
 
     # Submit workflow
@@ -487,7 +492,7 @@ def _run_workflow_local(
     else:
         info(f"Run ID: {run_id}")
 
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
 
     # Stage A: Builder
     info("")
@@ -699,10 +704,11 @@ def _run_job_cloud(
     if machine_type:
         info(f"  Machine Type: {machine_type}")
 
-    if dry_run:
-        info("")
-        info("Would submit job with config:")
-        print(json.dumps(job_config, indent=2))
+    if handle_dry_run(
+        {"dry_run": dry_run},
+        f"Submit batch job {job_id}",
+        {"job_config": json.dumps(job_config, indent=2)},
+    ):
         return 0
 
     # Write config to temp file
@@ -790,7 +796,7 @@ def _run_job_local(
     elif run_id:
         info(f"Run ID: {run_id}")
 
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
 
     # Determine service and env vars
     if stage == "A":
@@ -848,14 +854,15 @@ def _run_docker_compose_stage(
     """
     cmd = ["docker", "compose", "run", "--rm", service]
 
-    if dry_run:
-        info(f"Would run: {' '.join(cmd)}")
-        info(f"With env: {env_vars}")
+    if handle_dry_run(
+        {"dry_run": dry_run},
+        f"Run Docker Compose service '{service}'",
+        {"command": " ".join(cmd), "env_vars": str(env_vars)},
+    ):
         return 0
 
     # Set environment variables for subprocess
-    env = os.environ.copy()
-    env.update(env_vars)
+    env = prepare_subprocess_env(env_vars)
 
     # Change to project root
     original_dir = Path.cwd()
