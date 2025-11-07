@@ -88,10 +88,19 @@ help:
 	@echo "  TASK_COUNT_PER_NODE     - Max tasks per VM (current: $(TASK_COUNT_PER_NODE))"
 
 build:
-	@echo "Building and pushing image with Cloud Build..."
+	@echo "Building and pushing image with Cloud Build (async)..."
 	@echo "Image: $(IMAGE)"
-	gcloud builds submit --project=$(PROJECT_ID) --region $(REGION) --config cloudbuild.yaml \
-	  --substitutions=_REGION=$(REGION),_REPO_NAME=$(REPO_NAME),_IMAGE_NAME=$(IMAGE_NAME),_IMAGE_TAG=$(IMAGE_TAG),_GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO),_GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF)
+	@BUILD_ID=$$(gcloud builds submit --project=$(PROJECT_ID) --region $(REGION) --config cloudbuild.yaml --async \
+	  --substitutions=_REGION=$(REGION),_REPO_NAME=$(REPO_NAME),_IMAGE_NAME=$(IMAGE_NAME),_IMAGE_TAG=$(IMAGE_TAG),_GITHUB_MODELING_SUITE_REPO=$(GITHUB_MODELING_SUITE_REPO),_GITHUB_MODELING_SUITE_REF=$(GITHUB_MODELING_SUITE_REF) \
+	  --format="value(id)") && \
+	echo "" && \
+	echo "✓ Build submitted successfully!" && \
+	echo "  Build ID: $$BUILD_ID" && \
+	echo "" && \
+	echo "Monitor with:" && \
+	echo "  gcloud builds describe $$BUILD_ID --region=$(REGION)" && \
+	echo "  gcloud builds log $$BUILD_ID --region=$(REGION) --stream" && \
+	echo "  gcloud builds list --region=$(REGION) --ongoing"
 
 build-local:
 	@echo "Building cloud image locally and pushing to Artifact Registry..."
@@ -349,15 +358,15 @@ run-workflow:
 	  -H "Authorization: Bearer $$(gcloud auth print-access-token)" \
 	  -H "Content-Type: application/json" \
 	  -d '{"argument":"{\"bucket\":\"$(BUCKET_NAME)\",\"dirPrefix\":\"$(DIR_PREFIX)\",\"exp_id\":\"$(EXP_ID)\",\"githubForecastRepo\":\"$(GITHUB_FORECAST_REPO)\",\"batchSaEmail\":\"'$$BATCH_SA'\"}"}' \
-	  "https://workflowexecutions.googleapis.com/v1/projects/$(PROJECT_ID)/locations/$(REGION)/workflows/epydemix-pipeline/executions" \
+	  "https://workflowexecutions.googleapis.com/v1/projects/$(PROJECT_ID)/locations/$(REGION)/workflows/epymodelingsuite-pipeline/executions" \
 	  -s | jq -r '.name' | tee /tmp/workflow_execution.txt && \
 	echo "" && \
 	echo "✓ Workflow submitted successfully!" && \
 	echo "  Execution: $$(cat /tmp/workflow_execution.txt)" && \
 	echo "" && \
 	echo "Monitor with:" && \
-	echo "  gcloud workflows executions describe $$(basename $$(cat /tmp/workflow_execution.txt)) --workflow=epydemix-pipeline --location=$(REGION)" && \
-	echo "  gcloud workflows executions list epydemix-pipeline --location=$(REGION)"
+	echo "  gcloud workflows executions describe $$(basename $$(cat /tmp/workflow_execution.txt)) --workflow=epymodelingsuite-pipeline --location=$(REGION)" && \
+	echo "  gcloud workflows executions list epymodelingsuite-pipeline --location=$(REGION)"
 
 clean:
 	@echo "Cleaning local artifacts..."

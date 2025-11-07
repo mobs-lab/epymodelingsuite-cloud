@@ -66,11 +66,11 @@ make build
 EXP_ID=initial-test make run-workflow
 
 # 7. Monitor execution
-gcloud workflows executions list epydemix-pipeline --location=$REGION
+gcloud workflows executions list epymodelingsuite-pipeline --location=$REGION
 
 # 8. View logs and details
 gcloud workflows executions describe <execution_id> \
-  --workflow=epydemix-pipeline --location=$REGION
+  --workflow=epymodelingsuite-pipeline --location=$REGION
 
 # View Batch job logs
 gcloud logging read "resource.type=batch.googleapis.com/Job" --limit 50

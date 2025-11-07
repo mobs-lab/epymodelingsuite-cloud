@@ -1,4 +1,4 @@
-# Epydemix Pipeline Workflow
+# Epymodelingsuite Pipeline Workflow
 
 main:
   params: [input]
@@ -58,7 +58,7 @@ main:
           - runOutputStage: ${run_output_stage}
 
           # Network configuration
-          - networkName: "${network_name}"
+          - networkSelfLink: "${network_self_link}"
           - subnetName: "${subnet_name}"
           - subnetSelfLink: "${subnet_self_link}"
 
@@ -113,7 +113,7 @@ main:
                 email: $${batchSaEmail}
               network:
                 networkInterfaces:
-                  - network: $${networkName}
+                  - network: $${networkSelfLink}
                     subnetwork: $${subnetSelfLink}
                     noExternalIpAddress: true
               %{~ if stage_a_machine_type != "" ~}
@@ -133,7 +133,7 @@ main:
                   %{~ endif ~}
               %{~ endif ~}
           query:
-            jobId: $${"stagea-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+            jobId: $${"epy-" + string(int(sys.now())) + "-stage-a"}
         result: jobA
 
     - wait_for_stageA_creation:
@@ -223,7 +223,7 @@ main:
                 email: $${batchSaEmail}
               network:
                 networkInterfaces:
-                  - network: $${networkName}
+                  - network: $${networkSelfLink}
                     subnetwork: $${subnetSelfLink}
                     noExternalIpAddress: true
               %{~ if stage_b_machine_type != "" ~}
@@ -244,7 +244,7 @@ main:
                   %{~ endif ~}
               %{~ endif ~}
           query:
-            jobId: $${"stageb-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+            jobId: $${"epy-" + string(int(sys.now())) + "-stage-b"}
         result: jobB
 
     - wait_for_stageB_creation:
@@ -313,7 +313,7 @@ main:
                           email: $${batchSaEmail}
                         network:
                           networkInterfaces:
-                            - network: $${networkName}
+                            - network: $${networkSelfLink}
                               subnetwork: $${subnetSelfLink}
                               noExternalIpAddress: true
                         %{~ if stage_c_machine_type != "" ~}
@@ -333,7 +333,7 @@ main:
                             %{~ endif ~}
                         %{~ endif ~}
                     query:
-                      jobId: $${"stagec-" + text.replace_all(text.replace_all(string(sys.now()), ".", "-"), " ", "-")}
+                      jobId: $${"epy-" + string(int(sys.now())) + "-stage-c"}
                   result: jobC
 
               - wait_for_stageC_creation:
