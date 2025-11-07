@@ -11,10 +11,16 @@ from epycloud.lib.paths import ensure_config_dir
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create the argument parser with all commands.
+    """
+    Create the argument parser with all commands and subcommands.
 
-    Returns:
-        Configured argument parser
+    Configures the main argument parser with global options and registers
+    all command-specific subparsers for the epycloud CLI.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Configured argument parser with all commands registered.
     """
     parser = argparse.ArgumentParser(
         prog="epycloud",
@@ -73,10 +79,17 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    """Main CLI entry point.
+    """
+    Main CLI entry point for the epycloud command.
 
-    Returns:
-        Exit code (0 for success, non-zero for error)
+    Parses command-line arguments, loads configuration, creates command context,
+    and routes execution to the appropriate command handler.
+
+    Returns
+    -------
+    int
+        Exit code: 0 for success, 1 for command failure, 2 for configuration error,
+        130 for keyboard interrupt.
     """
     parser = create_parser()
     args = parser.parse_args()

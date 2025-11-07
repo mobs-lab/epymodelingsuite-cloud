@@ -17,7 +17,26 @@ from epycloud.lib.paths import (
 
 
 class ConfigLoader:
-    """Load and merge configuration from multiple sources."""
+    """
+    Load and merge configuration from multiple sources.
+
+    The ConfigLoader manages hierarchical configuration loading from:
+    1. Base config (config.yaml)
+    2. Environment config (environments/{env}.yaml)
+    3. Profile config (profiles/{profile}.yaml)
+    4. Project config (./epycloud.yaml)
+    5. Secrets (secrets.yaml)
+    6. Environment variables (EPYCLOUD_*)
+
+    Attributes
+    ----------
+    environment : str
+        Environment name (dev, prod, local).
+    profile : str or None
+        Profile name (flu, covid, rsv, etc.).
+    config_path : Path
+        Path to base configuration file.
+    """
 
     def __init__(
         self,
@@ -25,22 +44,32 @@ class ConfigLoader:
         profile: str | None = None,
         config_path: Path | None = None,
     ):
-        """Initialize config loader.
+        """
+        Initialize configuration loader.
 
-        Args:
-            environment: Environment name (dev, prod, local)
-            profile: Profile name (flu, covid, rsv, etc.) - if None, uses active profile
-            config_path: Optional path to base config file (overrides default)
+        Parameters
+        ----------
+        environment : str, optional
+            Environment name (dev, prod, local), by default "dev".
+        profile : str or None, optional
+            Profile name (flu, covid, rsv, etc.). If None, uses active profile
+            from active_profile file, by default None.
+        config_path : Path or None, optional
+            Path to base config file. If None, uses default config.yaml location,
+            by default None.
         """
         self.environment = environment
         self.profile = profile or self._get_active_profile()
         self.config_path = config_path or get_config_file()
 
     def _get_active_profile(self) -> str | None:
-        """Get the currently active profile.
+        """
+        Get the currently active profile from the active_profile marker file.
 
-        Returns:
-            Active profile name or None
+        Returns
+        -------
+        str or None
+            Active profile name if set, None otherwise.
         """
         active_profile_file = get_active_profile_file()
         if active_profile_file.exists():
@@ -48,13 +77,23 @@ class ConfigLoader:
         return None
 
     def _load_yaml_file(self, path: Path) -> dict:
-        """Load YAML file.
+        """
+        Load and parse a YAML configuration file.
 
-        Args:
-            path: Path to YAML file
+        Parameters
+        ----------
+        path : Path
+            Path to YAML file to load.
 
-        Returns:
-            Parsed YAML content or empty dict if file doesn't exist
+        Returns
+        -------
+        dict
+            Parsed YAML content, or empty dict if file doesn't exist.
+
+        Raises
+        ------
+        ValueError
+            If YAML file contains invalid syntax.
         """
         if not path.exists():
             return {}
@@ -67,14 +106,23 @@ class ConfigLoader:
             raise ValueError(f"Invalid YAML in {path}: {e}")
 
     def _deep_merge(self, base: dict, override: dict) -> dict:
-        """Deep merge two dictionaries.
+        """
+        Deep merge two dictionaries recursively.
 
-        Args:
-            base: Base dictionary
-            override: Override dictionary
+        Nested dictionaries are merged recursively. For non-dict values,
+        the override value replaces the base value.
 
-        Returns:
-            Merged dictionary
+        Parameters
+        ----------
+        base : dict
+            Base dictionary to merge into.
+        override : dict
+            Override dictionary with values to merge.
+
+        Returns
+        -------
+        dict
+            New dictionary with merged contents.
         """
         result = base.copy()
 
@@ -87,15 +135,21 @@ class ConfigLoader:
         return result
 
     def _interpolate_templates(self, config: dict) -> dict:
-        """Interpolate template variables in config.
+        """
+        Interpolate template variables in configuration values.
 
-        Replaces {environment} and {profile} placeholders.
+        Recursively replaces {environment} and {profile} placeholders
+        in string values throughout the configuration dictionary.
 
-        Args:
-            config: Configuration dictionary
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary with potential template placeholders.
 
-        Returns:
-            Configuration with interpolated values
+        Returns
+        -------
+        dict
+            Configuration with all template variables interpolated.
         """
 
         def interpolate_value(value: Any) -> Any:
@@ -114,15 +168,22 @@ class ConfigLoader:
         return interpolate_value(config)
 
     def _apply_env_overrides(self, config: dict) -> dict:
-        """Apply environment variable overrides.
+        """
+        Apply environment variable overrides to configuration.
 
-        Environment variables in format: EPYCLOUD_SECTION_SUBSECTION_KEY
+        Reads environment variables with EPYCLOUD_ prefix and applies them
+        to the configuration. Variable names are converted from
+        EPYCLOUD_SECTION_SUBSECTION_KEY format to nested dictionary paths.
 
-        Args:
-            config: Configuration dictionary
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary to apply overrides to.
 
-        Returns:
-            Configuration with environment variable overrides
+        Returns
+        -------
+        dict
+            Configuration with environment variable overrides applied.
         """
         prefix = "EPYCLOUD_"
 
@@ -147,7 +208,12 @@ class ConfigLoader:
         return config
 
     def load(self) -> dict:
-        """Load and merge configuration from all sources.
+        """
+        Load and merge configuration from all sources.
+
+        Loads configuration files in hierarchical order with later sources
+        overriding earlier ones. Also applies template interpolation and
+        environment variable overrides.
 
         Merge order (lowest to highest priority):
         1. Base config (config.yaml)
@@ -155,10 +221,13 @@ class ConfigLoader:
         3. Profile config (profiles/{profile}.yaml)
         4. Project config (./epycloud.yaml)
         5. Secrets (secrets.yaml)
-        6. Environment variables (EPYCLOUD_*)
+        6. Template interpolation ({environment}, {profile})
+        7. Environment variables (EPYCLOUD_*)
 
-        Returns:
-            Merged configuration dictionary
+        Returns
+        -------
+        dict
+            Merged configuration dictionary with metadata section.
         """
         # Start with empty config
         config = {}
@@ -199,10 +268,13 @@ class ConfigLoader:
         return config
 
     def _get_loaded_sources(self) -> list[str]:
-        """Get list of config files that were loaded.
+        """
+        Get list of configuration files that were loaded.
 
-        Returns:
-            List of config file paths that exist and were loaded
+        Returns
+        -------
+        list of str
+            List of config file paths that exist and were successfully loaded.
         """
         sources = []
 
@@ -235,15 +307,32 @@ class ConfigLoader:
 
 
 def get_config_value(config: dict, key_path: str, default: Any = None) -> Any:
-    """Get config value using dot notation.
+    """
+    Get configuration value using dot notation path.
 
-    Args:
-        config: Configuration dictionary
-        key_path: Key path in dot notation (e.g., "google_cloud.project_id")
-        default: Default value if key doesn't exist
+    Navigates through nested dictionaries using dot-separated keys.
 
-    Returns:
-        Config value or default
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary to query.
+    key_path : str
+        Key path in dot notation (e.g., "google_cloud.project_id").
+    default : Any, optional
+        Default value to return if key doesn't exist, by default None.
+
+    Returns
+    -------
+    Any
+        Configuration value if found, default value otherwise.
+
+    Examples
+    --------
+    >>> config = {"google_cloud": {"project_id": "my-project"}}
+    >>> get_config_value(config, "google_cloud.project_id")
+    'my-project'
+    >>> get_config_value(config, "nonexistent.key", "default")
+    'default'
     """
     keys = key_path.split(".")
     value = config
@@ -258,12 +347,27 @@ def get_config_value(config: dict, key_path: str, default: Any = None) -> Any:
 
 
 def set_config_value(config: dict, key_path: str, value: Any) -> None:
-    """Set config value using dot notation.
+    """
+    Set configuration value using dot notation path.
 
-    Args:
-        config: Configuration dictionary
-        key_path: Key path in dot notation (e.g., "google_cloud.project_id")
-        value: Value to set
+    Creates nested dictionaries as needed to set the value at the
+    specified path.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary to modify.
+    key_path : str
+        Key path in dot notation (e.g., "google_cloud.project_id").
+    value : Any
+        Value to set at the specified path.
+
+    Examples
+    --------
+    >>> config = {}
+    >>> set_config_value(config, "google_cloud.project_id", "my-project")
+    >>> config
+    {'google_cloud': {'project_id': 'my-project'}}
     """
     keys = key_path.split(".")
     current = config

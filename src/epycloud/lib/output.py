@@ -5,7 +5,12 @@ import sys
 
 # ANSI color codes
 class Colors:
-    """ANSI color codes for terminal output."""
+    """
+    ANSI color codes for terminal output.
+
+    Provides constants for text formatting and colorization in terminals
+    that support ANSI escape sequences.
+    """
 
     RESET = "\033[0m"
     BOLD = "\033[1m"
@@ -28,24 +33,33 @@ class Colors:
 
 
 def supports_color() -> bool:
-    """Check if the terminal supports color output.
+    """
+    Check if the terminal supports color output.
 
-    Returns:
-        True if colors are supported
+    Returns
+    -------
+    bool
+        True if stdout is a TTY and platform is not Windows.
     """
     # Check if stdout is a TTY and NO_COLOR is not set
     return sys.stdout.isatty() and not sys.platform.startswith("win")
 
 
 def colorize(text: str, color: str) -> str:
-    """Colorize text if terminal supports it.
+    """
+    Colorize text if terminal supports it.
 
-    Args:
-        text: Text to colorize
-        color: ANSI color code
+    Parameters
+    ----------
+    text : str
+        Text to colorize.
+    color : str
+        ANSI color code from the Colors class.
 
-    Returns:
-        Colorized text or plain text
+    Returns
+    -------
+    str
+        Colorized text if supported, plain text otherwise.
     """
     if supports_color():
         return f"{color}{text}{Colors.RESET}"
@@ -53,83 +67,115 @@ def colorize(text: str, color: str) -> str:
 
 
 def success(message: str) -> None:
-    """Print success message with checkmark.
+    """
+    Print success message with green checkmark.
 
-    Args:
-        message: Success message
+    Parameters
+    ----------
+    message : str
+        Success message to display.
     """
     symbol = colorize("✓", Colors.GREEN)
     print(f"{symbol} {message}")
 
 
 def error(message: str) -> None:
-    """Print error message with X symbol.
+    """
+    Print error message with red X symbol to stderr.
 
-    Args:
-        message: Error message
+    Parameters
+    ----------
+    message : str
+        Error message to display.
     """
     symbol = colorize("✗", Colors.RED)
     print(f"{symbol} {message}", file=sys.stderr)
 
 
 def warning(message: str) -> None:
-    """Print warning message with warning symbol.
+    """
+    Print warning message with yellow warning symbol.
 
-    Args:
-        message: Warning message
+    Parameters
+    ----------
+    message : str
+        Warning message to display.
     """
     symbol = colorize("⚠", Colors.YELLOW)
     print(f"{symbol} {message}")
 
 
 def info(message: str) -> None:
-    """Print info message.
+    """
+    Print informational message with indentation.
 
-    Args:
-        message: Info message
+    Parameters
+    ----------
+    message : str
+        Informational message to display.
     """
     print(f"  {message}")
 
 
 def header(message: str) -> None:
-    """Print header message.
+    """
+    Print header message in bold.
 
-    Args:
-        message: Header message
+    Parameters
+    ----------
+    message : str
+        Header message to display.
     """
     text = colorize(message, Colors.BOLD)
     print(f"\n{text}")
 
 
 def subheader(message: str) -> None:
-    """Print subheader message.
+    """
+    Print subheader message in cyan.
 
-    Args:
-        message: Subheader message
+    Parameters
+    ----------
+    message : str
+        Subheader message to display.
     """
     text = colorize(message, Colors.CYAN)
     print(f"\n{text}")
 
 
 def dim(message: str) -> None:
-    """Print dimmed message.
+    """
+    Print dimmed message with indentation.
 
-    Args:
-        message: Dimmed message
+    Parameters
+    ----------
+    message : str
+        Dimmed message to display.
     """
     text = colorize(message, Colors.DIM)
     print(f"  {text}")
 
 
 def ask_confirmation(message: str, default: bool = False) -> bool:
-    """Ask user for confirmation.
+    """
+    Ask user for yes/no confirmation.
 
-    Args:
-        message: Confirmation message
-        default: Default value if user just presses Enter
+    Parameters
+    ----------
+    message : str
+        Confirmation question to ask.
+    default : bool, optional
+        Default value if user just presses Enter, by default False.
 
-    Returns:
-        True if user confirmed, False otherwise
+    Returns
+    -------
+    bool
+        True if user confirmed (y/yes), False otherwise.
+
+    Examples
+    --------
+    >>> if ask_confirmation("Delete all files?"):
+    ...     print("Deleting files...")
     """
     if default:
         prompt = f"{message} [Y/n]: "
@@ -147,12 +193,17 @@ def ask_confirmation(message: str, default: bool = False) -> bool:
 
 
 def print_key_value(key: str, value: str, indent: int = 0) -> None:
-    """Print key-value pair with formatting.
+    """
+    Print key-value pair with formatting and indentation.
 
-    Args:
-        key: Key to print
-        value: Value to print
-        indent: Indentation level
+    Parameters
+    ----------
+    key : str
+        Key to print (displayed in cyan).
+    value : str
+        Value to print.
+    indent : int, optional
+        Indentation level (number of 2-space indents), by default 0.
     """
     indent_str = "  " * indent
     key_colored = colorize(key, Colors.CYAN)
@@ -160,11 +211,18 @@ def print_key_value(key: str, value: str, indent: int = 0) -> None:
 
 
 def print_dict(data: dict, indent: int = 0) -> None:
-    """Print dictionary with nice formatting.
+    """
+    Print dictionary with hierarchical formatting.
 
-    Args:
-        data: Dictionary to print
-        indent: Indentation level
+    Recursively prints nested dictionaries with proper indentation
+    and color coding.
+
+    Parameters
+    ----------
+    data : dict
+        Dictionary to print.
+    indent : int, optional
+        Indentation level (number of 2-space indents), by default 0.
     """
     for key, value in data.items():
         if isinstance(value, dict):
