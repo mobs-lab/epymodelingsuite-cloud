@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
 from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.validation import validate_exp_id, validate_run_id
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -165,8 +167,14 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
         error("Configuration not loaded. Run 'epycloud config init' first")
         return 2
 
-    exp_id = args.exp_id
-    run_id = args.run_id
+    # Validate inputs
+    try:
+        exp_id = validate_exp_id(args.exp_id)
+        run_id = validate_run_id(args.run_id) if args.run_id else None
+    except ValidationError as e:
+        error(str(e))
+        return 1
+
     local = args.local
     skip_output = args.skip_output
     max_parallelism = args.max_parallelism
@@ -221,8 +229,14 @@ def _handle_job(ctx: dict[str, Any]) -> int:
     elif stage == "OUTPUT":
         stage = "C"
 
-    exp_id = args.exp_id
-    run_id = args.run_id
+    # Validate inputs
+    try:
+        exp_id = validate_exp_id(args.exp_id)
+        run_id = validate_run_id(args.run_id) if args.run_id else None
+    except ValidationError as e:
+        error(str(e))
+        return 1
+
     task_index = args.task_index
     num_tasks = args.num_tasks
     local = args.local
@@ -424,6 +438,14 @@ def _run_workflow_cloud(
         error(f"Failed to submit workflow: HTTP {e.code}")
         if verbose:
             print(e.read().decode("utf-8"), file=sys.stderr)
+        return 1
+    except urllib.error.URLError as e:
+        api_error = CloudAPIError(
+            "Network error while submitting workflow", api="Workflows", status_code=None
+        )
+        error(str(api_error))
+        if verbose:
+            print(f"Details: {e}", file=sys.stderr)
         return 1
     except Exception as e:
         error(f"Failed to submit workflow: {e}")

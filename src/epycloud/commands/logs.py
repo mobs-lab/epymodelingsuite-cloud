@@ -8,7 +8,9 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from epycloud.exceptions import ValidationError
 from epycloud.lib.output import error, info, warning
+from epycloud.lib.validation import validate_exp_id, validate_run_id, validate_stage_name
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -97,9 +99,15 @@ def handle(ctx: dict[str, Any]) -> int:
         error("google_cloud.project_id not configured")
         return 2
 
-    exp_id = args.exp_id
-    run_id = args.run_id
-    stage = args.stage
+    # Validate inputs
+    try:
+        exp_id = validate_exp_id(args.exp_id)
+        run_id = validate_run_id(args.run_id) if args.run_id else None
+        stage = validate_stage_name(args.stage) if args.stage else None
+    except ValidationError as e:
+        error(str(e))
+        return 1
+
     task_index = args.task_index
 
     # Normalize stage name

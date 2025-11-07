@@ -10,7 +10,9 @@ import urllib.request
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from epycloud.exceptions import CloudAPIError, ValidationError
 from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.validation import validate_exp_id
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:

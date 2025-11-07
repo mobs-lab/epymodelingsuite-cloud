@@ -12,7 +12,9 @@ from typing import Any
 
 import yaml
 
+from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
 from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.validation import validate_exp_id, validate_github_token, validate_local_path
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -71,21 +73,30 @@ def handle(ctx: dict[str, Any]) -> int:
         error("Configuration not loaded. Run 'epycloud config init' first")
         return 2
 
-    exp_id = args.exp_id
-    local_path = args.path
     output_format = args.format
-    github_token = args.github_token
+
+    # Validate inputs
+    try:
+        if args.exp_id:
+            exp_id = validate_exp_id(args.exp_id)
+        else:
+            exp_id = None
+
+        if args.path:
+            local_path = validate_local_path(args.path, must_exist=True, must_be_dir=True)
+        else:
+            local_path = None
+
+        if args.github_token:
+            github_token = validate_github_token(args.github_token)
+        else:
+            github_token = None
+    except ValidationError as e:
+        error(str(e))
+        return 1
 
     # Determine validation mode
     if local_path:
-        # Local path validation
-        if not local_path.exists():
-            error(f"Path does not exist: {local_path}")
-            return 2
-
-        if not local_path.is_dir():
-            error(f"Path is not a directory: {local_path}")
-            return 2
 
         info(f"Validating local config: {local_path}")
         print()
