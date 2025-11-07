@@ -6,6 +6,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from epycloud.exceptions import ConfigError
+from epycloud.lib.command_helpers import (
+    get_project_root,
+    handle_dry_run,
+    require_config,
+)
 from epycloud.lib.output import ask_confirmation, error, info, success, warning
 
 
@@ -99,10 +105,11 @@ def handle(ctx: dict[str, Any]) -> int:
         Exit code
     """
     args = ctx["args"]
-    config = ctx["config"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
+    try:
+        config = require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
         return 2
 
     if not args.terraform_subcommand:
@@ -141,7 +148,7 @@ def _handle_init(ctx: dict[str, Any]) -> int:
     info("Initializing Terraform...")
 
     # Get terraform directory
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
     terraform_dir = project_root / "terraform"
 
     if not terraform_dir.exists():
@@ -151,12 +158,11 @@ def _handle_init(ctx: dict[str, Any]) -> int:
     # Get environment variables from config
     env_vars = _get_terraform_env_vars(config)
 
-    if dry_run:
-        info("Would run: terraform init")
-        info(f"Working directory: {terraform_dir}")
-        info("Environment variables:")
-        for key, value in env_vars.items():
-            info(f"  {key}={value}")
+    if handle_dry_run(
+        ctx,
+        "Run terraform init",
+        {"working_directory": str(terraform_dir), "env_vars": env_vars},
+    ):
         return 0
 
     # Run terraform init
@@ -207,7 +213,7 @@ def _handle_plan(ctx: dict[str, Any]) -> int:
     info("Planning infrastructure changes...")
 
     # Get terraform directory
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
     terraform_dir = project_root / "terraform"
 
     if not terraform_dir.exists():
@@ -224,12 +230,11 @@ def _handle_plan(ctx: dict[str, Any]) -> int:
         cmd.extend(["-target", args.target])
         info(f"Targeting: {args.target}")
 
-    if dry_run:
-        info(f"Would run: {' '.join(cmd)}")
-        info(f"Working directory: {terraform_dir}")
-        info("Environment variables:")
-        for key, value in env_vars.items():
-            info(f"  {key}={value}")
+    if handle_dry_run(
+        ctx,
+        f"Run {' '.join(cmd)}",
+        {"working_directory": str(terraform_dir), "env_vars": env_vars},
+    ):
         return 0
 
     # Run terraform plan
@@ -287,7 +292,7 @@ def _handle_apply(ctx: dict[str, Any]) -> int:
             return 0
 
     # Get terraform directory
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
     terraform_dir = project_root / "terraform"
 
     if not terraform_dir.exists():
@@ -307,12 +312,11 @@ def _handle_apply(ctx: dict[str, Any]) -> int:
         cmd.extend(["-target", args.target])
         info(f"Targeting: {args.target}")
 
-    if dry_run:
-        info(f"Would run: {' '.join(cmd)}")
-        info(f"Working directory: {terraform_dir}")
-        info("Environment variables:")
-        for key, value in env_vars.items():
-            info(f"  {key}={value}")
+    if handle_dry_run(
+        ctx,
+        f"Run {' '.join(cmd)}",
+        {"working_directory": str(terraform_dir), "env_vars": env_vars},
+    ):
         return 0
 
     # Run terraform apply
@@ -375,7 +379,7 @@ def _handle_destroy(ctx: dict[str, Any]) -> int:
             return 0
 
     # Get terraform directory
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
     terraform_dir = project_root / "terraform"
 
     if not terraform_dir.exists():
@@ -395,12 +399,11 @@ def _handle_destroy(ctx: dict[str, Any]) -> int:
         cmd.extend(["-target", args.target])
         info(f"Targeting: {args.target}")
 
-    if dry_run:
-        info(f"Would run: {' '.join(cmd)}")
-        info(f"Working directory: {terraform_dir}")
-        info("Environment variables:")
-        for key, value in env_vars.items():
-            info(f"  {key}={value}")
+    if handle_dry_run(
+        ctx,
+        f"Run {' '.join(cmd)}",
+        {"working_directory": str(terraform_dir), "env_vars": env_vars},
+    ):
         return 0
 
     # Run terraform destroy
@@ -447,7 +450,7 @@ def _handle_output(ctx: dict[str, Any]) -> int:
     dry_run = ctx["dry_run"]
 
     # Get terraform directory
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
     terraform_dir = project_root / "terraform"
 
     if not terraform_dir.exists():
@@ -466,9 +469,11 @@ def _handle_output(ctx: dict[str, Any]) -> int:
     else:
         info("Getting all outputs...")
 
-    if dry_run:
-        info(f"Would run: {' '.join(cmd)}")
-        info(f"Working directory: {terraform_dir}")
+    if handle_dry_run(
+        ctx,
+        f"Run {' '.join(cmd)}",
+        {"working_directory": str(terraform_dir)},
+    ):
         return 0
 
     # Run terraform output
