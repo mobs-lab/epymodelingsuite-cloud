@@ -7,6 +7,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from epycloud.exceptions import ConfigError
+from epycloud.lib.command_helpers import (
+    get_project_root,
+    handle_dry_run,
+    require_config,
+)
 from epycloud.lib.output import error, info, success, warning
 
 
@@ -73,12 +79,13 @@ def handle(ctx: dict[str, Any]) -> int:
         Exit code (0 for success)
     """
     args = ctx["args"]
-    config = ctx["config"]
     verbose = ctx["verbose"]
     dry_run = ctx["dry_run"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
+    try:
+        config = require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
         return 2
 
     # Get mode (default: cloud)
@@ -114,7 +121,7 @@ def handle(ctx: dict[str, Any]) -> int:
         image_path = f"{image_name}:local"
 
     # Get project root (where Makefile and docker/ dir are)
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = get_project_root()
 
     # Get GitHub PAT from environment or secrets
     github_pat = os.environ.get("GITHUB_PAT") or os.environ.get("EPYCLOUD_GITHUB_PAT")
@@ -234,8 +241,7 @@ def _build_cloud(
         cmd.append("--async")
         cmd.append("--format=value(id)")
 
-    if dry_run:
-        info(f"Would execute: {' '.join(cmd)}")
+    if handle_dry_run(ctx, f"Execute: {' '.join(cmd)}"):
         return 0
 
     # Change to project root
@@ -345,14 +351,14 @@ def _build_local(
 
     cmd.append(".")
 
-    if dry_run:
+    if ctx["dry_run"]:
         # Mask GitHub PAT in output
         cmd_display = [
             arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg
             for arg in cmd
         ]
-        info(f"Would execute: {' '.join(cmd_display)}")
-        return 0
+        if handle_dry_run(ctx, f"Execute: {' '.join(cmd_display)}"):
+            return 0
 
     # Change to project root
     original_dir = Path.cwd()
@@ -443,14 +449,14 @@ def _build_dev(
 
     cmd.append(".")
 
-    if dry_run:
+    if ctx["dry_run"]:
         # Mask GitHub PAT in output
         cmd_display = [
             arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg
             for arg in cmd
         ]
-        info(f"Would execute: {' '.join(cmd_display)}")
-        return 0
+        if handle_dry_run(ctx, f"Execute: {' '.join(cmd_display)}"):
+            return 0
 
     # Change to project root
     original_dir = Path.cwd()
