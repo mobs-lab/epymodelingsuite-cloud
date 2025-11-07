@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.lib.command_helpers import handle_dry_run, require_config
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id, validate_github_token, validate_local_path
 
@@ -65,12 +66,12 @@ def handle(ctx: dict[str, Any]) -> int:
         Exit code (0=passed, 1=failed, 2=config error)
     """
     args = ctx["args"]
-    config = ctx["config"]
     verbose = ctx["verbose"]
-    dry_run = ctx["dry_run"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
+    try:
+        config = require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
         return 2
 
     output_format = args.format
@@ -101,8 +102,7 @@ def handle(ctx: dict[str, Any]) -> int:
         info(f"Validating local config: {local_path}")
         print()
 
-        if dry_run:
-            info(f"Would validate local config at {local_path}")
+        if handle_dry_run(ctx, f"Validate local config at {local_path}"):
             return 0
 
         # Perform local validation
@@ -156,10 +156,11 @@ def handle(ctx: dict[str, Any]) -> int:
             # Try environment variable
             github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT")
 
-        if dry_run:
-            info(f"Validating experiment: {exp_id}")
-            info(f"Forecast repository: {forecast_repo}")
-            info(f"Would validate experiment '{exp_id}' from {forecast_repo}")
+        if handle_dry_run(
+            ctx,
+            f"Validate experiment '{exp_id}' from {forecast_repo}",
+            {"repository": forecast_repo, "has_token": bool(github_token)},
+        ):
             if not github_token:
                 warning("GitHub token not found (required for actual validation)")
             return 0
