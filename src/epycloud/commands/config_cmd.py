@@ -15,7 +15,6 @@ from epycloud.lib.paths import (
     get_config_dir,
     get_config_file,
     get_environment_file,
-    get_secrets_file,
 )
 
 
@@ -47,7 +46,9 @@ def register_parser(subparsers: Any) -> None:
 
     # config get
     get_parser = config_subparsers.add_parser("get", help="Get config value")
-    get_parser.add_argument("key", help="Config key in dot notation (e.g., google_cloud.project_id)")
+    get_parser.add_argument(
+        "key", help="Config key in dot notation (e.g., google_cloud.project_id)"
+    )
 
     # config set
     set_parser = config_subparsers.add_parser("set", help="Set config value")
@@ -132,7 +133,7 @@ def handle_init(ctx: dict) -> int:
         # Set secrets file permissions
         if dest_path.name == "secrets.yaml":
             os.chmod(dest_path, 0o600)
-            info(f"  Set permissions to 0600")
+            info("  Set permissions to 0600")
 
     # Set default profile
     active_profile_file = config_dir / "active_profile"
@@ -173,13 +174,13 @@ def handle_show(ctx: dict) -> int:
         # Show formatted
         info(f"Environment: {ctx['environment']}")
         info(f"Profile: {ctx['profile'] or '(none)'}")
-        info(f"\nConfiguration:")
+        info("\nConfiguration:")
         print_dict(config)
 
         # Show sources
         sources = config.get("_meta", {}).get("config_sources", [])
         if sources:
-            info(f"\nLoaded from:")
+            info("\nLoaded from:")
             for source in sources:
                 info(f"  - {source}")
 
@@ -221,7 +222,7 @@ def handle_edit(ctx: dict) -> int:
         return 1
     except FileNotFoundError:
         error(f"Editor not found: {editor}")
-        info(f"Set EDITOR environment variable or use 'epycloud config show'")
+        info("Set EDITOR environment variable or use 'epycloud config show'")
         return 1
 
 
@@ -283,6 +284,7 @@ def handle_validate(ctx: dict) -> int:
         error(f"Validation failed: {e}")
         if ctx["verbose"]:
             import traceback
+
             traceback.print_exc()
         return 1
 

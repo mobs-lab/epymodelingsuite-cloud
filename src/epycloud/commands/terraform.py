@@ -3,11 +3,10 @@
 import argparse
 import os
 import subprocess
-import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-from epycloud.lib.output import error, info, success, warning, ask_confirmation
+from epycloud.lib.output import ask_confirmation, error, info, success, warning
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -27,7 +26,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     tf_subparsers = parser.add_subparsers(dest="terraform_subcommand", help="Terraform operation")
 
     # ========== terraform init ==========
-    init_parser = tf_subparsers.add_parser(
+    tf_subparsers.add_parser(
         "init",
         help="Initialize Terraform",
     )
@@ -90,7 +89,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def handle(ctx: Dict[str, Any]) -> int:
+def handle(ctx: dict[str, Any]) -> int:
     """Handle terraform command.
 
     Args:
@@ -126,7 +125,7 @@ def handle(ctx: Dict[str, Any]) -> int:
         return 1
 
 
-def _handle_init(ctx: Dict[str, Any]) -> int:
+def _handle_init(ctx: dict[str, Any]) -> int:
     """Handle terraform init command.
 
     Args:
@@ -186,11 +185,12 @@ def _handle_init(ctx: Dict[str, Any]) -> int:
         error(f"Failed to run terraform init: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
-def _handle_plan(ctx: Dict[str, Any]) -> int:
+def _handle_plan(ctx: dict[str, Any]) -> int:
     """Handle terraform plan command.
 
     Args:
@@ -256,11 +256,12 @@ def _handle_plan(ctx: Dict[str, Any]) -> int:
         error(f"Failed to run terraform plan: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
-def _handle_apply(ctx: Dict[str, Any]) -> int:
+def _handle_apply(ctx: dict[str, Any]) -> int:
     """Handle terraform apply command.
 
     Args:
@@ -338,11 +339,12 @@ def _handle_apply(ctx: Dict[str, Any]) -> int:
         error(f"Failed to run terraform apply: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
-def _handle_destroy(ctx: Dict[str, Any]) -> int:
+def _handle_destroy(ctx: dict[str, Any]) -> int:
     """Handle terraform destroy command.
 
     Args:
@@ -425,11 +427,12 @@ def _handle_destroy(ctx: Dict[str, Any]) -> int:
         error(f"Failed to run terraform destroy: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
-def _handle_output(ctx: Dict[str, Any]) -> int:
+def _handle_output(ctx: dict[str, Any]) -> int:
     """Handle terraform output command.
 
     Args:
@@ -487,11 +490,12 @@ def _handle_output(ctx: Dict[str, Any]) -> int:
         error(f"Failed to run terraform output: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
-def _get_terraform_env_vars(config: Dict[str, Any]) -> Dict[str, str]:
+def _get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
     """Build TF_VAR_* environment variables from config.
 
     Args:

@@ -1,10 +1,8 @@
 """Profile management commands."""
 
 import os
-import shutil
 import subprocess
 import sys
-from pathlib import Path
 from typing import Any
 
 import yaml
@@ -24,7 +22,9 @@ def register_parser(subparsers: Any) -> None:
         subparsers: Subparsers from main argument parser
     """
     parser = subparsers.add_parser("profile", help="Profile management")
-    profile_subparsers = parser.add_subparsers(dest="profile_subcommand", help="Profile subcommands")
+    profile_subparsers = parser.add_subparsers(
+        dest="profile_subcommand", help="Profile subcommands"
+    )
 
     # profile list
     profile_subparsers.add_parser("list", help="List all profiles")
@@ -39,8 +39,9 @@ def register_parser(subparsers: Any) -> None:
     # profile create
     create_parser = profile_subparsers.add_parser("create", help="Create new profile")
     create_parser.add_argument("name", help="Profile name")
-    create_parser.add_argument("--template", choices=["basic", "full"], default="basic",
-                              help="Template to use")
+    create_parser.add_argument(
+        "--template", choices=["basic", "full"], default="basic", help="Template to use"
+    )
     create_parser.add_argument("--description", help="Profile description")
     create_parser.add_argument("--forecast-repo", help="GitHub forecast repository")
 
@@ -285,7 +286,7 @@ def handle_edit(ctx: dict) -> int:
         return 1
     except FileNotFoundError:
         error(f"Editor not found: {editor}")
-        info(f"Set EDITOR environment variable")
+        info("Set EDITOR environment variable")
         return 1
 
 

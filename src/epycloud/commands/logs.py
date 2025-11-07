@@ -5,10 +5,10 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import error, info, warning
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -72,7 +72,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def handle(ctx: Dict[str, Any]) -> int:
+def handle(ctx: dict[str, Any]) -> int:
     """Handle logs command.
 
     Args:
@@ -92,7 +92,6 @@ def handle(ctx: Dict[str, Any]) -> int:
     # Get config values
     google_cloud_config = config.get("google_cloud", {})
     project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
 
     if not project_id:
         error("google_cloud.project_id not configured")
@@ -218,6 +217,7 @@ def _fetch_logs(
         error(f"Failed to fetch logs: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
@@ -283,7 +283,7 @@ def _stream_logs(
                         try:
                             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                             time_str = dt.strftime("%H:%M:%S")
-                        except:
+                        except (ValueError, IndexError):
                             time_str = timestamp[11:19]
                     else:
                         time_str = ""
@@ -320,11 +320,12 @@ def _stream_logs(
         error(f"Failed to stream logs: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
-def _display_logs(logs: List[Dict[str, Any]]) -> None:
+def _display_logs(logs: list[dict[str, Any]]) -> None:
     """Display logs in readable format.
 
     Args:
@@ -353,7 +354,7 @@ def _display_logs(logs: List[Dict[str, Any]]) -> None:
             try:
                 dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                 time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            except (ValueError, IndexError):
                 time_str = timestamp[:19]
         else:
             time_str = "unknown"
@@ -412,7 +413,7 @@ def _normalize_stage_name(stage: str) -> str:
     return stage_map.get(stage.lower(), stage.upper())
 
 
-def _parse_since_time(since: str) -> Optional[str]:
+def _parse_since_time(since: str) -> str | None:
     """Parse since duration to ISO timestamp.
 
     Args:
@@ -421,18 +422,18 @@ def _parse_since_time(since: str) -> Optional[str]:
     Returns:
         ISO timestamp string or None if invalid
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     try:
         if since.endswith("h"):
             hours = int(since[:-1])
-            dt = datetime.now(timezone.utc) - timedelta(hours=hours)
+            dt = datetime.now(UTC) - timedelta(hours=hours)
         elif since.endswith("m"):
             minutes = int(since[:-1])
-            dt = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+            dt = datetime.now(UTC) - timedelta(minutes=minutes)
         elif since.endswith("d"):
             days = int(since[:-1])
-            dt = datetime.now(timezone.utc) - timedelta(days=days)
+            dt = datetime.now(UTC) - timedelta(days=days)
         else:
             return None
 

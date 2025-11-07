@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 from base64 import b64decode
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
@@ -53,7 +53,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def handle(ctx: Dict[str, Any]) -> int:
+def handle(ctx: dict[str, Any]) -> int:
     """Handle validate command.
 
     Args:
@@ -120,6 +120,7 @@ def handle(ctx: Dict[str, Any]) -> int:
             error(f"Validation failed: {e}")
             if verbose:
                 import traceback
+
                 traceback.print_exc()
             return 2
 
@@ -192,6 +193,7 @@ def handle(ctx: Dict[str, Any]) -> int:
             error(f"Validation failed: {e}")
             if verbose:
                 import traceback
+
                 traceback.print_exc()
             return 2
 
@@ -199,7 +201,7 @@ def handle(ctx: Dict[str, Any]) -> int:
 def _validate_directory(
     config_dir: Path,
     verbose: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Validate all config sets in a directory.
 
     Args:
@@ -211,19 +213,12 @@ def _validate_directory(
     """
     # Import epymodelingsuite utilities
     try:
-        from epymodelingsuite.config_loader import (
-            load_basemodel_config_from_file,
-            load_calibration_config_from_file,
-            load_output_config_from_file,
-            load_sampling_config_from_file,
-        )
-        from epymodelingsuite.schema.general import validate_cross_config_consistency
         from epymodelingsuite.utils.config import identify_config_type
     except ImportError:
         return {
             "directory": str(config_dir),
             "config_sets": [],
-            "error": "epymodelingsuite package not available"
+            "error": "epymodelingsuite package not available",
         }
 
     # Find all YAML files
@@ -236,7 +231,7 @@ def _validate_directory(
         return {
             "directory": str(config_dir),
             "config_sets": [],
-            "error": "No YAML files found in directory"
+            "error": "No YAML files found in directory",
         }
 
     # Classify configs
@@ -261,14 +256,14 @@ def _validate_directory(
         return {
             "directory": str(config_dir),
             "config_sets": [],
-            "error": "No basemodel configs found"
+            "error": "No basemodel configs found",
         }
 
     if not modelset_configs:
         return {
             "directory": str(config_dir),
             "config_sets": [],
-            "error": "No modelset configs found"
+            "error": "No modelset configs found",
         }
 
     # Validate the config set
@@ -295,7 +290,7 @@ def _validate_directory(
     set_result = {
         "basemodel": basemodel_path.name,
         "modelset": modelset_path.name,
-        "status": "pass" if success else "fail"
+        "status": "pass" if success else "fail",
     }
 
     if output_path is not None:
@@ -304,10 +299,7 @@ def _validate_directory(
     if error_msg:
         set_result["error"] = error_msg
 
-    results = {
-        "directory": str(config_dir),
-        "config_sets": [set_result]
-    }
+    results = {"directory": str(config_dir), "config_sets": [set_result]}
 
     return results
 
@@ -315,9 +307,9 @@ def _validate_directory(
 def _validate_config_set(
     basemodel_path: Path,
     modelset_path: Path,
-    output_path: Optional[Path],
+    output_path: Path | None,
     verbose: bool,
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Validate a set of configs.
 
     Args:
@@ -379,7 +371,7 @@ def _validate_remote(
     forecast_repo: str,
     github_token: str,
     verbose: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Validate remote experiment configuration from GitHub.
 
     Args:
@@ -404,7 +396,7 @@ def _validate_remote(
         return {
             "directory": f"{forecast_repo}/experiments/{exp_id}/config",
             "config_sets": [],
-            "error": f"Failed to fetch config files: {e}"
+            "error": f"Failed to fetch config files: {e}",
         }
 
     # Create temporary directory and write files
@@ -431,7 +423,7 @@ def _validate_remote(
         return {
             "directory": f"{forecast_repo}/experiments/{exp_id}/config",
             "config_sets": [],
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -440,7 +432,7 @@ def _fetch_config_files(
     exp_id: str,
     github_token: str,
     verbose: bool,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Fetch config files from GitHub repository.
 
     Args:
@@ -482,7 +474,8 @@ def _fetch_config_files(
 
     # Filter for YAML files
     yaml_files = [
-        f for f in files
+        f
+        for f in files
         if f.get("type") == "file" and f.get("name", "").endswith((".yaml", ".yml"))
     ]
 
@@ -565,7 +558,7 @@ def _fetch_github_file(
             raise Exception(f"GitHub API error {e.code}: {e.reason}")
 
 
-def _display_validation_results(result: Dict[str, Any]) -> None:
+def _display_validation_results(result: dict[str, Any]) -> None:
     """Display validation results in text format.
 
     Args:
@@ -577,7 +570,7 @@ def _display_validation_results(result: Dict[str, Any]) -> None:
 
     # Check for directory-level errors
     if result.get("error"):
-        error(result['error'])
+        error(result["error"])
         return
 
     config_sets = result.get("config_sets", [])

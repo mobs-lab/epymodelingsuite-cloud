@@ -9,7 +9,7 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from epycloud.lib.output import error, info, success, warning
@@ -121,7 +121,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def handle(ctx: Dict[str, Any]) -> int:
+def handle(ctx: dict[str, Any]) -> int:
     """Handle the run command.
 
     Args:
@@ -147,7 +147,7 @@ def handle(ctx: Dict[str, Any]) -> int:
         return 1
 
 
-def _handle_workflow(ctx: Dict[str, Any]) -> int:
+def _handle_workflow(ctx: dict[str, Any]) -> int:
     """Handle workflow execution.
 
     Args:
@@ -194,7 +194,7 @@ def _handle_workflow(ctx: Dict[str, Any]) -> int:
         )
 
 
-def _handle_job(ctx: Dict[str, Any]) -> int:
+def _handle_job(ctx: dict[str, Any]) -> int:
     """Handle individual job execution.
 
     Args:
@@ -263,11 +263,11 @@ def _handle_job(ctx: Dict[str, Any]) -> int:
 
 
 def _run_workflow_cloud(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     exp_id: str,
-    run_id: Optional[str],
+    run_id: str | None,
     skip_output: bool,
-    max_parallelism: Optional[int],
+    max_parallelism: int | None,
     wait: bool,
     verbose: bool,
     dry_run: bool,
@@ -366,9 +366,7 @@ def _run_workflow_cloud(
     )
 
     # Build request body
-    request_body = {
-        "argument": json.dumps(workflow_arg)
-    }
+    request_body = {"argument": json.dumps(workflow_arg)}
 
     if dry_run:
         info("Would submit workflow with:")
@@ -403,8 +401,14 @@ def _run_workflow_cloud(
 
             if execution_id:
                 info("Monitor with:")
-                info(f"  gcloud workflows executions describe {execution_id} --workflow=epymodelingsuite-pipeline --location={region}")
-                info(f"  gcloud workflows executions list epymodelingsuite-pipeline --location={region}")
+                info(
+                    f"  gcloud workflows executions describe {execution_id} "
+                    f"--workflow=epymodelingsuite-pipeline --location={region}"
+                )
+                info(
+                    f"  gcloud workflows executions list epymodelingsuite-pipeline "
+                    f"--location={region}"
+                )
                 print()
                 info("Or use:")
                 info(f"  epycloud workflow describe {execution_id}")
@@ -425,14 +429,15 @@ def _run_workflow_cloud(
         error(f"Failed to submit workflow: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
 
 def _run_workflow_local(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     exp_id: str,
-    run_id: Optional[str],
+    run_id: str | None,
     skip_output: bool,
     verbose: bool,
     dry_run: bool,
@@ -564,12 +569,12 @@ def _run_workflow_local(
 
 
 def _run_job_cloud(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     stage: str,
     exp_id: str,
-    run_id: Optional[str],
+    run_id: str | None,
     task_index: int,
-    num_tasks: Optional[int],
+    num_tasks: int | None,
     wait: bool,
     verbose: bool,
     dry_run: bool,
@@ -638,7 +643,6 @@ def _run_job_cloud(
 
     # Generate job ID
     timestamp = int(time.time())
-    stage_name = {"A": "builder", "B": "runner", "C": "output"}[stage]
     job_id = f"epy-{timestamp}-stage-{stage.lower()}-manual"
 
     # Auto-generate run_id for stage A if not provided
@@ -687,7 +691,11 @@ def _run_job_cloud(
     try:
         # Submit job
         cmd = [
-            "gcloud", "batch", "jobs", "submit", job_id,
+            "gcloud",
+            "batch",
+            "jobs",
+            "submit",
+            job_id,
             f"--project={project_id}",
             f"--location={region}",
             f"--config={temp_file}",
@@ -706,7 +714,10 @@ def _run_job_cloud(
         info(f"  gcloud batch jobs describe {job_id} --location={region}")
         print()
         info("View logs:")
-        info(f"  gcloud logging read 'resource.type=\"batch.googleapis.com/Job\" AND labels.job_uid=\"{job_id}\"' --limit=50")
+        info(
+            f'  gcloud logging read \'resource.type="batch.googleapis.com/Job" '
+            f'AND labels.job_uid="{job_id}"\' --limit=50'
+        )
 
         if wait:
             warning("--wait not yet implemented")
@@ -718,17 +729,17 @@ def _run_job_cloud(
         # Clean up temp file
         try:
             os.unlink(temp_file)
-        except:
+        except OSError:
             pass
 
 
 def _run_job_local(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     stage: str,
     exp_id: str,
-    run_id: Optional[str],
+    run_id: str | None,
     task_index: int,
-    num_tasks: Optional[int],
+    num_tasks: int | None,
     verbose: bool,
     dry_run: bool,
 ) -> int:
@@ -799,7 +810,7 @@ def _run_job_local(
 def _run_docker_compose_stage(
     project_root: Path,
     service: str,
-    env_vars: Dict[str, str],
+    env_vars: dict[str, str],
     dry_run: bool,
 ) -> int:
     """Run a docker compose service.
@@ -839,7 +850,7 @@ def _build_batch_job_config(
     exp_id: str,
     run_id: str,
     task_index: int,
-    num_tasks: Optional[int],
+    num_tasks: int | None,
     image_uri: str,
     bucket_name: str,
     dir_prefix: str,
@@ -849,7 +860,7 @@ def _build_batch_job_config(
     machine_type: str,
     max_run_duration: int,
     batch_sa_email: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build Cloud Batch job configuration.
 
     Args:
@@ -907,9 +918,7 @@ def _build_batch_job_config(
                 }
             }
         ],
-        "environment": {
-            "variables": env_vars
-        },
+        "environment": {"variables": env_vars},
         "computeResource": {
             "cpuMilli": cpu_milli,
             "memoryMib": memory_mib,
@@ -918,27 +927,16 @@ def _build_batch_job_config(
     }
 
     # Build allocation policy
-    allocation_policy = {
-        "serviceAccount": {
-            "email": batch_sa_email
-        }
-    }
+    allocation_policy = {"serviceAccount": {"email": batch_sa_email}}
 
     if machine_type:
-        instances = {
-            "policy": {
-                "machineType": machine_type
-            }
-        }
+        instances = {"policy": {"machineType": machine_type}}
 
         # C4D machines require hyperdisk
         if machine_type.startswith("c4d-"):
             instances["installGpuDrivers"] = False
             instances["policy"]["provisioningModel"] = "STANDARD"
-            instances["policy"]["bootDisk"] = {
-                "type": "hyperdisk-balanced",
-                "sizeGb": 50
-            }
+            instances["policy"]["bootDisk"] = {"type": "hyperdisk-balanced", "sizeGb": 50}
 
         allocation_policy["instances"] = [instances]
 
@@ -949,18 +947,11 @@ def _build_batch_job_config(
             "stage": stage_name,
             "exp_id": exp_id,
             "run_id": run_id,
-            "managed-by": "manual"
+            "managed-by": "manual",
         },
-        "taskGroups": [
-            {
-                "taskCount": 1,
-                "taskSpec": task_spec
-            }
-        ],
-        "logsPolicy": {
-            "destination": "CLOUD_LOGGING"
-        },
-        "allocationPolicy": allocation_policy
+        "taskGroups": [{"taskCount": 1, "taskSpec": task_spec}],
+        "logsPolicy": {"destination": "CLOUD_LOGGING"},
+        "allocationPolicy": allocation_policy,
     }
 
     return job_config
@@ -986,7 +977,7 @@ def _get_batch_sa_email(project_id: str) -> str:
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-    except:
+    except (subprocess.SubprocessError, FileNotFoundError):
         pass
 
     # Fall back to default

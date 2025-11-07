@@ -7,10 +7,10 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any
 
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import error, info, warning
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -44,7 +44,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def handle(ctx: Dict[str, Any]) -> int:
+def handle(ctx: dict[str, Any]) -> int:
     """Handle status command.
 
     Args:
@@ -92,7 +92,7 @@ def handle(ctx: Dict[str, Any]) -> int:
 def _show_status(
     project_id: str,
     region: str,
-    exp_id: Optional[str],
+    exp_id: str | None,
     verbose: bool,
 ) -> int:
     """Show current status.
@@ -132,6 +132,7 @@ def _show_status(
         error(f"Failed to fetch status: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 
@@ -139,7 +140,7 @@ def _show_status(
 def _watch_status(
     project_id: str,
     region: str,
-    exp_id: Optional[str],
+    exp_id: str | None,
     interval: int,
     verbose: bool,
 ) -> int:
@@ -200,9 +201,9 @@ def _watch_status(
 def _fetch_active_workflows(
     project_id: str,
     region: str,
-    exp_id: Optional[str],
+    exp_id: str | None,
     verbose: bool,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Fetch active workflow executions.
 
     Args:
@@ -240,10 +241,7 @@ def _fetch_active_workflows(
 
             # Filter by exp_id if provided
             if exp_id:
-                executions = [
-                    e for e in executions
-                    if exp_id in e.get("argument", "")
-                ]
+                executions = [e for e in executions if exp_id in e.get("argument", "")]
 
             return executions
 
@@ -256,9 +254,9 @@ def _fetch_active_workflows(
 def _fetch_active_batch_jobs(
     project_id: str,
     region: str,
-    exp_id: Optional[str],
+    exp_id: str | None,
     verbose: bool,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Fetch active Cloud Batch jobs.
 
     Args:
@@ -332,9 +330,9 @@ def _get_access_token(verbose: bool = False) -> str:
 
 
 def _display_status(
-    workflows: List[Dict[str, Any]],
-    jobs: List[Dict[str, Any]],
-    exp_id_filter: Optional[str],
+    workflows: list[dict[str, Any]],
+    jobs: list[dict[str, Any]],
+    exp_id_filter: str | None,
 ) -> None:
     """Display pipeline status.
 
@@ -377,7 +375,7 @@ def _display_status(
                 try:
                     dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                     start_time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-                except:
+                except (ValueError, IndexError):
                     start_time_str = start_time[:19]
             else:
                 start_time_str = "unknown"

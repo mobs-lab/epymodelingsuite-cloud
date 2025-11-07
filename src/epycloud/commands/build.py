@@ -1,14 +1,13 @@
 """Build command for Docker image management."""
 
 import argparse
-import json
 import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
-from epycloud.lib.output import error, info, success, warning, ask_confirmation
+from epycloud.lib.output import error, info, success, warning
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -20,7 +19,10 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "build",
         help="Build and push Docker images",
-        description="Build Docker images for the pipeline with three modes: cloud (Cloud Build), local (build + push), dev (local only)",
+        description=(
+            "Build Docker images for the pipeline with three modes: "
+            "cloud (Cloud Build), local (build + push), dev (local only)"
+        ),
     )
 
     parser.add_argument(
@@ -61,7 +63,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def handle(ctx: Dict[str, Any]) -> int:
+def handle(ctx: dict[str, Any]) -> int:
     """Handle the build command.
 
     Args:
@@ -345,7 +347,10 @@ def _build_local(
 
     if dry_run:
         # Mask GitHub PAT in output
-        cmd_display = [arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg for arg in cmd]
+        cmd_display = [
+            arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg
+            for arg in cmd
+        ]
         info(f"Would execute: {' '.join(cmd_display)}")
         return 0
 
@@ -440,7 +445,10 @@ def _build_dev(
 
     if dry_run:
         # Mask GitHub PAT in output
-        cmd_display = [arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg for arg in cmd]
+        cmd_display = [
+            arg.replace(github_pat, "***") if github_pat and github_pat in arg else arg
+            for arg in cmd
+        ]
         info(f"Would execute: {' '.join(cmd_display)}")
         return 0
 

@@ -7,8 +7,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from epycloud.lib.output import error, info, success, warning
 
@@ -118,7 +118,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def handle(ctx: Dict[str, Any]) -> int:
+def handle(ctx: dict[str, Any]) -> int:
     """Handle workflow command.
 
     Args:
@@ -154,7 +154,7 @@ def handle(ctx: Dict[str, Any]) -> int:
         return 1
 
 
-def _handle_list(ctx: Dict[str, Any]) -> int:
+def _handle_list(ctx: dict[str, Any]) -> int:
     """Handle workflow list command.
 
     Args:
@@ -222,8 +222,7 @@ def _handle_list(ctx: Dict[str, Any]) -> int:
                 executions = [
                     e
                     for e in executions
-                    if args.exp_id
-                    in e.get("argument", e.get("workflowRevisionId", ""))
+                    if args.exp_id in e.get("argument", e.get("workflowRevisionId", ""))
                 ]
 
             if args.since:
@@ -257,7 +256,7 @@ def _handle_list(ctx: Dict[str, Any]) -> int:
         return 1
 
 
-def _handle_describe(ctx: Dict[str, Any]) -> int:
+def _handle_describe(ctx: dict[str, Any]) -> int:
     """Handle workflow describe command.
 
     Args:
@@ -326,7 +325,7 @@ def _handle_describe(ctx: Dict[str, Any]) -> int:
         return 1
 
 
-def _handle_logs(ctx: Dict[str, Any]) -> int:
+def _handle_logs(ctx: dict[str, Any]) -> int:
     """Handle workflow logs command.
 
     Args:
@@ -359,8 +358,8 @@ def _handle_logs(ctx: Dict[str, Any]) -> int:
     # Build gcloud logging query
     # Logs from Cloud Workflows are in Cloud Logging
     filter_parts = [
-        f'resource.type="workflows.googleapis.com/Workflow"',
-        f'resource.labels.workflow_id="epymodelingsuite-pipeline"',
+        'resource.type="workflows.googleapis.com/Workflow"',
+        'resource.labels.workflow_id="epymodelingsuite-pipeline"',
         f'resource.labels.location="{region}"',
         f'labels.execution_id="{execution_id}"',
     ]
@@ -418,7 +417,7 @@ def _handle_logs(ctx: Dict[str, Any]) -> int:
         return 1
 
 
-def _handle_cancel(ctx: Dict[str, Any]) -> int:
+def _handle_cancel(ctx: dict[str, Any]) -> int:
     """Handle workflow cancel command.
 
     Args:
@@ -474,7 +473,7 @@ def _handle_cancel(ctx: Dict[str, Any]) -> int:
             method="POST",
         )
 
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req):
             success(f"Execution cancelled: {args.execution_id}")
             return 0
 
@@ -497,7 +496,7 @@ def _handle_cancel(ctx: Dict[str, Any]) -> int:
         return 1
 
 
-def _handle_retry(ctx: Dict[str, Any]) -> int:
+def _handle_retry(ctx: dict[str, Any]) -> int:
     """Handle workflow retry command.
 
     Args:
@@ -583,9 +582,7 @@ def _handle_retry(ctx: Dict[str, Any]) -> int:
             with urllib.request.urlopen(req) as response:
                 result = json.loads(response.read().decode("utf-8"))
                 new_execution_name = result.get("name", "")
-                new_execution_id = (
-                    new_execution_name.split("/")[-1] if new_execution_name else ""
-                )
+                new_execution_id = new_execution_name.split("/")[-1] if new_execution_name else ""
 
                 success(f"New execution submitted: {new_execution_id}")
                 info(f"Monitor with: epycloud workflow describe {new_execution_id}")
@@ -661,7 +658,7 @@ def _parse_execution_name(
     )
 
 
-def _parse_since(since: str) -> Optional[datetime]:
+def _parse_since(since: str) -> datetime | None:
     """Parse since duration string.
 
     Args:
@@ -673,13 +670,13 @@ def _parse_since(since: str) -> Optional[datetime]:
     try:
         if since.endswith("h"):
             hours = int(since[:-1])
-            return datetime.now(timezone.utc) - timedelta(hours=hours)
+            return datetime.now(UTC) - timedelta(hours=hours)
         elif since.endswith("d"):
             days = int(since[:-1])
-            return datetime.now(timezone.utc) - timedelta(days=days)
+            return datetime.now(UTC) - timedelta(days=days)
         elif since.endswith("m"):
             minutes = int(since[:-1])
-            return datetime.now(timezone.utc) - timedelta(minutes=minutes)
+            return datetime.now(UTC) - timedelta(minutes=minutes)
     except ValueError:
         pass
     return None
@@ -700,10 +697,10 @@ def _parse_timestamp(timestamp: str) -> datetime:
             return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         return datetime.fromisoformat(timestamp)
     except (ValueError, AttributeError):
-        return datetime.min.replace(tzinfo=timezone.utc)
+        return datetime.min.replace(tzinfo=UTC)
 
 
-def _display_execution_list(executions: List[Dict[str, Any]], region: str) -> None:
+def _display_execution_list(executions: list[dict[str, Any]], region: str) -> None:
     """Display list of executions.
 
     Args:
@@ -735,7 +732,7 @@ def _display_execution_list(executions: List[Dict[str, Any]], region: str) -> No
             try:
                 dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                 start_time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            except (ValueError, IndexError):
                 start_time_str = start_time[:19]
         else:
             start_time_str = "unknown"
@@ -750,16 +747,14 @@ def _display_execution_list(executions: List[Dict[str, Any]], region: str) -> No
         else:
             status_display = state
 
-        print(
-            f"{execution_id:<40} {status_display:<20} {start_time_str:<20} {exp_id:<20}"
-        )
+        print(f"{execution_id:<40} {status_display:<20} {start_time_str:<20} {exp_id:<20}")
 
     print()
     info(f"Total: {len(executions)} execution(s)")
     print()
 
 
-def _display_execution_details(execution: Dict[str, Any]) -> None:
+def _display_execution_details(execution: dict[str, Any]) -> None:
     """Display detailed execution information.
 
     Args:
@@ -800,7 +795,7 @@ def _display_execution_details(execution: Dict[str, Any]) -> None:
             end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
             duration = end_dt - start_dt
             print(f"Duration: {duration}")
-        except:
+        except (ValueError, TypeError):
             pass
 
     # Workflow info
@@ -853,7 +848,7 @@ def _display_execution_details(execution: Dict[str, Any]) -> None:
     print()
 
 
-def _display_logs(logs: List[Dict[str, Any]]) -> None:
+def _display_logs(logs: list[dict[str, Any]]) -> None:
     """Display logs in readable format.
 
     Args:
@@ -875,7 +870,7 @@ def _display_logs(logs: List[Dict[str, Any]]) -> None:
             try:
                 dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                 time_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            except (ValueError, IndexError):
                 time_str = timestamp[:19]
         else:
             time_str = "unknown"
@@ -901,9 +896,7 @@ def _display_logs(logs: List[Dict[str, Any]]) -> None:
         print()
 
 
-def _stream_logs(
-    project_id: str, execution_id: str, region: str, verbose: bool
-) -> int:
+def _stream_logs(project_id: str, execution_id: str, region: str, verbose: bool) -> int:
     """Stream logs in follow mode.
 
     Args:
@@ -925,8 +918,8 @@ def _stream_logs(
         while True:
             # Build filter
             filter_parts = [
-                f'resource.type="workflows.googleapis.com/Workflow"',
-                f'resource.labels.workflow_id="epymodelingsuite-pipeline"',
+                'resource.type="workflows.googleapis.com/Workflow"',
+                'resource.labels.workflow_id="epymodelingsuite-pipeline"',
                 f'resource.labels.location="{region}"',
                 f'labels.execution_id="{execution_id}"',
             ]
@@ -971,7 +964,7 @@ def _stream_logs(
                         try:
                             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                             time_str = dt.strftime("%H:%M:%S")
-                        except:
+                        except (ValueError, IndexError):
                             time_str = timestamp[11:19]
                     else:
                         time_str = ""

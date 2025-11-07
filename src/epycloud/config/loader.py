@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -22,8 +22,8 @@ class ConfigLoader:
     def __init__(
         self,
         environment: str = "dev",
-        profile: Optional[str] = None,
-        config_path: Optional[Path] = None,
+        profile: str | None = None,
+        config_path: Path | None = None,
     ):
         """Initialize config loader.
 
@@ -36,7 +36,7 @@ class ConfigLoader:
         self.profile = profile or self._get_active_profile()
         self.config_path = config_path or get_config_file()
 
-    def _get_active_profile(self) -> Optional[str]:
+    def _get_active_profile(self) -> str | None:
         """Get the currently active profile.
 
         Returns:
@@ -97,6 +97,7 @@ class ConfigLoader:
         Returns:
             Configuration with interpolated values
         """
+
         def interpolate_value(value: Any) -> Any:
             if isinstance(value, str):
                 value = value.replace("{environment}", self.environment)
@@ -130,7 +131,7 @@ class ConfigLoader:
                 continue
 
             # Parse key path
-            key_path = env_key[len(prefix):].lower().split("_")
+            key_path = env_key[len(prefix) :].lower().split("_")
 
             # Navigate to the right place in config
             current = config

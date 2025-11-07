@@ -23,9 +23,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # Global options
-    parser.add_argument(
-        "--version", "-v", action="version", version=f"epycloud {__version__}"
-    )
+    parser.add_argument("--version", "-v", action="version", version=f"epycloud {__version__}")
     parser.add_argument(
         "--env",
         "-e",
@@ -33,12 +31,8 @@ def create_parser() -> argparse.ArgumentParser:
         default="dev",
         help="Environment: dev|prod|local (default: dev)",
     )
-    parser.add_argument(
-        "--profile", help="Override active profile (flu, covid, rsv, etc.)"
-    )
-    parser.add_argument(
-        "--config", "-c", type=Path, help="Config file path (default: auto-detect)"
-    )
+    parser.add_argument("--profile", help="Override active profile (flu, covid, rsv, etc.)")
+    parser.add_argument("--config", "-c", type=Path, help="Config file path (default: auto-detect)")
     parser.add_argument(
         "--project-dir",
         "-d",
@@ -53,7 +47,17 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Import and register command parsers
-    from epycloud.commands import build, config_cmd, logs, profile, run, status, terraform, validate, workflow
+    from epycloud.commands import (
+        build,
+        config_cmd,
+        logs,
+        profile,
+        run,
+        status,
+        terraform,
+        validate,
+        workflow,
+    )
 
     config_cmd.register_parser(subparsers)
     profile.register_parser(subparsers)
@@ -91,7 +95,9 @@ def main() -> int:
 
     # Load configuration (unless it's config init)
     config = None
-    if args.command != "config" or (hasattr(args, "config_subcommand") and args.config_subcommand != "init"):
+    if args.command != "config" or (
+        hasattr(args, "config_subcommand") and args.config_subcommand != "init"
+    ):
         try:
             config_loader = ConfigLoader(
                 environment=args.env,
@@ -102,6 +108,7 @@ def main() -> int:
         except Exception as e:
             if args.verbose:
                 import traceback
+
                 traceback.print_exc()
             error(f"Failed to load configuration: {e}")
             info("Run 'epycloud config init' to initialize configuration")
@@ -122,30 +129,39 @@ def main() -> int:
     try:
         if args.command == "config":
             from epycloud.commands import config_cmd
+
             return config_cmd.handle(ctx)
         elif args.command == "profile":
             from epycloud.commands import profile
+
             return profile.handle(ctx)
         elif args.command == "build":
             from epycloud.commands import build
+
             return build.handle(ctx)
         elif args.command == "run":
             from epycloud.commands import run
+
             return run.handle(ctx)
         elif args.command == "workflow":
             from epycloud.commands import workflow
+
             return workflow.handle(ctx)
         elif args.command == "terraform" or args.command == "tf":
             from epycloud.commands import terraform
+
             return terraform.handle(ctx)
         elif args.command == "validate":
             from epycloud.commands import validate
+
             return validate.handle(ctx)
         elif args.command == "status":
             from epycloud.commands import status
+
             return status.handle(ctx)
         elif args.command == "logs":
             from epycloud.commands import logs
+
             return logs.handle(ctx)
         else:
             error(f"Command '{args.command}' not yet implemented")
@@ -158,6 +174,7 @@ def main() -> int:
         error(f"Command failed: {e}")
         if ctx["verbose"]:
             import traceback
+
             traceback.print_exc()
         return 1
 

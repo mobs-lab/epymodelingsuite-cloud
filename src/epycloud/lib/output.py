@@ -1,7 +1,6 @@
 """Pretty output and formatting utilities for epycloud CLI."""
 
 import sys
-from typing import Optional
 
 
 # ANSI color codes
