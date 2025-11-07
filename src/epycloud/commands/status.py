@@ -10,6 +10,13 @@ import urllib.request
 from datetime import datetime
 from typing import Any
 
+from epycloud.exceptions import CloudAPIError, ConfigError
+from epycloud.lib.command_helpers import (
+    get_gcloud_access_token,
+    get_google_cloud_config,
+    require_config,
+)
+from epycloud.lib.formatters import format_status, format_timestamp_full
 from epycloud.lib.output import error, info, warning
 
 
@@ -54,20 +61,16 @@ def handle(ctx: dict[str, Any]) -> int:
         Exit code
     """
     args = ctx["args"]
-    config = ctx["config"]
     verbose = ctx["verbose"]
 
-    if not config:
-        error("Configuration not loaded. Run 'epycloud config init' first")
-        return 2
-
-    # Get config values
-    google_cloud_config = config.get("google_cloud", {})
-    project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
-
-    if not project_id:
-        error("google_cloud.project_id not configured")
+    # Validate configuration
+    try:
+        config = require_config(ctx)
+        gcloud_config = get_google_cloud_config(ctx)
+        project_id = gcloud_config["project_id"]
+        region = gcloud_config.get("region", "us-central1")
+    except (ConfigError, KeyError) as e:
+        error(str(e))
         return 2
 
     # Watch mode
