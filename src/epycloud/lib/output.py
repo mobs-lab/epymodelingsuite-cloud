@@ -3,6 +3,23 @@
 import sys
 
 
+# Global color state
+_color_enabled = None  # None = auto-detect, True = force on, False = force off
+
+
+def set_color_enabled(enabled: bool) -> None:
+    """
+    Set global color output preference.
+
+    Parameters
+    ----------
+    enabled : bool
+        True to enable colors, False to disable.
+    """
+    global _color_enabled
+    _color_enabled = enabled
+
+
 # ANSI color codes
 class Colors:
     """
@@ -41,6 +58,12 @@ def supports_color() -> bool:
     bool
         True if stdout is a TTY and platform is not Windows.
     """
+    global _color_enabled
+
+    # If explicitly set, use that
+    if _color_enabled is not None:
+        return _color_enabled
+
     # Check if stdout is a TTY and NO_COLOR is not set
     return sys.stdout.isatty() and not sys.platform.startswith("win")
 

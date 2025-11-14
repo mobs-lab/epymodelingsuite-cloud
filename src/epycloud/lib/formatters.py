@@ -213,7 +213,13 @@ def format_status(status: str, status_type: str = "workflow") -> str:
     >>> format_status("RUNNING", "batch")
     '\\033[33mRUNNING\\033[0m'
     """
+    from epycloud.lib.output import supports_color
+
     status_upper = status.upper() if status else ""
+
+    # If colors disabled, return plain text
+    if not supports_color():
+        return status
 
     # Success states (green)
     if status_upper in ("SUCCEEDED", "COMPLETED"):
@@ -267,7 +273,13 @@ def format_severity(severity: str) -> str:
     >>> format_severity("INFO")
     '\\033[34mINFO\\033[0m'
     """
+    from epycloud.lib.output import supports_color
+
     severity_upper = severity.upper() if severity else ""
+
+    # If colors disabled, return plain text
+    if not supports_color():
+        return severity
 
     # Error levels (red)
     if severity_upper in ("ERROR", "CRITICAL", "EMERGENCY", "ALERT"):
