@@ -155,7 +155,7 @@ class ConfigLoader:
         def interpolate_value(value: Any) -> Any:
             if isinstance(value, str):
                 value = value.replace("{environment}", self.environment)
-                if self.profile:
+                if self.profile and isinstance(self.profile, str):
                     value = value.replace("{profile}", self.profile)
                 return value
             elif isinstance(value, dict):
