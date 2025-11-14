@@ -52,8 +52,8 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser.add_argument(
         "--limit",
         type=int,
-        default=10,
-        help="Number of executions to show (default: 10)",
+        default=20,
+        help="Number of executions to show (default: 20)",
     )
 
     list_parser.add_argument(
@@ -232,14 +232,7 @@ def _handle_list(ctx: dict[str, Any]) -> int:
             result = json.loads(response.read().decode("utf-8"))
             executions = result.get("executions", [])
 
-            # Apply additional filters
-            if args.exp_id:
-                executions = [
-                    e
-                    for e in executions
-                    if args.exp_id in e.get("argument", e.get("workflowRevisionId", ""))
-                ]
-
+            # Apply time-based filter first (doesn't need arguments)
             if args.since:
                 cutoff_time = parse_since_time(args.since)
                 if cutoff_time:
@@ -248,6 +241,23 @@ def _handle_list(ctx: dict[str, Any]) -> int:
                         for e in executions
                         if _parse_timestamp(e.get("startTime", "")) > cutoff_time
                     ]
+
+            if not executions:
+                info("No workflow executions found")
+                return 0
+
+            # Enrich executions with arguments (list endpoint doesn't include them)
+            executions = _enrich_executions_with_arguments(
+                executions, project_id, region, token, verbose
+            )
+
+            # Apply exp_id filter after enrichment (needs arguments)
+            if args.exp_id:
+                executions = [
+                    e
+                    for e in executions
+                    if args.exp_id in e.get("argument", e.get("workflowRevisionId", ""))
+                ]
 
             if not executions:
                 info("No workflow executions found")
@@ -621,6 +631,63 @@ def _handle_retry(ctx: dict[str, Any]) -> int:
 
 
 # ========== Helper Functions ==========
+
+
+def _enrich_executions_with_arguments(
+    executions: list[dict[str, Any]],
+    project_id: str,
+    region: str,
+    token: str,
+    verbose: bool,
+) -> list[dict[str, Any]]:
+    """Enrich executions with argument data from describe endpoint.
+
+    The list endpoint doesn't include arguments, so we need to fetch them
+    individually for each execution.
+
+    Args:
+        executions: List of execution objects from list endpoint
+        project_id: GCP project ID
+        region: GCP region
+        token: OAuth access token
+        verbose: Enable verbose output
+
+    Returns:
+        List of executions enriched with argument field
+    """
+    import urllib.request
+
+    enriched = []
+    for execution in executions:
+        name = execution.get("name", "")
+        if not name:
+            enriched.append(execution)
+            continue
+
+        # Fetch full execution details
+        try:
+            describe_url = f"https://workflowexecutions.googleapis.com/v1/{name}"
+            req = urllib.request.Request(
+                describe_url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+            )
+
+            with urllib.request.urlopen(req) as response:
+                full_execution = json.loads(response.read().decode("utf-8"))
+                # Merge argument into original execution
+                if "argument" in full_execution:
+                    execution["argument"] = full_execution["argument"]
+                enriched.append(execution)
+
+        except Exception as e:
+            if verbose:
+                warning(f"Failed to fetch details for {name}: {e}")
+            enriched.append(execution)
+
+    return enriched
 
 
 def _parse_execution_name(

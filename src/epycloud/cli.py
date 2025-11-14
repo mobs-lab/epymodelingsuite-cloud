@@ -6,7 +6,7 @@ from pathlib import Path
 
 from epycloud import __version__
 from epycloud.config.loader import ConfigLoader
-from epycloud.lib.output import error, info
+from epycloud.lib.output import error, info, set_color_enabled
 from epycloud.lib.paths import ensure_config_dir
 
 
@@ -48,6 +48,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     parser.add_argument("--quiet", "-q", action="store_true", help="Quiet mode (errors only)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would happen")
+    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
 
     # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -93,6 +94,14 @@ def main() -> int:
     """
     parser = create_parser()
     args = parser.parse_args()
+
+    # Apply defaults for arguments that might be None due to subparser issues
+    if args.env is None:
+        args.env = "dev"
+
+    # Set color preference based on flag
+    if args.no_color:
+        set_color_enabled(False)
 
     # If no command provided, show help
     if not args.command:

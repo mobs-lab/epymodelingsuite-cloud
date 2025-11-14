@@ -68,7 +68,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--tail",
         type=int,
         default=100,
-        help="Show last N lines (default: 100)",
+        help="Show last N lines (default: 100, use 0 for unlimited)",
     )
 
     parser.add_argument(
@@ -187,7 +187,10 @@ def _fetch_logs(
     Returns:
         Exit code
     """
-    info(f"Fetching last {tail} log entries...")
+    if tail == 0:
+        info(f"Fetching all available log entries...")
+    else:
+        info(f"Fetching last {tail} log entries...")
     print()
 
     try:
@@ -198,9 +201,13 @@ def _fetch_logs(
             "read",
             log_filter,
             f"--project={project_id}",
-            f"--limit={tail}",
+            "--freshness=30d",  # Search logs from last 30 days (Cloud Logging retention)
             "--format=json",
         ]
+
+        # Add limit only if not unlimited
+        if tail > 0:
+            cmd.insert(5, f"--limit={tail}")
 
         result = subprocess.run(
             cmd,
@@ -369,20 +376,16 @@ def _display_logs(logs: list[dict[str, Any]]) -> None:
 
         context_str = f" [{', '.join(context_parts)}]" if context_parts else ""
 
-        # Display log entry
-        print(f"[{time_str}] {severity_display}{context_str}")
-
+        # Get message text
         if text_payload:
-            print(f"  {text_payload}")
+            message = text_payload
         elif json_payload:
-            # Try to format JSON payload nicely
-            message = json_payload.get("message")
-            if message:
-                print(f"  {message}")
-            else:
-                print(f"  {json.dumps(json_payload, indent=2)}")
+            message = json_payload.get("message", json.dumps(json_payload))
+        else:
+            message = ""
 
-        print()
+        # Display log entry on single line
+        print(f"[{time_str}] {severity_display}{context_str} {message}")
 
 
 def _normalize_stage_name(stage: str) -> str:
