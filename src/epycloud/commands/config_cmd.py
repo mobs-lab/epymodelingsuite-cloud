@@ -270,14 +270,18 @@ def handle_validate(ctx: dict) -> int:
 
         for field in required_fields:
             value = get_config_value(config, field)
-            if not value or value.startswith("your-"):
+            if not value or (isinstance(value, str) and value.startswith("your-")):
                 errors.append(f"Missing or placeholder value: {field}")
 
         # Check GitHub token
         github_token = get_config_value(config, "github.personal_access_token")
-        if not github_token or github_token in (
-            "ghp_xxxxxxxxxxxxxxxxxxxx",
-            "github_pat_xxxxxxxxxxxxxxxxxxxx",
+        if not github_token or (
+            isinstance(github_token, str)
+            and github_token
+            in (
+                "ghp_xxxxxxxxxxxxxxxxxxxx",
+                "github_pat_xxxxxxxxxxxxxxxxxxxx",
+            )
         ):
             warnings_list.append("GitHub token not configured in secrets.yaml")
 

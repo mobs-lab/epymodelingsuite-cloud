@@ -13,6 +13,7 @@ from epycloud.lib.command_helpers import (
     require_config,
 )
 from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.paths import get_secrets_file
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -131,8 +132,13 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Validate GitHub PAT if modeling suite is configured
     if modeling_suite_repo and not github_pat:
+        secrets_file = get_secrets_file()
         error("GitHub PAT required when modeling_suite_repo is configured")
-        info("Set GITHUB_PAT environment variable or add to secrets.yaml")
+        info("Options:")
+        info("  1. Load from .env.local: source .env.local")
+        info("  2. Set environment variable: export GITHUB_PAT=your_token")
+        info(f"  3. Add to secrets.yaml: $EDITOR {secrets_file}")
+        info("     (Set github.personal_access_token in the file)")
         return 2
 
     # Execute build based on mode
