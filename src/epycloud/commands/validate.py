@@ -98,7 +98,6 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Determine validation mode
     if local_path:
-
         info(f"Validating local config: {local_path}")
         print()
 

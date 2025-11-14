@@ -15,9 +15,7 @@ class TestRunWorkflowCommand:
     def test_run_workflow_cloud_success(self, mock_urlopen, mock_subprocess, mock_config):
         """Test successful workflow submission to cloud."""
         # Setup mocks
-        mock_subprocess.return_value = Mock(
-            returncode=0, stdout="mock-access-token\n", stderr=""
-        )
+        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-access-token\n", stderr="")
 
         mock_response = Mock()
         mock_response.read.return_value = (
@@ -139,9 +137,7 @@ class TestRunWorkflowCommand:
         with patch("epycloud.commands.run.subprocess.run") as mock_subprocess:
             with patch("urllib.request.urlopen") as mock_urlopen:
                 # Setup subprocess mock for token
-                mock_subprocess.return_value = Mock(
-                    returncode=0, stdout="mock-token\n", stderr=""
-                )
+                mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
 
                 exit_code = run.handle(ctx)
 

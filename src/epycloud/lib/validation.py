@@ -54,8 +54,7 @@ def validate_exp_id(exp_id: str) -> str:
     # Must be alphanumeric + dash/underscore only
     if not re.match(r"^[a-zA-Z0-9_-]+$", exp_id):
         raise ValidationError(
-            f"Invalid experiment ID: {exp_id}. "
-            "Must contain only letters, numbers, dash, underscore"
+            f"Invalid experiment ID: {exp_id}. Must contain only letters, numbers, dash, underscore"
         )
 
     # Reasonable length limit
@@ -156,9 +155,7 @@ def validate_run_id(run_id: str) -> str:
     )
 
 
-def validate_local_path(
-    path: Path, must_exist: bool = True, must_be_dir: bool = False
-) -> Path:
+def validate_local_path(path: Path, must_exist: bool = True, must_be_dir: bool = False) -> Path:
     """Validate local filesystem path.
 
     Resolves the path to absolute form and optionally checks existence.

@@ -57,14 +57,10 @@ def resolve_configs(
         )
 
     # Find all YAML files in the directory
-    yaml_files = list(exp_config_dir.glob("*.yml")) + list(
-        exp_config_dir.glob("*.yaml")
-    )
+    yaml_files = list(exp_config_dir.glob("*.yml")) + list(exp_config_dir.glob("*.yaml"))
 
     if not yaml_files:
-        raise FileNotFoundError(
-            f"No YAML files found in config directory: {exp_config_dir}"
-        )
+        raise FileNotFoundError(f"No YAML files found in config directory: {exp_config_dir}")
 
     # Initialize result dictionary
     configs = {
@@ -153,9 +149,7 @@ def load_all_configs(
     calibration_config = None
     if config_paths["calibration"] is not None:
         _logger.debug(f"Loading calibration config: {config_paths['calibration']}")
-        calibration_config = load_calibration_config_from_file(
-            config_paths["calibration"]
-        )
+        calibration_config = load_calibration_config_from_file(config_paths["calibration"])
 
     # Load output config (optional)
     output_config = None
@@ -168,8 +162,6 @@ def load_all_configs(
         _logger.debug("Validating config consistency across all provided configs")
         # validate_cross_config_consistency expects either sampling or calibration, not both
         modelset_config = sampling_config if sampling_config is not None else calibration_config
-        validate_cross_config_consistency(
-            basemodel_config, modelset_config, output_config
-        )
+        validate_cross_config_consistency(basemodel_config, modelset_config, output_config)
 
     return basemodel_config, sampling_config, calibration_config, output_config

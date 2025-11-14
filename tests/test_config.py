@@ -92,9 +92,7 @@ model:
         config_dir.mkdir(parents=True, exist_ok=True)
 
         with pytest.raises(FileNotFoundError, match="No YAML files found"):
-            config.resolve_configs(
-                "test-exp", config_dir=str(temp_local_path / "experiments")
-            )
+            config.resolve_configs("test-exp", config_dir=str(temp_local_path / "experiments"))
 
     def test_resolve_configs_duplicate_types(self, temp_local_path):
         """Test resolve_configs raises ValueError for duplicate config types."""
@@ -108,9 +106,7 @@ model:
 
         with patch("util.config.identify_config_type", return_value="basemodel"):
             with pytest.raises(ValueError, match="Multiple basemodel config files found"):
-                config.resolve_configs(
-                    "test-exp", config_dir=str(temp_local_path / "experiments")
-                )
+                config.resolve_configs("test-exp", config_dir=str(temp_local_path / "experiments"))
 
     def test_resolve_configs_handles_unidentified_files(self, temp_local_path, caplog):
         """Test resolve_configs logs warnings for unidentified files."""
@@ -174,9 +170,7 @@ class TestLoadAllConfigs:
 
         mock_basemodel = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ):
+        with patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel):
             basemodel, sampling, calibration, output = config.load_all_configs(
                 config_paths, validate_consistency=False
             )
@@ -200,21 +194,17 @@ class TestLoadAllConfigs:
         mock_calibration = MagicMock()
         mock_output = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_sampling_config_from_file", return_value=mock_sampling
-        ), patch(
-            "util.config.load_calibration_config_from_file",
-            return_value=mock_calibration,
-        ), patch(
-            "util.config.load_output_config_from_file", return_value=mock_output
-        ), patch(
-            "util.config.validate_cross_config_consistency"
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch("util.config.load_sampling_config_from_file", return_value=mock_sampling),
+            patch(
+                "util.config.load_calibration_config_from_file",
+                return_value=mock_calibration,
+            ),
+            patch("util.config.load_output_config_from_file", return_value=mock_output),
+            patch("util.config.validate_cross_config_consistency"),
         ):
-            basemodel, sampling, calibration, output = config.load_all_configs(
-                config_paths
-            )
+            basemodel, sampling, calibration, output = config.load_all_configs(config_paths)
 
         assert basemodel is mock_basemodel
         assert sampling is mock_sampling
@@ -233,13 +223,11 @@ class TestLoadAllConfigs:
         mock_basemodel = MagicMock()
         mock_sampling = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_sampling_config_from_file", return_value=mock_sampling
-        ), patch(
-            "util.config.validate_cross_config_consistency"
-        ) as mock_validate:
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch("util.config.load_sampling_config_from_file", return_value=mock_sampling),
+            patch("util.config.validate_cross_config_consistency") as mock_validate,
+        ):
             config.load_all_configs(config_paths, validate_consistency=True)
 
         # Should validate configs (basemodel, sampling as modelset, output=None)
@@ -257,14 +245,14 @@ class TestLoadAllConfigs:
         mock_basemodel = MagicMock()
         mock_calibration = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_calibration_config_from_file",
-            return_value=mock_calibration,
-        ), patch(
-            "util.config.validate_cross_config_consistency"
-        ) as mock_validate:
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch(
+                "util.config.load_calibration_config_from_file",
+                return_value=mock_calibration,
+            ),
+            patch("util.config.validate_cross_config_consistency") as mock_validate,
+        ):
             config.load_all_configs(config_paths, validate_consistency=True)
 
         # Should validate configs (basemodel, calibration as modelset, output=None)
@@ -283,16 +271,15 @@ class TestLoadAllConfigs:
         mock_sampling = MagicMock()
         mock_calibration = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_sampling_config_from_file", return_value=mock_sampling
-        ), patch(
-            "util.config.load_calibration_config_from_file",
-            return_value=mock_calibration,
-        ), patch(
-            "util.config.validate_cross_config_consistency"
-        ) as mock_validate:
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch("util.config.load_sampling_config_from_file", return_value=mock_sampling),
+            patch(
+                "util.config.load_calibration_config_from_file",
+                return_value=mock_calibration,
+            ),
+            patch("util.config.validate_cross_config_consistency") as mock_validate,
+        ):
             config.load_all_configs(config_paths, validate_consistency=True)
 
         # Should validate configs (basemodel, sampling as modelset - calibration is ignored, output=None)
@@ -310,13 +297,11 @@ class TestLoadAllConfigs:
         mock_basemodel = MagicMock()
         mock_output = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_output_config_from_file", return_value=mock_output
-        ), patch(
-            "util.config.validate_cross_config_consistency"
-        ) as mock_validate:
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch("util.config.load_output_config_from_file", return_value=mock_output),
+            patch("util.config.validate_cross_config_consistency") as mock_validate,
+        ):
             config.load_all_configs(config_paths, validate_consistency=True)
 
         # Should NOT validate because no sampling/calibration config (validation requires modelset)
@@ -335,15 +320,12 @@ class TestLoadAllConfigs:
         mock_sampling = MagicMock()
         mock_output = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_sampling_config_from_file", return_value=mock_sampling
-        ), patch(
-            "util.config.load_output_config_from_file", return_value=mock_output
-        ), patch(
-            "util.config.validate_cross_config_consistency"
-        ) as mock_validate:
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch("util.config.load_sampling_config_from_file", return_value=mock_sampling),
+            patch("util.config.load_output_config_from_file", return_value=mock_output),
+            patch("util.config.validate_cross_config_consistency") as mock_validate,
+        ):
             config.load_all_configs(config_paths, validate_consistency=True)
 
         # Should validate configs (basemodel, sampling as modelset, output)
@@ -363,24 +345,20 @@ class TestLoadAllConfigs:
         mock_calibration = MagicMock()
         mock_output = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_sampling_config_from_file", return_value=mock_sampling
-        ), patch(
-            "util.config.load_calibration_config_from_file",
-            return_value=mock_calibration,
-        ), patch(
-            "util.config.load_output_config_from_file", return_value=mock_output
-        ), patch(
-            "util.config.validate_cross_config_consistency"
-        ) as mock_validate:
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch("util.config.load_sampling_config_from_file", return_value=mock_sampling),
+            patch(
+                "util.config.load_calibration_config_from_file",
+                return_value=mock_calibration,
+            ),
+            patch("util.config.load_output_config_from_file", return_value=mock_output),
+            patch("util.config.validate_cross_config_consistency") as mock_validate,
+        ):
             config.load_all_configs(config_paths, validate_consistency=True)
 
         # Should validate configs (basemodel, sampling as modelset - calibration ignored, output)
-        mock_validate.assert_called_once_with(
-            mock_basemodel, mock_sampling, mock_output
-        )
+        mock_validate.assert_called_once_with(mock_basemodel, mock_sampling, mock_output)
 
     def test_load_all_configs_skips_validation_when_disabled(self):
         """Test load_all_configs skips validation when validate_consistency=False."""
@@ -394,13 +372,11 @@ class TestLoadAllConfigs:
         mock_basemodel = MagicMock()
         mock_sampling = MagicMock()
 
-        with patch(
-            "util.config.load_basemodel_config_from_file", return_value=mock_basemodel
-        ), patch(
-            "util.config.load_sampling_config_from_file", return_value=mock_sampling
-        ), patch(
-            "util.config.validate_cross_config_consistency"
-        ) as mock_validate:
+        with (
+            patch("util.config.load_basemodel_config_from_file", return_value=mock_basemodel),
+            patch("util.config.load_sampling_config_from_file", return_value=mock_sampling),
+            patch("util.config.validate_cross_config_consistency") as mock_validate,
+        ):
             config.load_all_configs(config_paths, validate_consistency=False)
 
         # Should NOT validate

@@ -115,7 +115,7 @@ def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]
             "total_tasks": num_tasks,
             "missing": len(missing_tasks),
             "failed": len(failed_tasks),
-        }
+        },
     )
 
     # If any tasks failed, raise detailed error
@@ -174,17 +174,22 @@ def load_configuration(config: dict, logger: logging.Logger):
         logger.error("No output config found")
         logger.error(f"Searched in: {exp_config_dir}")
         logger.error("Looking for YAML files with 'outputs' key")
-        logger.error("Please add output.yaml with 'outputs' key to your experiment config directory")
+        logger.error(
+            "Please add output.yaml with 'outputs' key to your experiment config directory"
+        )
         sys.exit(1)
 
     logger.debug(f"Output config: {output_config_path}")
     from epymodelingsuite.config_loader import load_output_config_from_file
+
     output_config = load_output_config_from_file(output_config_path)
     logger.info("Output config loaded successfully")
     return output_config
 
 
-def generate_outputs(results: list, result_type: str, output_config, logger: logging.Logger) -> dict:
+def generate_outputs(
+    results: list, result_type: str, output_config, logger: logging.Logger
+) -> dict:
     """Generate output files using the dispatcher.
 
     Parameters
@@ -219,10 +224,7 @@ def generate_outputs(results: list, result_type: str, output_config, logger: log
     else:
         raise ValueError(f"Unknown result type: {result_type}")
 
-    dispatch_kwargs = {
-        dispatch_key: results,
-        "output_config": output_config
-    }
+    dispatch_kwargs = {dispatch_key: results, "output_config": output_config}
 
     output_dict = dispatch_output_generator(**dispatch_kwargs)
 
@@ -281,7 +283,9 @@ def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
 
     # Load builder telemetry
     try:
-        builder_telemetry_data = storage.load_json(storage.get_path("summaries", "json", "builder_summary.json"))
+        builder_telemetry_data = storage.load_json(
+            storage.get_path("summaries", "json", "builder_summary.json")
+        )
         builder_telemetry = ExecutionTelemetry.from_dict(builder_telemetry_data)
         logger.debug("Loaded builder telemetry")
     except (FileNotFoundError, Exception) as e:
@@ -292,7 +296,9 @@ def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
     runner_telemetries = []
     for i in range(num_tasks):
         try:
-            runner_telemetry_data = storage.load_json(storage.get_path("summaries", "json", f"runner_{i:0{INDEX_WIDTH}d}_summary.json"))
+            runner_telemetry_data = storage.load_json(
+                storage.get_path("summaries", "json", f"runner_{i:0{INDEX_WIDTH}d}_summary.json")
+            )
             runner_telemetries.append(ExecutionTelemetry.from_dict(runner_telemetry_data))
         except (FileNotFoundError, Exception):
             pass
@@ -300,7 +306,9 @@ def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
 
     # Load output telemetry
     try:
-        output_telemetry_data = storage.load_json(storage.get_path("summaries", "json", "output_summary.json"))
+        output_telemetry_data = storage.load_json(
+            storage.get_path("summaries", "json", "output_summary.json")
+        )
         output_telemetry = ExecutionTelemetry.from_dict(output_telemetry_data)
         logger.debug("Loaded output telemetry")
     except (FileNotFoundError, Exception) as e:
@@ -375,7 +383,7 @@ def main() -> None:
             "mode": config["mode"],
             "dir_prefix": config["dir_prefix"],
             "bucket": config.get("bucket", "N/A"),
-        }
+        },
     )
 
     # Get number of tasks from environment or config

@@ -354,9 +354,7 @@ def format_table(headers: list[str], rows: list[list[str]], column_widths: list[
     # Format rows
     formatted_rows = []
     for row in rows:
-        formatted_row = "  ".join(
-            str(cell).ljust(w) for cell, w in zip(row, column_widths)
-        )
+        formatted_row = "  ".join(str(cell).ljust(w) for cell, w in zip(row, column_widths))
         formatted_rows.append(formatted_row)
 
     return "\n".join([header_row, separator] + formatted_rows)

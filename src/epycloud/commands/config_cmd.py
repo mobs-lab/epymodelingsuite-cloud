@@ -275,7 +275,10 @@ def handle_validate(ctx: dict) -> int:
 
         # Check GitHub token
         github_token = get_config_value(config, "github.personal_access_token")
-        if not github_token or github_token in ("ghp_xxxxxxxxxxxxxxxxxxxx", "github_pat_xxxxxxxxxxxxxxxxxxxx"):
+        if not github_token or github_token in (
+            "ghp_xxxxxxxxxxxxxxxxxxxx",
+            "github_pat_xxxxxxxxxxxxxxxxxxxx",
+        ):
             warnings_list.append("GitHub token not configured in secrets.yaml")
 
         # Report results

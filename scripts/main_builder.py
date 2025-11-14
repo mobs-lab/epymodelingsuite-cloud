@@ -144,7 +144,7 @@ def main() -> None:
                 "mode": config["mode"],
                 "dir_prefix": config["dir_prefix"],
                 "bucket": config.get("bucket", "N/A"),
-            }
+            },
         )
 
         # Resolve config files for this experiment
@@ -158,7 +158,7 @@ def main() -> None:
                 "sampling": config_files["sampling"],
                 "calibration": config_files["calibration"],
                 "output": config_files["output"],
-            }
+            },
         )
 
         # Load all configs and validate consistency
@@ -171,7 +171,9 @@ def main() -> None:
             basemodel_config, sampling_config, calibration_config, logger
         )
 
-        logger.info(f"Stage A complete: {num_files} input files saved", extra={"num_files": num_files})
+        logger.info(
+            f"Stage A complete: {num_files} input files saved", extra={"num_files": num_files}
+        )
 
     except Exception as e:
         handle_stage_error("Stage A (Builder)", e, logger)

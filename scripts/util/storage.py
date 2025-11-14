@@ -34,6 +34,7 @@ _logger = logging.getLogger(__name__)
 
 # Storage logger for verbose I/O operations
 from util.logger import StorageLogger
+
 _storage_logger = StorageLogger(_logger)
 
 # GCS client cache for cloud mode (optimization)
@@ -65,6 +66,7 @@ def _get_gcs_client():
     global _gcs_client
     if _gcs_client is None:
         from google.cloud import storage
+
         _gcs_client = storage.Client()
     return _gcs_client
 
@@ -177,9 +179,7 @@ def _resolve_storage_location(path: str) -> tuple[Optional[str], str]:
         # Cloud mode: get bucket from env and clean path
         bucket = config["bucket"]
         if not bucket:
-            raise ValueError(
-                "Cloud mode requires GCS_BUCKET environment variable to be set"
-            )
+            raise ValueError("Cloud mode requires GCS_BUCKET environment variable to be set")
 
         # Strip "bucket/" prefix if present (for paths generated in local mode)
         clean_path = path
@@ -273,7 +273,7 @@ def save_bytes(path: str, data: bytes) -> None:
 
         # Handle both bytes and str (in case to_csv returns str instead of bytes)
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
 
         file_path.write_bytes(data)
         _storage_logger.log_write(str(file_path), len(data))
@@ -286,7 +286,7 @@ def save_bytes(path: str, data: bytes) -> None:
 
         # Handle both bytes and str (in case to_csv returns str instead of bytes)
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
 
         blob.upload_from_string(data)
         _storage_logger.log_write(f"gs://{bucket_name}/{final_path}", len(data))
@@ -385,9 +385,7 @@ def save_telemetry_summary(
     """
     # Validate summary_name doesn't contain path traversal
     if "/" in summary_name or "\\" in summary_name:
-        raise ValueError(
-            f"Invalid summary_name: must not contain path separators: {summary_name}"
-        )
+        raise ValueError(f"Invalid summary_name: must not contain path separators: {summary_name}")
 
     # Save as JSON
     json_path = get_path("summaries", "json", f"{summary_name}.json")
@@ -398,7 +396,7 @@ def save_telemetry_summary(
     # Save as TXT
     txt_path = get_path("summaries", "txt", f"{summary_name}.txt")
     txt_content = telemetry.to_text()
-    save_bytes(txt_path, txt_content.encode('utf-8'))
+    save_bytes(txt_path, txt_content.encode("utf-8"))
     if verbose:
         _logger.debug(f"Saved TXT summary: {txt_path}")
 

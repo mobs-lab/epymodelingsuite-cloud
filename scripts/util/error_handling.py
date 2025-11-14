@@ -45,6 +45,6 @@ def handle_stage_error(
             "error_type": type(error).__name__,
             "error_message": str(error),
             "failed_stage": stage_name,
-        }
+        },
     )
     sys.exit(1)

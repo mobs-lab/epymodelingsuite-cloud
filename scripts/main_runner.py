@@ -94,7 +94,7 @@ def main() -> None:
                 "mode": config["mode"],
                 "dir_prefix": config["dir_prefix"],
                 "bucket": config.get("bucket", "N/A"),
-            }
+            },
         )
 
         # Load input file (workload from dispatcher)
@@ -131,7 +131,9 @@ def main() -> None:
                 raise
 
             # Save telemetry as JSON and TXT (will be aggregated in Stage C)
-            storage.save_telemetry_summary(runner_telemetry, f"runner_{idx:0{INDEX_WIDTH}d}_summary")
+            storage.save_telemetry_summary(
+                runner_telemetry, f"runner_{idx:0{INDEX_WIDTH}d}_summary"
+            )
 
         logger.info("Task complete")
 

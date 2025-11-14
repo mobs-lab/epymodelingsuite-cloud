@@ -116,26 +116,26 @@ def _create_cloud_formatter(
             super().add_fields(log_record, record, message_dict)
 
             # Add stage context (always present)
-            log_record['stage'] = stage
+            log_record["stage"] = stage
 
             # Add optional context
             if exp_id:
-                log_record['exp_id'] = exp_id
+                log_record["exp_id"] = exp_id
             if run_id:
-                log_record['run_id'] = run_id
+                log_record["run_id"] = run_id
             if task_index is not None:
-                log_record['task_index'] = task_index
+                log_record["task_index"] = task_index
 
             # Rename 'levelname' to 'severity' for Cloud Logging compatibility
-            if 'levelname' in log_record:
-                log_record['severity'] = log_record.pop('levelname')
+            if "levelname" in log_record:
+                log_record["severity"] = log_record.pop("levelname")
 
     # Format string defines which built-in fields to include
     # timestamp, name, severity, and message are essential
     # extra fields from logger.info(..., extra={}) are automatically included
     return CloudFormatter(
-        fmt='%(asctime)s %(name)s %(levelname)s %(message)s',
-        datefmt='%Y-%m-%dT%H:%M:%S.%fZ',  # ISO 8601 format
+        fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S.%fZ",  # ISO 8601 format
     )
 
 
@@ -151,21 +151,21 @@ def _create_local_formatter(
     """
     # Build format string based on context
     format_parts = [
-        '%(asctime)s',           # Timestamp
-        stage,                   # Stage name (static, cleaner than %(name)s)
-        '%(levelname)s',         # Severity
+        "%(asctime)s",  # Timestamp
+        stage,  # Stage name (static, cleaner than %(name)s)
+        "%(levelname)s",  # Severity
     ]
 
     if task_index is not None:
-        format_parts.append(f'[Task {task_index}]')
+        format_parts.append(f"[Task {task_index}]")
 
-    format_parts.append('%(message)s')
+    format_parts.append("%(message)s")
 
-    format_string = ' '.join(format_parts)
+    format_string = " ".join(format_parts)
 
     return logging.Formatter(
         fmt=format_string,
-        datefmt='%Y-%m-%d %H:%M:%S',  # Human-readable timestamp
+        datefmt="%Y-%m-%d %H:%M:%S",  # Human-readable timestamp
     )
 
 

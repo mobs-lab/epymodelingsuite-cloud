@@ -227,8 +227,7 @@ def get_gcloud_access_token(verbose: bool = False) -> str:
 
     except FileNotFoundError:
         raise CloudAPIError(
-            "gcloud CLI not found. "
-            "Install it from: https://cloud.google.com/sdk/docs/install"
+            "gcloud CLI not found. Install it from: https://cloud.google.com/sdk/docs/install"
         )
     except subprocess.CalledProcessError as e:
         error_msg = "Failed to get Google Cloud access token"
