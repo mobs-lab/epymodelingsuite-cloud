@@ -780,6 +780,43 @@ def _run_job_cloud(
             pass
 
 
+def _build_env_from_config(config: dict[str, Any]) -> dict[str, str]:
+    """Build environment variables from configuration.
+
+    Extracts all necessary configuration values and converts them to
+    environment variables suitable for Docker Compose.
+
+    Args:
+        config: Configuration dict
+
+    Returns:
+        Dictionary of environment variables
+    """
+    google_cloud = config.get("google_cloud", {})
+    github = config.get("github", {})
+    storage = config.get("storage", {})
+    logging_config = config.get("logging", {})
+
+    env = {
+        # Google Cloud
+        "PROJECT_ID": google_cloud.get("project_id", ""),
+        "REGION": google_cloud.get("region", ""),
+        "BUCKET_NAME": google_cloud.get("bucket_name", ""),
+        # GitHub (include PAT from secrets if present)
+        "GITHUB_FORECAST_REPO": github.get("forecast_repo", ""),
+        "GITHUB_MODELING_SUITE_REPO": github.get("modeling_suite_repo", ""),
+        "GITHUB_MODELING_SUITE_REF": github.get("modeling_suite_ref", "main"),
+        "GITHUB_PAT": github.get("personal_access_token", ""),
+        # Storage
+        "DIR_PREFIX": storage.get("dir_prefix", ""),
+        # Logging
+        "LOG_LEVEL": logging_config.get("level", "INFO"),
+        "STORAGE_VERBOSE": str(logging_config.get("storage_verbose", True)).lower(),
+    }
+
+    return env
+
+
 def _run_job_local(
     config: dict[str, Any],
     stage: str,
@@ -817,13 +854,16 @@ def _run_job_local(
 
     project_root = get_project_root()
 
-    # Determine service and env vars
+    # Build base environment variables from config
+    base_env = _build_env_from_config(config)
+
+    # Determine service and add runtime-specific env vars
     if stage == "A":
         service = "builder"
-        env_vars = {"EXP_ID": exp_id, "RUN_ID": run_id}
+        runtime_vars = {"EXP_ID": exp_id, "RUN_ID": run_id}
     elif stage == "B":
         service = "runner"
-        env_vars = {
+        runtime_vars = {
             "EXP_ID": exp_id,
             "RUN_ID": run_id,
             "TASK_INDEX": str(task_index),
@@ -831,12 +871,15 @@ def _run_job_local(
         info(f"Task Index: {task_index}")
     else:  # C
         service = "output"
-        env_vars = {
+        runtime_vars = {
             "EXP_ID": exp_id,
             "RUN_ID": run_id,
             "NUM_TASKS": str(num_tasks),
         }
         info(f"Number of Tasks: {num_tasks}")
+
+    # Merge base config env vars with runtime vars (runtime vars take precedence)
+    env_vars = {**base_env, **runtime_vars}
 
     result = _run_docker_compose_stage(
         project_root=project_root,

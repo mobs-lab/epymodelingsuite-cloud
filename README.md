@@ -198,17 +198,31 @@ Understanding the key concepts and terminology used throughout this pipeline:
 
 ## Configuration
 
-Configuration is managed through environment variables and templates:
+Configuration is managed through YAML files in `~/.config/epymodelingsuite-cloud/`:
 
-**Files:**
-- [.env.example](.env.example) - Project configuration template (copy to `.env`)
-- [.env.local.example](.env.local.example) - Local secrets template (copy to `.env.local`)
+```bash
+# Initialize configuration
+epycloud config init
+
+# Edit base configuration
+epycloud config edit
+
+# Edit secrets (GitHub PAT)
+epycloud config edit-secrets
+
+# Verify configuration
+epycloud config show
+```
+
+**Configuration files:**
+- `config.yaml` - Base configuration (Google Cloud, Docker, etc.)
+- `secrets.yaml` - Secrets (GitHub PAT) - created with 0600 permissions
+- `environments/{env}.yaml` - Environment-specific overrides (dev, prod, local)
+- `profiles/{profile}.yaml` - Profile-specific settings (flu, covid, rsv)
 - [/docs/variable-configuration.md](/docs/variable-configuration.md) - Complete variable reference
 
-**Key variables:**
-- `PROJECT_ID`, `REGION`, `BUCKET_NAME` - Google Cloud infrastructure
-- `EXP_ID` - Experiment identifier (required for runs)
-- `GITHUB_FORECAST_REPO`, `GITHUB_MODELING_SUITE_REPO` - Private repository access
-- `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE` - Compute resources
-
-`.env.local` is gitignored for security.
+**Key configuration sections:**
+- `google_cloud` - Project ID, region, bucket name, batch settings
+- `github` - Repository settings and personal access token
+- `docker` - Image registry and tagging
+- `storage` - Directory prefix and paths
