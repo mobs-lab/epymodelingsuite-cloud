@@ -4,12 +4,11 @@ import argparse
 import json
 import os
 import tempfile
-import urllib.error
-import urllib.request
 from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
+import requests
 import yaml
 
 from epycloud.exceptions import ConfigError, ValidationError
@@ -466,22 +465,22 @@ def _fetch_config_files(
         info(f"Fetching directory listing: {api_url}")
 
     try:
-        req = urllib.request.Request(
+        response = requests.get(
             api_url,
             headers={
                 "Authorization": f"token {github_token}",
                 "Accept": "application/vnd.github.v3+json",
             },
         )
+        response.raise_for_status()
+        files = response.json()
 
-        with urllib.request.urlopen(req) as response:
-            files = json.loads(response.read().decode("utf-8"))
-
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
             raise Exception(f"Config directory not found: {config_dir_path}")
         else:
-            raise Exception(f"GitHub API error {e.code}: {e.reason}")
+            status_code = e.response.status_code if e.response else "unknown"
+            raise Exception(f"GitHub API error {status_code}")
 
     # Filter for YAML files
     yaml_files = [
@@ -544,29 +543,29 @@ def _fetch_github_file(
         info(f"Fetching: {path}")
 
     try:
-        req = urllib.request.Request(
+        response = requests.get(
             api_url,
             headers={
                 "Authorization": f"token {token}",
                 "Accept": "application/vnd.github.v3+json",
             },
         )
+        response.raise_for_status()
+        result = response.json()
 
-        with urllib.request.urlopen(req) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        # GitHub API returns base64-encoded content
+        if "content" in result:
+            content = b64decode(result["content"]).decode("utf-8")
+            return content
+        else:
+            raise Exception(f"No content field in API response for {path}")
 
-            # GitHub API returns base64-encoded content
-            if "content" in result:
-                content = b64decode(result["content"]).decode("utf-8")
-                return content
-            else:
-                raise Exception(f"No content field in API response for {path}")
-
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
             raise Exception(f"File not found: {path}")
         else:
-            raise Exception(f"GitHub API error {e.code}: {e.reason}")
+            status_code = e.response.status_code if e.response else "unknown"
+            raise Exception(f"GitHub API error {status_code}")
 
 
 def _display_validation_results(result: dict[str, Any]) -> None:

@@ -5,10 +5,10 @@ import json
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from datetime import UTC, datetime
 from typing import Any
+
+import requests
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
@@ -227,57 +227,56 @@ def _handle_list(ctx: dict[str, Any]) -> int:
 
     # Make API request
     try:
-        req = urllib.request.Request(
+        response = requests.get(
             list_url,
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
         )
+        response.raise_for_status()
+        result = response.json()
+        executions = result.get("executions", [])
 
-        with urllib.request.urlopen(req) as response:
-            result = json.loads(response.read().decode("utf-8"))
-            executions = result.get("executions", [])
-
-            # Apply time-based filter first (doesn't need arguments)
-            if args.since:
-                cutoff_time = parse_since_time(args.since)
-                if cutoff_time:
-                    executions = [
-                        e
-                        for e in executions
-                        if _parse_timestamp(e.get("startTime", "")) > cutoff_time
-                    ]
-
-            if not executions:
-                info("No workflow executions found")
-                return 0
-
-            # Enrich executions with arguments (list endpoint doesn't include them)
-            executions = _enrich_executions_with_arguments(
-                executions, project_id, region, token, verbose
-            )
-
-            # Apply exp_id filter after enrichment (needs arguments)
-            if args.exp_id:
+        # Apply time-based filter first (doesn't need arguments)
+        if args.since:
+            cutoff_time = parse_since_time(args.since)
+            if cutoff_time:
                 executions = [
                     e
                     for e in executions
-                    if args.exp_id in e.get("argument", e.get("workflowRevisionId", ""))
+                    if _parse_timestamp(e.get("startTime", "")) > cutoff_time
                 ]
 
-            if not executions:
-                info("No workflow executions found")
-                return 0
-
-            # Display executions
-            _display_execution_list(executions, region)
+        if not executions:
+            info("No workflow executions found")
             return 0
 
-    except urllib.error.HTTPError as e:
-        error(f"Failed to list executions: HTTP {e.code}")
-        if verbose:
-            print(e.read().decode("utf-8"), file=sys.stderr)
+        # Enrich executions with arguments (list endpoint doesn't include them)
+        executions = _enrich_executions_with_arguments(
+            executions, project_id, region, token, verbose
+        )
+
+        # Apply exp_id filter after enrichment (needs arguments)
+        if args.exp_id:
+            executions = [
+                e
+                for e in executions
+                if args.exp_id in e.get("argument", e.get("workflowRevisionId", ""))
+            ]
+
+        if not executions:
+            info("No workflow executions found")
+            return 0
+
+        # Display executions
+        _display_execution_list(executions, region)
+        return 0
+
+    except requests.HTTPError as e:
+        error(f"Failed to list executions: HTTP {e.response.status_code}")
+        if verbose and e.response is not None:
+            print(e.response.text, file=sys.stderr)
         return 1
     except Exception as e:
         error(f"Failed to list executions: {e}")
@@ -327,26 +326,26 @@ def _handle_describe(ctx: dict[str, Any]) -> int:
 
     # Make API request
     try:
-        req = urllib.request.Request(
+        response = requests.get(
             describe_url,
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
         )
+        response.raise_for_status()
+        execution = response.json()
+        _display_execution_details(execution)
+        return 0
 
-        with urllib.request.urlopen(req) as response:
-            execution = json.loads(response.read().decode("utf-8"))
-            _display_execution_details(execution)
-            return 0
-
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
             error(f"Execution not found: {args.execution_id}")
         else:
-            error(f"Failed to describe execution: HTTP {e.code}")
-        if verbose:
-            print(e.read().decode("utf-8"), file=sys.stderr)
+            status_code = e.response.status_code if e.response else "unknown"
+            error(f"Failed to describe execution: HTTP {status_code}")
+        if verbose and e.response is not None:
+            print(e.response.text, file=sys.stderr)
         return 1
     except Exception as e:
         error(f"Failed to describe execution: {e}")
@@ -495,29 +494,30 @@ def _handle_cancel(ctx: dict[str, Any]) -> int:
 
     # Make API request
     try:
-        req = urllib.request.Request(
+        response = requests.post(
             cancel_url,
-            data=b"{}",
+            json={},
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
-            method="POST",
         )
+        response.raise_for_status()
+        success(f"Execution cancelled: {args.execution_id}")
+        return 0
 
-        with urllib.request.urlopen(req):
-            success(f"Execution cancelled: {args.execution_id}")
-            return 0
-
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            error(f"Execution not found: {args.execution_id}")
-        elif e.code == 400:
-            warning("Execution may already be completed or cancelled")
+    except requests.HTTPError as e:
+        if e.response is not None:
+            if e.response.status_code == 404:
+                error(f"Execution not found: {args.execution_id}")
+            elif e.response.status_code == 400:
+                warning("Execution may already be completed or cancelled")
+            else:
+                error(f"Failed to cancel execution: HTTP {e.response.status_code}")
+            if verbose:
+                print(e.response.text, file=sys.stderr)
         else:
-            error(f"Failed to cancel execution: HTTP {e.code}")
-        if verbose:
-            print(e.read().decode("utf-8"), file=sys.stderr)
+            error("Failed to cancel execution: No response")
         return 1
     except Exception as e:
         error(f"Failed to cancel execution: {e}")
@@ -568,65 +568,65 @@ def _handle_retry(ctx: dict[str, Any]) -> int:
         return 1
 
     try:
-        req = urllib.request.Request(
+        response = requests.get(
             describe_url,
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
         )
+        response.raise_for_status()
+        execution = response.json()
 
-        with urllib.request.urlopen(req) as response:
-            execution = json.loads(response.read().decode("utf-8"))
+        # Extract original argument
+        argument_str = execution.get("argument", "{}")
+        try:
+            original_arg = json.loads(argument_str)
+        except json.JSONDecodeError:
+            original_arg = {}
 
-            # Extract original argument
-            argument_str = execution.get("argument", "{}")
-            try:
-                original_arg = json.loads(argument_str)
-            except json.JSONDecodeError:
-                original_arg = {}
+        info("Retrying execution with same parameters:")
+        print(json.dumps(original_arg, indent=2))
 
-            info("Retrying execution with same parameters:")
-            print(json.dumps(original_arg, indent=2))
+        if dry_run:
+            info("Would resubmit workflow with above parameters")
+            return 0
 
-            if dry_run:
-                info("Would resubmit workflow with above parameters")
-                return 0
+        # Submit new execution with same arguments
+        submit_url = (
+            f"https://workflowexecutions.googleapis.com/v1/"
+            f"projects/{project_id}/locations/{region}/workflows/epymodelingsuite-pipeline/executions"
+        )
 
-            # Submit new execution with same arguments
-            submit_url = (
-                f"https://workflowexecutions.googleapis.com/v1/"
-                f"projects/{project_id}/locations/{region}/workflows/epymodelingsuite-pipeline/executions"
-            )
+        request_body = {"argument": json.dumps(original_arg)}
 
-            request_body = {"argument": json.dumps(original_arg)}
+        response = requests.post(
+            submit_url,
+            json=request_body,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+        )
+        response.raise_for_status()
+        result = response.json()
+        new_execution_name = result.get("name", "")
+        new_execution_id = new_execution_name.split("/")[-1] if new_execution_name else ""
 
-            req = urllib.request.Request(
-                submit_url,
-                data=json.dumps(request_body).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
+        success(f"New execution submitted: {new_execution_id}")
+        info(f"Monitor with: epycloud workflow describe {new_execution_id}")
+        return 0
 
-            with urllib.request.urlopen(req) as response:
-                result = json.loads(response.read().decode("utf-8"))
-                new_execution_name = result.get("name", "")
-                new_execution_id = new_execution_name.split("/")[-1] if new_execution_name else ""
-
-                success(f"New execution submitted: {new_execution_id}")
-                info(f"Monitor with: epycloud workflow describe {new_execution_id}")
-                return 0
-
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            error(f"Execution not found: {args.execution_id}")
+    except requests.HTTPError as e:
+        if e.response is not None:
+            if e.response.status_code == 404:
+                error(f"Execution not found: {args.execution_id}")
+            else:
+                error(f"Failed to retry execution: HTTP {e.response.status_code}")
+            if verbose:
+                print(e.response.text, file=sys.stderr)
         else:
-            error(f"Failed to retry execution: HTTP {e.code}")
-        if verbose:
-            print(e.read().decode("utf-8"), file=sys.stderr)
+            error("Failed to retry execution: No response")
         return 1
     except Exception as e:
         error(f"Failed to retry execution: {e}")
@@ -662,37 +662,36 @@ def _enrich_executions_with_arguments(
     Returns:
         List of executions enriched with argument field
     """
-    import urllib.request
-
     enriched = []
-    for execution in executions:
-        name = execution.get("name", "")
-        if not name:
-            enriched.append(execution)
-            continue
 
-        # Fetch full execution details
-        try:
-            describe_url = f"https://workflowexecutions.googleapis.com/v1/{name}"
-            req = urllib.request.Request(
-                describe_url,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
-            )
+    # Use session for connection pooling across multiple requests
+    with requests.Session() as session:
+        session.headers.update({
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        })
 
-            with urllib.request.urlopen(req) as response:
-                full_execution = json.loads(response.read().decode("utf-8"))
+        for execution in executions:
+            name = execution.get("name", "")
+            if not name:
+                enriched.append(execution)
+                continue
+
+            # Fetch full execution details
+            try:
+                describe_url = f"https://workflowexecutions.googleapis.com/v1/{name}"
+                response = session.get(describe_url)
+                response.raise_for_status()
+                full_execution = response.json()
                 # Merge argument into original execution
                 if "argument" in full_execution:
                     execution["argument"] = full_execution["argument"]
                 enriched.append(execution)
 
-        except Exception as e:
-            if verbose:
-                warning(f"Failed to fetch details for {name}: {e}")
-            enriched.append(execution)
+            except Exception as e:
+                if verbose:
+                    warning(f"Failed to fetch details for {name}: {e}")
+                enriched.append(execution)
 
     return enriched
 

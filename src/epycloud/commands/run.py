@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+import requests
+
 from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
 from epycloud.lib.command_helpers import (
     get_gcloud_access_token,
@@ -401,56 +403,55 @@ def _run_workflow_cloud(
 
     # Submit workflow
     try:
-        import urllib.request
-
-        req = urllib.request.Request(
+        response = requests.post(
             workflow_url,
-            data=json.dumps(request_body).encode("utf-8"),
+            json=request_body,
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
             },
-            method="POST",
         )
+        response.raise_for_status()
+        result = response.json()
+        execution_name = result.get("name", "")
 
-        with urllib.request.urlopen(req) as response:
-            result = json.loads(response.read().decode("utf-8"))
-            execution_name = result.get("name", "")
+        success("Workflow submitted successfully!")
+        info(f"Execution: {execution_name}")
+        print()
 
-            success("Workflow submitted successfully!")
-            info(f"Execution: {execution_name}")
+        # Extract execution ID from name
+        execution_id = execution_name.split("/")[-1] if execution_name else ""
+
+        if execution_id:
+            info("Monitor with:")
+            info(
+                f"  gcloud workflows executions describe {execution_id} "
+                f"--workflow=epymodelingsuite-pipeline --location={region}"
+            )
+            info(
+                f"  gcloud workflows executions list epymodelingsuite-pipeline "
+                f"--location={region}"
+            )
             print()
+            info("Or use:")
+            info(f"  epycloud workflow describe {execution_id}")
+            info(f"  epycloud workflow logs {execution_id} --follow")
 
-            # Extract execution ID from name
-            execution_id = execution_name.split("/")[-1] if execution_name else ""
+        if wait:
+            warning("--wait not yet implemented for workflows")
+            info("Use: gcloud workflows executions describe --wait")
 
-            if execution_id:
-                info("Monitor with:")
-                info(
-                    f"  gcloud workflows executions describe {execution_id} "
-                    f"--workflow=epymodelingsuite-pipeline --location={region}"
-                )
-                info(
-                    f"  gcloud workflows executions list epymodelingsuite-pipeline "
-                    f"--location={region}"
-                )
-                print()
-                info("Or use:")
-                info(f"  epycloud workflow describe {execution_id}")
-                info(f"  epycloud workflow logs {execution_id} --follow")
+        return 0
 
-            if wait:
-                warning("--wait not yet implemented for workflows")
-                info("Use: gcloud workflows executions describe --wait")
-
-            return 0
-
-    except urllib.error.HTTPError as e:
-        error(f"Failed to submit workflow: HTTP {e.code}")
-        if verbose:
-            print(e.read().decode("utf-8"), file=sys.stderr)
+    except requests.HTTPError as e:
+        if e.response is not None:
+            error(f"Failed to submit workflow: HTTP {e.response.status_code}")
+            if verbose:
+                print(e.response.text, file=sys.stderr)
+        else:
+            error("Failed to submit workflow: No response")
         return 1
-    except urllib.error.URLError as e:
+    except requests.RequestException as e:
         api_error = CloudAPIError(
             "Network error while submitting workflow", api="Workflows", status_code=None
         )

@@ -4,10 +4,10 @@ import argparse
 import json
 import subprocess
 import time
-import urllib.error
-import urllib.request
 from datetime import datetime
 from typing import Any
+
+import requests
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
@@ -229,23 +229,22 @@ def _fetch_active_workflows(
         token = _get_access_token(verbose)
 
         # Make API request
-        req = urllib.request.Request(
+        response = requests.get(
             list_url,
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
         )
+        response.raise_for_status()
+        result = response.json()
+        executions = result.get("executions", [])
 
-        with urllib.request.urlopen(req) as response:
-            result = json.loads(response.read().decode("utf-8"))
-            executions = result.get("executions", [])
+        # Filter by exp_id if provided
+        if exp_id:
+            executions = [e for e in executions if exp_id in e.get("argument", "")]
 
-            # Filter by exp_id if provided
-            if exp_id:
-                executions = [e for e in executions if exp_id in e.get("argument", "")]
-
-            return executions
+        return executions
 
     except Exception as e:
         if verbose:
