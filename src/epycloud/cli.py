@@ -6,6 +6,7 @@ from pathlib import Path
 
 from epycloud import __version__
 from epycloud.config.loader import ConfigLoader
+from epycloud.lib.formatters import CapitalizedHelpFormatter
 from epycloud.lib.output import error, info, set_color_enabled
 from epycloud.lib.paths import ensure_config_dir
 
@@ -25,7 +26,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="epycloud",
         description="Epidemic modeling pipeline management CLI",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=CapitalizedHelpFormatter,
     )
 
     # Global options
@@ -50,8 +51,24 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="Show what would happen")
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
 
+    # Customize main parser options title
+    parser._optionals.title = "Options"
+
     # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Monkey-patch add_parser to automatically set Options title and formatter
+    original_add_parser = subparsers.add_parser
+
+    def custom_add_parser(*args, **kwargs):
+        # Use CapitalizedHelpFormatter if no formatter_class specified
+        if "formatter_class" not in kwargs:
+            kwargs["formatter_class"] = CapitalizedHelpFormatter
+        subparser = original_add_parser(*args, **kwargs)
+        subparser._optionals.title = "Options"
+        return subparser
+
+    subparsers.add_parser = custom_add_parser
 
     # Import and register command parsers
     from epycloud.commands import (
