@@ -31,12 +31,13 @@ class CapitalizedHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
     Extends RawDescriptionHelpFormatter to:
     - Capitalize "usage:" to "Usage:"
+    - Add newline after usage for better readability
     - Preserve raw formatting for description text
     """
 
     def add_usage(self, usage, actions, groups, prefix=None):
         if prefix is None:
-            prefix = "Usage: "
+            prefix = "Usage:\n  "
         return super().add_usage(usage, actions, groups, prefix)
 
 
