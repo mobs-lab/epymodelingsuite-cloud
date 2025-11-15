@@ -43,9 +43,8 @@ def register_parser(subparsers: Any) -> None:
     parser = subparsers.add_parser(
         "config",
         help="Configuration management",
-        description="""Manage configuration files and settings.
-
-Examples:
+        description="Manage configuration files and settings.",
+        epilog="""Examples:
   epycloud config show
   epycloud config edit
   epycloud config get google_cloud.project_id

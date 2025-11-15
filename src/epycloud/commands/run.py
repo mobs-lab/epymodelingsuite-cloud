@@ -41,9 +41,8 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "run",
         help="Execute pipeline stages or workflows",
-        description="""Run pipeline workflows (complete A→B→C execution) or individual stages/jobs.
-
-Examples:
+        description="Run pipeline workflows (complete A→B→C execution) or individual stages/jobs.",
+        epilog="""Examples:
   epycloud run workflow --exp-id my-experiment
   epycloud run job --stage A --exp-id my-experiment
   epycloud run job --stage B --exp-id my-exp --run-id <run_id> --task-index 0
