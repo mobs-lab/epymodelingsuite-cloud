@@ -25,7 +25,7 @@ def create_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog="epycloud",
-        description="Epidemic modeling pipeline management CLI",
+        description="CLI tool to run epymodelingsuite workflow on Google Cloud",
         formatter_class=CapitalizedHelpFormatter,
     )
 
