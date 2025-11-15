@@ -44,16 +44,6 @@ def register_parser(subparsers: Any) -> None:
         help="Configuration management",
         description="""Manage configuration files and settings.
 
-Available subcommands:
-  init          Initialize config directory
-  show          Show current configuration
-  edit          Edit base config in $EDITOR
-  edit-secrets  Edit secrets.yaml in $EDITOR
-  validate      Validate configuration
-  path          Show config directory path
-  get           Get config value
-  set           Set config value
-
 Examples:
   epycloud config show
   epycloud config edit
@@ -64,7 +54,11 @@ Examples:
     )
     # Store parser for help printing
     parser.set_defaults(_config_parser=parser)
-    config_subparsers = parser.add_subparsers(dest="config_subcommand", help="Config subcommands")
+    config_subparsers = parser.add_subparsers(
+        dest="config_subcommand",
+        help="",
+        title="Subcommands",
+    )
 
     # config init
     config_subparsers.add_parser("init", help="Initialize config directory")

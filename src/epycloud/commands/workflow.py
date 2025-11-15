@@ -51,7 +51,9 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # Create subcommands
     workflow_subparsers = parser.add_subparsers(
-        dest="workflow_subcommand", help="Workflow operation"
+        dest="workflow_subcommand",
+        help="",
+        title="Subcommands",
     )
 
     # ========== workflow list ==========
