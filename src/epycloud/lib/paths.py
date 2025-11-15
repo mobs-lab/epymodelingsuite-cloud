@@ -167,6 +167,32 @@ def get_environment_file(environment: str) -> Path:
     return get_config_dir() / "environments" / f"{environment}.yaml"
 
 
+def list_environments() -> list[str]:
+    """
+    List all available environment names.
+
+    Scans the environments directory for .yaml files and returns their names
+    (without the .yaml extension).
+
+    Returns
+    -------
+    list[str]
+        List of environment names, or empty list if environments directory
+        doesn't exist.
+
+    Examples
+    --------
+    >>> list_environments()
+    ['dev', 'prod', 'local']
+    """
+    envs_dir = get_config_dir() / "environments"
+    if not envs_dir.exists():
+        return []
+
+    env_files = sorted(envs_dir.glob("*.yaml"))
+    return [f.stem for f in env_files]
+
+
 def get_profile_file(profile: str) -> Path:
     """
     Get path to profile-specific configuration file.

@@ -9,6 +9,7 @@ Available subcommands:
     epycloud config path          Show config directory path
     epycloud config get           Get config value
     epycloud config set           Set config value
+    epycloud config list-envs     List available environments
 """
 
 import os
@@ -30,6 +31,7 @@ from epycloud.lib.paths import (
     get_config_file,
     get_environment_file,
     get_secrets_file,
+    list_environments,
 )
 
 
@@ -93,6 +95,9 @@ def register_parser(subparsers: Any) -> None:
     set_parser.add_argument("key", help="Config key in dot notation")
     set_parser.add_argument("value", help="Value to set")
 
+    # config list-envs
+    config_subparsers.add_parser("list-envs", help="List available environments")
+
 
 def handle(ctx: dict) -> int:
     """Handle config command.
@@ -130,6 +135,8 @@ def handle(ctx: dict) -> int:
         return handle_get(ctx)
     elif subcommand == "set":
         return handle_set(ctx)
+    elif subcommand == "list-envs":
+        return handle_list_envs(ctx)
     else:
         error(f"Unknown subcommand: {subcommand}")
         return 1
@@ -464,4 +471,36 @@ def handle_set(ctx: dict) -> int:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     success(f"Set {args.key} = {args.value}")
+    return 0
+
+
+def handle_list_envs(ctx: dict) -> int:
+    """
+    List available environments.
+
+    Parameters
+    ----------
+    ctx : dict
+        Command context.
+
+    Returns
+    -------
+    int
+        Exit code (0 for success).
+    """
+    envs = list_environments()
+
+    if not envs:
+        info("No environments found")
+        info(f"Environment files should be in: {get_config_dir() / 'environments'}")
+        return 0
+
+    # Get current environment from context
+    current_env = ctx.get("environment", "dev")
+
+    info("Available environments:")
+    for env in envs:
+        marker = " (current)" if env == current_env else ""
+        print(f"  {env}{marker}")
+
     return 0
