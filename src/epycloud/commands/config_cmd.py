@@ -17,6 +17,7 @@ from epycloud.lib.paths import (
     get_config_dir,
     get_config_file,
     get_environment_file,
+    get_secrets_file,
 )
 
 
@@ -37,8 +38,11 @@ def register_parser(subparsers: Any) -> None:
     show_parser.add_argument("--raw", action="store_true", help="Show raw YAML")
 
     # config edit
-    edit_parser = config_subparsers.add_parser("edit", help="Edit config in $EDITOR")
-    edit_parser.add_argument("--env", help="Edit environment config (dev, prod, local)")
+    edit_parser = config_subparsers.add_parser("edit", help="Edit base config in $EDITOR")
+    edit_parser.add_argument("--env", dest="edit_env", help="Edit environment config (dev, prod, local)")
+
+    # config edit-secrets
+    config_subparsers.add_parser("edit-secrets", help="Edit secrets.yaml in $EDITOR")
 
     # config validate
     config_subparsers.add_parser("validate", help="Validate configuration")
@@ -80,6 +84,8 @@ def handle(ctx: dict) -> int:
         return handle_show(ctx)
     elif subcommand == "edit":
         return handle_edit(ctx)
+    elif subcommand == "edit-secrets":
+        return handle_edit_secrets(ctx)
     elif subcommand == "validate":
         return handle_validate(ctx)
     elif subcommand == "path":
@@ -214,12 +220,14 @@ def handle_edit(ctx: dict) -> int:
     editor = os.environ.get("EDITOR", "vim")
 
     # Determine which file to edit
-    if hasattr(args, "env") and args.env:
-        file_path = get_environment_file(args.env)
+    # Check if --env flag was explicitly provided to the edit subcommand
+    if hasattr(args, "edit_env") and args.edit_env:
+        file_path = get_environment_file(args.edit_env)
         if not file_path.exists():
             error(f"Environment config not found: {file_path}")
             return 1
     else:
+        # Default: edit base config.yaml
         file_path = get_config_file()
         if not file_path.exists():
             error(f"Config file not found: {file_path}")
@@ -237,6 +245,52 @@ def handle_edit(ctx: dict) -> int:
     except FileNotFoundError:
         error(f"Editor not found: {editor}")
         info("Set EDITOR environment variable or use 'epycloud config show'")
+        return 1
+
+
+def handle_edit_secrets(ctx: dict) -> int:
+    """Edit secrets.yaml file in $EDITOR.
+
+    Parameters
+    ----------
+    ctx : dict
+        Command context
+
+    Returns
+    -------
+    int
+        Exit code
+    """
+    editor = os.environ.get("EDITOR", "vim")
+    file_path = get_secrets_file()
+
+    # Create secrets file with secure permissions if it doesn't exist
+    if not file_path.exists():
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text("# Secrets configuration\n# Store sensitive credentials here\n\ngithub:\n  personal_access_token: \"\"\n")
+        os.chmod(file_path, 0o600)
+        info(f"Created {file_path} with secure permissions (0600)")
+
+    # Open in editor
+    try:
+        subprocess.run([editor, str(file_path)], check=True)
+        success(f"Edited {file_path}")
+
+        # Verify permissions after editing
+        current_perms = file_path.stat().st_mode & 0o777
+        if current_perms != 0o600:
+            warning(f"Secrets file has insecure permissions: {oct(current_perms)}")
+            info("Setting permissions to 0600...")
+            os.chmod(file_path, 0o600)
+            success("Permissions fixed")
+
+        return 0
+    except subprocess.CalledProcessError as e:
+        error(f"Editor failed: {e}")
+        return 1
+    except FileNotFoundError:
+        error(f"Editor not found: {editor}")
+        info("Set EDITOR environment variable")
         return 1
 
 
