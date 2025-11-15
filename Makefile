@@ -1,4 +1,24 @@
-.PHONY: build build-local build-dev run-builder-local run-task-local run-output-local run-task-cloud run-output-cloud tf-init tf-plan tf-apply tf-destroy run-workflow clean help
+# ============================================================================
+# DEPRECATED: This Makefile is deprecated in favor of the epycloud CLI
+#
+# Please use the following commands instead:
+#
+#   make build              →  uv run epycloud build cloud
+#   make build-local        →  uv run epycloud build local
+#   make build-dev          →  uv run epycloud build dev
+#   make run-builder-local  →  uv run epycloud run local builder --exp-id X
+#   make run-task-local     →  uv run epycloud run local runner --exp-id X --run-id Y --task-index N
+#   make run-output-local   →  uv run epycloud run local output --exp-id X --run-id Y --num-tasks N
+#   make run-workflow       →  uv run epycloud run workflow --exp-id X
+#   make tf-init            →  uv run epycloud terraform init
+#   make tf-plan            →  uv run epycloud terraform plan
+#   make tf-apply           →  uv run epycloud terraform apply
+#   make tf-destroy         →  uv run epycloud terraform destroy
+#
+# This file will be removed in a future version.
+# ============================================================================
+
+.PHONY: build build-local build-dev run-builder-local run-task-local run-output-local tf-init tf-plan tf-apply tf-destroy run-workflow clean help
 
 # Default values - override with environment variables
 PROJECT_ID ?= your-project
@@ -50,8 +70,6 @@ help:
 	@echo "  run-builder-local  - Run builder locally with docker-compose"
 	@echo "  run-task-local     - Run a single task locally with docker-compose"
 	@echo "  run-output-local   - Run output generation locally with docker-compose"
-	@echo "  run-task-cloud     - Run a single task on Google Cloud Batch"
-	@echo "  run-output-cloud   - Run output generation on Google Cloud Batch"
 	@echo "  tf-init            - Initialize Terraform"
 	@echo "  tf-plan            - Run Terraform plan"
 	@echo "  tf-apply           - Apply Terraform configuration"
@@ -204,71 +222,6 @@ run-output-local:
 	@echo ""
 	@echo "✓ Output generation complete. Check ./local/bucket/$(EXP_ID)/*/outputs/ for CSV files."
 
-run-task-cloud:
-	@echo "Submitting single task to Google Cloud Batch..."
-	@if [ -z "$(EXP_ID)" ]; then \
-		echo "ERROR: EXP_ID is required but not set."; \
-		echo "Usage: EXP_ID=test-flu RUN_ID=20251017-0145-xxxxxx TASK_INDEX=3 make run-task-cloud"; \
-		exit 1; \
-	fi
-	@if [ -z "$(RUN_ID)" ]; then \
-		echo "ERROR: RUN_ID is required but not set."; \
-		echo "Usage: EXP_ID=test-flu RUN_ID=20251017-0145-xxxxxx TASK_INDEX=3 make run-task-cloud"; \
-		exit 1; \
-	fi
-	@if [ -z "$(TASK_INDEX)" ]; then \
-		echo "ERROR: TASK_INDEX is required but not set."; \
-		echo "Usage: EXP_ID=test-flu RUN_ID=20251017-0145-xxxxxx TASK_INDEX=3 make run-task-cloud"; \
-		exit 1; \
-	fi
-	PROJECT_ID=$(PROJECT_ID) \
-	REGION=$(REGION) \
-	BUCKET_NAME=$(BUCKET_NAME) \
-	REPO_NAME=$(REPO_NAME) \
-	IMAGE_NAME=$(IMAGE_NAME) \
-	IMAGE_TAG=$(IMAGE_TAG) \
-	DIR_PREFIX=$(DIR_PREFIX) \
-	STAGE_B_CPU_MILLI=$(STAGE_B_CPU_MILLI) \
-	STAGE_B_MEMORY_MIB=$(STAGE_B_MEMORY_MIB) \
-	STAGE_B_MACHINE_TYPE=$(STAGE_B_MACHINE_TYPE) \
-	EXP_ID=$(EXP_ID) \
-	RUN_ID=$(RUN_ID) \
-	TASK_INDEX=$(TASK_INDEX) \
-	./scripts/run-task-cloud.sh
-
-run-output-cloud:
-	@echo "Submitting output generation to Google Cloud Batch..."
-	@if [ -z "$(EXP_ID)" ]; then \
-		echo "ERROR: EXP_ID is required but not set."; \
-		echo "Usage: EXP_ID=test-flu RUN_ID=20251101-120000-abc123 NUM_TASKS=10 make run-output-cloud"; \
-		exit 1; \
-	fi
-	@if [ -z "$(RUN_ID)" ]; then \
-		echo "ERROR: RUN_ID is required but not set."; \
-		echo "Usage: EXP_ID=test-flu RUN_ID=20251101-120000-abc123 NUM_TASKS=10 make run-output-cloud"; \
-		exit 1; \
-	fi
-	@if [ -z "$(NUM_TASKS)" ]; then \
-		echo "ERROR: NUM_TASKS is required but not set."; \
-		echo "Usage: EXP_ID=test-flu RUN_ID=20251101-120000-abc123 NUM_TASKS=10 make run-output-cloud"; \
-		exit 1; \
-	fi
-	PROJECT_ID=$(PROJECT_ID) \
-	REGION=$(REGION) \
-	BUCKET_NAME=$(BUCKET_NAME) \
-	REPO_NAME=$(REPO_NAME) \
-	IMAGE_NAME=$(IMAGE_NAME) \
-	IMAGE_TAG=$(IMAGE_TAG) \
-	DIR_PREFIX=$(DIR_PREFIX) \
-	STAGE_C_CPU_MILLI=$(STAGE_C_CPU_MILLI) \
-	STAGE_C_MEMORY_MIB=$(STAGE_C_MEMORY_MIB) \
-	STAGE_C_MACHINE_TYPE=$(STAGE_C_MACHINE_TYPE) \
-	STAGE_C_MAX_RUN_DURATION=$(STAGE_C_MAX_RUN_DURATION) \
-	GITHUB_FORECAST_REPO=$(GITHUB_FORECAST_REPO) \
-	EXP_ID=$(EXP_ID) \
-	RUN_ID=$(RUN_ID) \
-	NUM_TASKS=$(NUM_TASKS) \
-	./scripts/run-output-cloud.sh
 
 tf-init:
 	@echo "Initializing Terraform..."

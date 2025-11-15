@@ -154,13 +154,13 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Runs on Google Cloud Batch
 - Uses GCS for storage
 - Environment: `EXECUTION_MODE=cloud`
-- Commands: `make run-workflow`, `make run-task-cloud`
+- Commands: `uv run epycloud run workflow`, `uv run epycloud workflow list`
 
 **Local Execution**
 - Runs via Docker Compose on your machine
 - Uses local filesystem (`./local/bucket/`)
 - Environment: `EXECUTION_MODE=local`
-- Commands: `make run-builder-local`, `make run-task-local`
+- Commands: `uv run epycloud run local builder`, `uv run epycloud run local runner`
 
 </details>
 
@@ -176,15 +176,21 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - **[terraform/](terraform/)** - Infrastructure as code
   - [main.tf](terraform/main.tf) - Google Cloud resources
   - [workflow.yaml](terraform/workflow.yaml) - Orchestration logic
-- **[Makefile](Makefile)** - Build/deploy automation
+
+**CLI Tool:**
+- **[src/epycloud/](src/epycloud/)** - Python CLI for managing pipeline
+  - Configuration management
+  - Workflow execution and monitoring
+  - Build and deployment commands
+  - Terraform wrapper
 
 **Application:**
-- **[scripts/](scripts/)** - Application code
-  - [main_builder.py](scripts/main_builder.py) - Stage A generator
-  - [main_runner.py](scripts/main_runner.py) - Stage B runner
-  - [main_output.py](scripts/main_output.py) - Stage C output generator
-  - [run_builder.sh](scripts/run_builder.sh) - Stage A wrapper for repo cloning
-  - [run_output.sh](scripts/run_output.sh) - Stage C wrapper
+- **[docker/scripts/](docker/scripts/)** - Docker runtime scripts
+  - [main_builder.py](docker/scripts/main_builder.py) - Stage A generator
+  - [main_runner.py](docker/scripts/main_runner.py) - Stage B runner
+  - [main_output.py](docker/scripts/main_output.py) - Stage C output generator
+  - [run_builder.sh](docker/scripts/run_builder.sh) - Stage A wrapper for repo cloning
+  - [run_output.sh](docker/scripts/run_output.sh) - Stage C wrapper
 - **[docker/](docker/)** - Container config
   - [Dockerfile](docker/Dockerfile) - Multi-stage build (local and cloud targets)
 - **[docker-compose.yml](docker-compose.yml)** - Local development setup
