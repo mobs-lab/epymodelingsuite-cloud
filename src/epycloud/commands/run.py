@@ -27,7 +27,7 @@ from epycloud.lib.command_helpers import (
     prepare_subprocess_env,
     require_config,
 )
-from epycloud.lib.formatters import CapitalizedHelpFormatter
+from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id, validate_run_id
 
@@ -53,12 +53,8 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     # Store parser for help printing
     parser.set_defaults(_run_parser=parser)
 
-    # Create subcommands for workflow vs job
-    run_subparsers = parser.add_subparsers(
-        dest="run_subcommand",
-        help="",
-        title="Subcommands",
-    )
+    # Create subcommands with consistent formatting
+    run_subparsers = create_subparsers(parser, "run_subcommand")
 
     # ========== run workflow ==========
     workflow_parser = run_subparsers.add_parser(

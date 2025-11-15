@@ -41,6 +41,65 @@ class CapitalizedHelpFormatter(argparse.RawDescriptionHelpFormatter):
         return super().add_usage(usage, actions, groups, prefix)
 
 
+def create_subparsers(parser: argparse.ArgumentParser, dest: str, **kwargs) -> argparse._SubParsersAction:
+    """
+    Create subparsers with consistent formatting applied automatically.
+
+    This function wraps parser.add_subparsers() and applies the same
+    monkey-patch used in cli.py to ensure all nested subcommands have:
+    - CapitalizedHelpFormatter for "Usage:" capitalization
+    - "Options" title (capitalized) instead of "options"
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Parent parser to add subparsers to
+    dest : str
+        Destination attribute name for storing the subcommand
+    **kwargs
+        Additional arguments passed to add_subparsers()
+        Common: title, help, description
+
+    Returns
+    -------
+    argparse._SubParsersAction
+        Subparsers object with monkey-patch applied
+
+    Examples
+    --------
+    >>> parser = argparse.ArgumentParser()
+    >>> subparsers = create_subparsers(parser, "subcommand", title="Subcommands")
+    >>> sub = subparsers.add_parser("test", help="Test command")
+    # The sub parser will automatically have CapitalizedHelpFormatter
+    # and _optionals.title = "Options"
+    """
+    # Set default values for common kwargs
+    defaults = {
+        "help": "",
+        "title": "Subcommands",
+    }
+    defaults.update(kwargs)
+
+    # Create subparsers with defaults
+    subparsers = parser.add_subparsers(dest=dest, **defaults)
+
+    # Monkey-patch add_parser to automatically apply formatting
+    original_add_parser = subparsers.add_parser
+
+    def custom_add_parser(*args, **parse_kwargs):
+        # Use CapitalizedHelpFormatter if no formatter_class specified
+        if "formatter_class" not in parse_kwargs:
+            parse_kwargs["formatter_class"] = CapitalizedHelpFormatter
+        subparser = original_add_parser(*args, **parse_kwargs)
+        # Capitalize Options title
+        subparser._optionals.title = "Options"
+        return subparser
+
+    subparsers.add_parser = custom_add_parser
+
+    return subparsers
+
+
 def format_timestamp(iso_string: str, format: str = "full") -> str:
     """
     Format ISO 8601 timestamp with flexible format options.
@@ -243,15 +302,15 @@ def format_status(status: str, status_type: str = "workflow") -> str:
         return status
 
     # Success states (green)
-    if status_upper in ("SUCCEEDED", "COMPLETED"):
+    if status_upper in ("SUCCEEDED", "COMPLETED", "SUCCESS"):
         return f"\033[32m{status}\033[0m"
 
     # Failure states (red)
-    if status_upper in ("FAILED", "CANCELLED", "CANCELED"):
+    if status_upper in ("FAILED", "CANCELLED", "CANCELED", "FAILURE"):
         return f"\033[31m{status}\033[0m"
 
     # Active/running states (yellow)
-    if status_upper in ("ACTIVE", "RUNNING", "PENDING", "QUEUED"):
+    if status_upper in ("ACTIVE", "RUNNING", "PENDING", "QUEUED", "WORKING"):
         return f"\033[33m{status}\033[0m"
 
     # Scheduled (cyan)

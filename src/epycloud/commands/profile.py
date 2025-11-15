@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml
 
+from epycloud.lib.formatters import create_subparsers
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.paths import (
     get_active_profile_file,
@@ -24,9 +25,9 @@ def register_parser(subparsers: Any) -> None:
     parser = subparsers.add_parser("profile", help="Profile management")
     # Store parser for help printing
     parser.set_defaults(_profile_parser=parser)
-    profile_subparsers = parser.add_subparsers(
-        dest="profile_subcommand", help="Profile subcommands"
-    )
+
+    # Create subcommands with consistent formatting
+    profile_subparsers = create_subparsers(parser, "profile_subcommand")
 
     # profile list
     profile_subparsers.add_parser("list", help="List all profiles")

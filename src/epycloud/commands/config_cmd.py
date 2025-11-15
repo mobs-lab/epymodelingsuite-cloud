@@ -24,7 +24,7 @@ import yaml
 from epycloud.config.loader import ConfigLoader, get_config_value, set_config_value
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import require_config
-from epycloud.lib.formatters import CapitalizedHelpFormatter
+from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, print_dict, success, warning
 from epycloud.lib.paths import (
     get_config_dir,
@@ -56,11 +56,8 @@ def register_parser(subparsers: Any) -> None:
     # Store parser for help printing
     parser.set_defaults(_config_parser=parser)
 
-    config_subparsers = parser.add_subparsers(
-        dest="config_subcommand",
-        help="",
-        title="Subcommands",
-    )
+    # Create subcommands with consistent formatting
+    config_subparsers = create_subparsers(parser, "config_subcommand")
 
     # config init
     config_subparsers.add_parser("init", help="Initialize config directory")

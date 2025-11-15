@@ -20,6 +20,7 @@ from epycloud.lib.command_helpers import (
     handle_dry_run,
     require_config,
 )
+from epycloud.lib.formatters import create_subparsers
 from epycloud.lib.output import ask_confirmation, error, info, success, warning
 
 
@@ -39,12 +40,8 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     # Store parser for help printing
     parser.set_defaults(_terraform_parser=parser)
 
-    # Create subcommands
-    tf_subparsers = parser.add_subparsers(
-        dest="terraform_subcommand",
-        help="",
-        title="Subcommands",
-    )
+    # Create subcommands with consistent formatting
+    tf_subparsers = create_subparsers(parser, "terraform_subcommand")
 
     # ========== terraform init ==========
     tf_subparsers.add_parser(
