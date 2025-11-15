@@ -36,6 +36,9 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         description="Run pipeline workflows (complete A→B→C execution) or individual stages/jobs",
     )
 
+    # Store parser for help printing
+    parser.set_defaults(_run_parser=parser)
+
     # Create subcommands for workflow vs job
     run_subparsers = parser.add_subparsers(dest="run_subcommand", help="Run mode")
 
@@ -142,9 +145,13 @@ def handle(ctx: dict[str, Any]) -> int:
     args = ctx["args"]
 
     if not hasattr(args, "run_subcommand") or not args.run_subcommand:
-        error("Please specify a subcommand: 'workflow' or 'job'")
-        info("Usage: epycloud run workflow --exp-id ID")
-        info("       epycloud run job --stage STAGE --exp-id ID")
+        # Print help instead of error message
+        if hasattr(args, "_run_parser"):
+            args._run_parser.print_help()
+        else:
+            error("Please specify a subcommand: 'workflow' or 'job'")
+            info("Usage: epycloud run workflow --exp-id ID")
+            info("       epycloud run job --stage STAGE --exp-id ID")
         return 1
 
     if args.run_subcommand == "workflow":

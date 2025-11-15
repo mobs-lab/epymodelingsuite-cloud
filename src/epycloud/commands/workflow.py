@@ -38,6 +38,9 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         description="List, describe, monitor, and manage workflow executions",
     )
 
+    # Store parser for help printing
+    parser.set_defaults(_workflow_parser=parser)
+
     # Create subcommands
     workflow_subparsers = parser.add_subparsers(
         dest="workflow_subcommand", help="Workflow operation"
@@ -150,7 +153,11 @@ def handle(ctx: dict[str, Any]) -> int:
         return 2
 
     if not args.workflow_subcommand:
-        error("No subcommand specified. Use 'epycloud workflow --help'")
+        # Print help instead of error message
+        if hasattr(args, "_workflow_parser"):
+            args._workflow_parser.print_help()
+        else:
+            error("No subcommand specified. Use 'epycloud workflow --help'")
         return 1
 
     # Route to subcommand handler
