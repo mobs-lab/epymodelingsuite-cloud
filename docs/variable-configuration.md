@@ -4,117 +4,117 @@ Complete reference for all configuration variables used across the project.
 
 ## Overview
 
-All project-specific values are configurable via:
-- **`.env`** - Primary configuration for Makefile and runtime (gitignored)
-- **`.env.local`** - Local secrets for Docker builds (gitignored, optional)
-- **Secret Manager** - Sensitive values for cloud deployment (GitHub PAT)
+All project-specific values are configurable via the unified configuration system:
+- **`config.yaml`** - Primary configuration (`~/.config/epymodelingsuite-cloud/config.yaml`)
+- **`secrets.yaml`** - Secrets like GitHub PAT (`~/.config/epymodelingsuite-cloud/secrets.yaml`, 0600 permissions)
+- **Environment configs** - Environment-specific overrides (`~/.config/epymodelingsuite-cloud/environments/{env}.yaml`)
+- **Secret Manager** - Cloud deployment secrets (GitHub PAT)
 
-
-## Environment Variables (.env)
-
-The `.env` file contains project-specific values used by Makefile and scripts.
-
-**Template:** [.env.example](.env.example)
-
-### Google Cloud Infrastructure
-
+**Configuration commands:**
 ```bash
-PROJECT_ID=your-project-id         # GCP project ID
-REGION=us-central1                 # GCP region for resources
-REPO_NAME=epydemix                 # Artifact Registry repository name
-BUCKET_NAME=your-bucket-name       # GCS bucket (must exist)
+epycloud config init          # Initialize configuration
+epycloud config edit          # Edit base configuration
+epycloud config edit-secrets  # Edit secrets
+epycloud config show          # Show merged configuration
 ```
 
-### Docker Image
+## Configuration Structure (config.yaml)
 
-```bash
-IMAGE_NAME=epymodelingsuite        # Docker image name
-IMAGE_TAG=latest                   # Docker image tag
+The configuration file uses YAML format with hierarchical structure:
+
+```yaml
+# Google Cloud Infrastructure
+google_cloud:
+  project_id: your-project-id         # GCP project ID
+  region: us-central1                 # GCP region for resources
+  bucket_name: your-bucket-name       # GCS bucket (must exist)
+
+  # Cloud Batch Configuration
+  batch:
+    max_parallelism: 100              # Max parallel tasks (default: 100, max: 5000)
+    task_count_per_node: 1            # Tasks per VM (1 = dedicated VMs)
+
+    # Stage A (Builder) Resources
+    stage_a:
+      cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
+      memory_mib: 4096                # Memory (4096 = 4 GB)
+      machine_type: ""                # VM type (empty = auto-select)
+      max_run_duration: 3600          # Timeout in seconds (1 hour)
+
+    # Stage B (Runner) Resources
+    stage_b:
+      cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
+      memory_mib: 4096                # Memory (4096 = 4 GB)
+      machine_type: ""                # VM type (e.g., "e2-standard-2", empty = auto-select)
+      max_run_duration: 36000         # Timeout in seconds (10 hours)
+
+    # Stage C (Output) Resources
+    stage_c:
+      cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
+      memory_mib: 8192                # Memory (8192 = 8 GB)
+      machine_type: ""                # VM type (empty = auto-select)
+      max_run_duration: 7200          # Timeout in seconds (2 hours)
+
+    run_output_stage: true            # Enable/disable Stage C
+
+# Docker Configuration
+docker:
+  registry: us-central1-docker.pkg.dev
+  repo_name: epymodelingsuite-repo    # Artifact Registry repository name
+  image_name: epymodelingsuite        # Docker image name
+  image_tag: latest                   # Docker image tag
+
+# GitHub Repositories
+github:
+  forecast_repo: username/forecasting-repo        # Forecast data repo
+  modeling_suite_repo: username/modeling-suite    # Modeling suite package
+  modeling_suite_ref: main                        # Branch/commit to build
+
+# Storage
+storage:
+  dir_prefix: "pipeline/{environment}/{profile}"  # Base directory prefix in GCS
+
+# Logging
+logging:
+  level: INFO                         # Log level (DEBUG, INFO, WARNING, ERROR)
+  storage_verbose: true               # Enable verbose storage operations
 ```
 
-### GitHub Private Repositories
+### Timeout Configuration
 
-```bash
-GITHUB_FORECAST_REPO=username/forecasting-repo              # Forecast data repo
-GITHUB_MODELING_SUITE_REPO=username/modeling-suite-repo     # Modeling suite package
-GITHUB_MODELING_SUITE_REF=main                              # Branch/commit to build
-```
-
-### Workflow Parameters
-
-```bash
-DIR_PREFIX=pipeline/flu/           # Base directory prefix in GCS
-EXP_ID=default-sim                 # Default experiment ID (override at runtime)
-MAX_PARALLELISM=100                # Max parallel tasks (default: 100, max: 5000)
-TASK_COUNT_PER_NODE=1              # Tasks per VM (1 = dedicated VMs)
-```
-
-### Batch Compute Resources - Stage A (Dispatcher)
-
-```bash
-STAGE_A_CPU_MILLI=2000             # CPU in milli-cores (2000 = 2 vCPUs)
-STAGE_A_MEMORY_MIB=4096            # Memory in MiB (4096 = 4 GB)
-STAGE_A_MACHINE_TYPE=""            # VM type (empty = auto-select)
-```
-
-### Batch Compute Resources - Stage B (Runner)
-
-```bash
-STAGE_B_CPU_MILLI=2000             # CPU in milli-cores (2000 = 2 vCPUs)
-STAGE_B_MEMORY_MIB=4096            # Memory in MiB (4096 = 4 GB)
-STAGE_B_MACHINE_TYPE=""            # VM type (e.g., "e2-standard-2", empty = auto-select)
-STAGE_B_MAX_RUN_DURATION=36000     # Maximum task duration in seconds (36000s = 10 hours)
-```
-
-**Timeout Configuration:**
-- `STAGE_B_MAX_RUN_DURATION`: Maximum time allowed for each Stage B task to complete
+**Stage B (Runner):**
+- `max_run_duration`: Maximum time allowed for each Stage B task to complete
 - Default: 36000 seconds (10 hours)
 - Tasks exceeding this limit will be terminated by Google Cloud Batch
-- Adjust based on your simulation runtime requirements
+- Adjust based on your simulation runtime requirements:
   - Short simulations (< 1 hour): 3600 seconds
-  - Medium simulations (1-5 hours): 18000 seconds (5 hours)
-  - Long simulations (5-10 hours): 36000 seconds (10 hours)
-  - Very long simulations: Increase as needed (max: 604800s = 7 days per Cloud Batch limits)
+  - Medium simulations (1-5 hours): 18000 seconds
+  - Long simulations (5-10 hours): 36000 seconds (default)
+  - Very long simulations: Up to 604800s (7 days, Cloud Batch limit)
 
-**Recommended production configuration:**
-```bash
-STAGE_B_MACHINE_TYPE="e2-standard-2"  # Explicit type for predictable scaling
-TASK_COUNT_PER_NODE=1                 # One task per VM (no queueing)
-```
-
-### Batch Compute Resources - Stage C (Output)
-
-```bash
-STAGE_C_CPU_MILLI=2000             # CPU in milli-cores (2000 = 2 vCPUs)
-STAGE_C_MEMORY_MIB=8192            # Memory in MiB (8192 = 8 GB)
-STAGE_C_MACHINE_TYPE=""            # VM type (e.g., "e2-standard-2", empty = auto-select)
-STAGE_C_MAX_RUN_DURATION=7200      # Maximum task duration in seconds (7200s = 2 hours)
-```
-
-**Stage C Configuration:**
+**Stage C (Output):**
 - Stage C aggregates all Stage B results into formatted CSV outputs
 - Single task job (not parallelized)
 - Memory requirements increase with number of Stage B tasks
 - Default: 8 GB (suitable for up to ~1000 tasks)
 - Increase memory for larger runs (10,000+ tasks may need 16-32 GB)
+- Timeout guidelines:
+  - Small runs (< 100 tasks): 1800 seconds (30 minutes)
+  - Medium runs (100-1000 tasks): 7200 seconds (2 hours, default)
+  - Large runs (1000-10,000 tasks): 14400 seconds (4 hours)
+  - Very large runs (10,000+ tasks): Increase as needed
 
-**Timeout Guidelines:**
-- Default: 7200 seconds (2 hours)
-- Small runs (< 100 tasks): 1800 seconds (30 minutes)
-- Medium runs (100-1000 tasks): 7200 seconds (2 hours)
-- Large runs (1000-10,000 tasks): 14400 seconds (4 hours)
-- Very large runs (10,000+ tasks): Increase as needed
+### Recommended Production Configuration
 
-### Pipeline Control
-
-```bash
-RUN_OUTPUT_STAGE=true              # Enable/disable Stage C execution (default: true)
+```yaml
+google_cloud:
+  batch:
+    task_count_per_node: 1            # One task per VM (no queueing)
+    stage_b:
+      machine_type: "e2-standard-2"   # Explicit type for predictable scaling
+      cpu_milli: 2000
+      memory_mib: 8192
 ```
-
-**Stage C Control:**
-- `RUN_OUTPUT_STAGE=true`: Stage C runs automatically after Stage B completes
-- `RUN_OUTPUT_STAGE=false`: Stage C is skipped, workflow ends after Stage B
-- Useful for debugging or when you only need raw result files
 
 
 ## Output Structure
@@ -137,15 +137,15 @@ gs://{BUCKET_NAME}/{DIR_PREFIX}{EXP_ID}/{RUN_ID}/
 ```
 
 **Path components:**
-- `BUCKET_NAME` - GCS bucket (from `.env`)
-- `DIR_PREFIX` - Organizational prefix (from `.env`, optional trailing slash)
+- `BUCKET_NAME` - GCS bucket (from `google_cloud.bucket_name`)
+- `DIR_PREFIX` - Organizational prefix (from `storage.dir_prefix`)
 - `EXP_ID` - Experiment identifier (user provides when running workflow)
 - `RUN_ID` - Auto-generated timestamp-uuid (unique per workflow execution)
 
 **Output directories:**
 - `builder-artifacts/` - Stage A input files (N pickle files)
 - `runner-artifacts/` - Stage B result files (N pickle files)
-- `outputs/` - Stage C formatted CSV files (only created if `RUN_OUTPUT_STAGE=true`)
+- `outputs/` - Stage C formatted CSV files (only created if `run_output_stage: true`)
 
 
 ## GitHub Authentication
@@ -168,6 +168,9 @@ For cloud builds and workflow execution, store PAT in Google Secret Manager.
 
 **Setup:**
 ```bash
+# Get project ID from config
+PROJECT_ID=$(epycloud config show | grep 'project_id:' | awk '{print $2}')
+
 # Create secret (first time)
 echo -n "your_github_pat" | gcloud secrets create github-pat \
   --data-file=- \
@@ -184,38 +187,37 @@ echo -n "new_github_pat" | gcloud secrets versions add github-pat \
 - Batch jobs fetch PAT to clone forecast repository
 - Service accounts have `secretmanager.secretAccessor` role
 
-### Local Development (.env.local)
+### Local Development (secrets.yaml)
 
-For local Docker builds (`make build-local` and `make build-dev`), use `.env.local`.
+For local Docker builds, configure GitHub PAT in `secrets.yaml`.
 
-**Template:** [.env.local.example](.env.local.example)
+**Location:** `~/.config/epymodelingsuite-cloud/secrets.yaml`
 
 **Setup:**
 ```bash
-# Copy template
-cp .env.local.example .env.local
+# Edit secrets file (creates with 0600 permissions)
+epycloud config edit-secrets
 
-# Edit .env.local and add your PAT
-# File contents:
-GITHUB_PAT=your_github_pat_here
+# Add your GitHub PAT:
+github:
+  personal_access_token: github_pat_xxxxxxxxxxxxx
 
-# Load variables before building
-source .env.local
+# Verify it's configured
+epycloud config show | grep personal_access_token
 ```
 
 **Usage:**
 ```bash
-# Build local development image
-source .env.local
-make build-dev
+# Build local development image (PAT loaded automatically)
+epycloud build dev
 
 # Build cloud image locally and push
-source .env.local
-make build-local
+epycloud build local
 ```
 
 **Security notes:**
-- `.env.local` is gitignored - never commit it
+- `secrets.yaml` is automatically created with 0600 permissions (user read/write only)
+- Located in `~/.config/epymodelingsuite-cloud/` (not in project directory)
 - Only needed for local Docker builds with private repositories
 - Cloud builds use Secret Manager instead
 - PAT is passed to Docker as a build argument (not persisted in image layers)
@@ -224,25 +226,97 @@ make build-local
 ## Configuration Flow
 
 **Setup (one-time):**
-1. Copy `.env.example` → `.env` and configure values
-2. For local builds: Copy `.env.local.example` → `.env.local` and add GitHub PAT
-3. For cloud deployment: Create GitHub PAT and store in Secret Manager
-4. Run `make tf-init && make tf-apply` to deploy infrastructure
+1. Initialize configuration: `epycloud config init`
+2. Edit base config: `epycloud config edit`
+3. Edit secrets: `epycloud config edit-secrets` (add GitHub PAT)
+4. For cloud deployment: Create GitHub PAT and store in Secret Manager
+5. Deploy infrastructure: `epycloud terraform init && epycloud terraform apply`
+
+**Configuration hierarchy (lowest to highest priority):**
+1. Base config (`config.yaml`)
+2. Environment config (`environments/{env}.yaml`)
+3. Profile config (`profiles/{profile}.yaml`)
+4. Project config (`./epycloud.yaml`, optional)
+5. Secrets (`secrets.yaml`, merged into config)
+6. Template interpolation (variables like `{environment}`, `{profile}`)
+7. Environment variables (`EPYCLOUD_*` prefix overrides)
 
 **Cloud build and deploy:**
-1. Makefile reads `.env` variables
-2. Passes variables to Cloud Build, Terraform, and Workflow execution
+1. `epycloud` CLI loads merged configuration from config files
+2. Passes configuration to Cloud Build, Terraform, and Workflow execution
 3. Terraform injects variables into workflow YAML via `templatefile()`
 4. Cloud Build fetches GitHub PAT from Secret Manager
 5. Workflow generates unique `run_id` and constructs GCS paths
 
 **Local build:**
-1. Load both `.env` and `.env.local`: `source .env && source .env.local`
-2. Makefile passes `GITHUB_PAT` from `.env.local` to Docker build
-3. Docker build uses PAT to clone private repositories during image build
+1. `epycloud build dev` loads configuration automatically
+2. Reads GitHub PAT from `secrets.yaml`
+3. Passes configuration and PAT to Docker build
+4. Docker build uses PAT to clone private repositories during image build
 
 **Runtime:**
 1. Batch jobs receive environment variables from workflow
 2. Jobs fetch GitHub PAT from Secret Manager to clone repositories
 3. Results stored in GCS at `{bucket}/{dirPrefix}{exp_id}/{run_id}/`
+
+## Environment Variable Overrides
+
+You can override any configuration value using environment variables with the `EPYCLOUD_` prefix:
+
+```bash
+# Override project ID
+export EPYCLOUD_GOOGLE_CLOUD__PROJECT_ID=my-other-project
+
+# Override image tag
+export EPYCLOUD_DOCKER__IMAGE_TAG=v1.2.3
+
+# Override GitHub repository
+export EPYCLOUD_GITHUB__MODELING_SUITE_REF=feature-branch
+
+# Run command with overrides
+epycloud build cloud
+```
+
+**Path separator:** Use double underscore `__` to separate nested paths (e.g., `GOOGLE_CLOUD__PROJECT_ID` → `google_cloud.project_id`)
+
+## Migration from .env Files
+
+If you have existing `.env` files, migrate to the unified config system:
+
+**Mapping: .env → config.yaml**
+
+| Old .env Variable | New config.yaml Path |
+|------------------|----------------------|
+| `PROJECT_ID` | `google_cloud.project_id` |
+| `REGION` | `google_cloud.region` |
+| `BUCKET_NAME` | `google_cloud.bucket_name` |
+| `REPO_NAME` | `docker.repo_name` |
+| `IMAGE_NAME` | `docker.image_name` |
+| `IMAGE_TAG` | `docker.image_tag` |
+| `GITHUB_FORECAST_REPO` | `github.forecast_repo` |
+| `GITHUB_MODELING_SUITE_REPO` | `github.modeling_suite_repo` |
+| `GITHUB_MODELING_SUITE_REF` | `github.modeling_suite_ref` |
+| `DIR_PREFIX` | `storage.dir_prefix` |
+| `MAX_PARALLELISM` | `google_cloud.batch.max_parallelism` |
+| `TASK_COUNT_PER_NODE` | `google_cloud.batch.task_count_per_node` |
+| `STAGE_A_CPU_MILLI` | `google_cloud.batch.stage_a.cpu_milli` |
+| `STAGE_A_MEMORY_MIB` | `google_cloud.batch.stage_a.memory_mib` |
+| `STAGE_A_MACHINE_TYPE` | `google_cloud.batch.stage_a.machine_type` |
+| `STAGE_B_CPU_MILLI` | `google_cloud.batch.stage_b.cpu_milli` |
+| `STAGE_B_MEMORY_MIB` | `google_cloud.batch.stage_b.memory_mib` |
+| `STAGE_B_MACHINE_TYPE` | `google_cloud.batch.stage_b.machine_type` |
+| `STAGE_B_MAX_RUN_DURATION` | `google_cloud.batch.stage_b.max_run_duration` |
+| `STAGE_C_CPU_MILLI` | `google_cloud.batch.stage_c.cpu_milli` |
+| `STAGE_C_MEMORY_MIB` | `google_cloud.batch.stage_c.memory_mib` |
+| `STAGE_C_MACHINE_TYPE` | `google_cloud.batch.stage_c.machine_type` |
+| `STAGE_C_MAX_RUN_DURATION` | `google_cloud.batch.stage_c.max_run_duration` |
+| `RUN_OUTPUT_STAGE` | `google_cloud.batch.run_output_stage` |
+| `LOG_LEVEL` | `logging.level` |
+| `STORAGE_VERBOSE` | `logging.storage_verbose` |
+
+**Mapping: .env.local → secrets.yaml**
+
+| Old .env.local Variable | New secrets.yaml Path |
+|------------------------|----------------------|
+| `GITHUB_PAT` | `github.personal_access_token` |
 
