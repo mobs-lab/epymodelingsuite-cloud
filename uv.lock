@@ -311,6 +311,7 @@ dependencies = [
     { name = "pandas" },
     { name = "python-json-logger" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "scipy" },
 ]
 
@@ -337,6 +338,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "python-json-logger", specifier = ">=2.0.7" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "scipy", specifier = ">=1.11.0" },
 ]
