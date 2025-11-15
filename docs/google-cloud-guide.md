@@ -581,20 +581,20 @@ source .env.local  # For GITHUB_PAT if using private repos
 epycloud build dev
 
 # Run builder (Stage A) - this auto-generates RUN_ID
-epycloud run local builder --exp-id test-sim
+epycloud run job --local --stage builder --exp-id test-sim
 # Note the RUN_ID from the output, e.g., "20251114-123045-a1b2c3"
 
 # Run a single runner locally (Stage B)
-epycloud run local runner --exp-id test-sim --run-id <run_id> --task-index 0
+epycloud run job --local --stage runner --exp-id test-sim --run-id <run_id> --task-index 0
 
 # Run multiple runners for different tasks
 for i in {0..9}; do
-  epycloud run local runner --exp-id test-sim --run-id <run_id> --task-index $i &
+  epycloud run job --local --stage runner --exp-id test-sim --run-id <run_id> --task-index $i &
 done
 wait
 
 # Run output generation (Stage C)
-epycloud run local output --exp-id test-sim --run-id <run_id> --num-tasks 10
+epycloud run job --local --stage output --exp-id test-sim --run-id <run_id> --num-tasks 10
 ```
 
 **Note:** The `epycloud` CLI wraps `docker compose` calls with additional features:
@@ -604,9 +604,9 @@ epycloud run local output --exp-id test-sim --run-id <run_id> --num-tasks 10
 - Provides helpful output messages showing where files are read/written
 
 **What the epycloud CLI does:**
-- `epycloud run local builder` → runs `docker compose run --rm builder` with environment variables
-- `epycloud run local runner` → runs `docker compose run --rm runner` with environment variables
-- `epycloud run local output` → runs `docker compose run --rm output` with environment variables
+- `epycloud run job --local --stage builder` → runs `docker compose run --rm builder` with environment variables
+- `epycloud run job --local --stage runner` → runs `docker compose run --rm runner` with environment variables
+- `epycloud run job --local --stage output` → runs `docker compose run --rm output` with environment variables
 
 **Alternative (NOT recommended): Direct docker compose commands**
 ```bash
@@ -813,9 +813,9 @@ epycloud logs --exp-id my-exp           # View logs
 epycloud logs --exp-id my-exp --stage B # Filter by stage
 
 # Local development
-epycloud run local builder --exp-id test-sim
-epycloud run local runner --exp-id test-sim --run-id <run_id> --task-index 0
-epycloud run local output --exp-id test-sim --run-id <run_id> --num-tasks 10
+epycloud run job --local --stage builder --exp-id test-sim
+epycloud run job --local --stage runner --exp-id test-sim --run-id <run_id> --task-index 0
+epycloud run job --local --stage output --exp-id test-sim --run-id <run_id> --num-tasks 10
 
 # Configuration
 epycloud config show           # Show current config
