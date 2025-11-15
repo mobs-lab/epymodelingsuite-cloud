@@ -22,6 +22,8 @@ def register_parser(subparsers: Any) -> None:
         subparsers: Subparsers from main argument parser
     """
     parser = subparsers.add_parser("profile", help="Profile management")
+    # Store parser for help printing
+    parser.set_defaults(_profile_parser=parser)
     profile_subparsers = parser.add_subparsers(
         dest="profile_subcommand", help="Profile subcommands"
     )
@@ -71,7 +73,11 @@ def handle(ctx: dict) -> int:
     subcommand = args.profile_subcommand
 
     if not subcommand:
-        error("No subcommand provided. Use 'epycloud profile --help' for usage.")
+        # Print help instead of error message
+        if hasattr(args, "_profile_parser"):
+            args._profile_parser.print_help()
+        else:
+            error("No subcommand provided. Use 'epycloud profile --help' for usage.")
         return 1
 
     if subcommand == "list":

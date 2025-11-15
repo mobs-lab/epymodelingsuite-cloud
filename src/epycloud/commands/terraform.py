@@ -27,6 +27,9 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         description="Initialize, plan, apply, destroy, and view Terraform infrastructure",
     )
 
+    # Store parser for help printing
+    parser.set_defaults(_terraform_parser=parser)
+
     # Create subcommands
     tf_subparsers = parser.add_subparsers(dest="terraform_subcommand", help="Terraform operation")
 
@@ -112,7 +115,11 @@ def handle(ctx: dict[str, Any]) -> int:
         return 2
 
     if not args.terraform_subcommand:
-        error("No subcommand specified. Use 'epycloud terraform --help'")
+        # Print help instead of error message
+        if hasattr(args, "_terraform_parser"):
+            args._terraform_parser.print_help()
+        else:
+            error("No subcommand specified. Use 'epycloud terraform --help'")
         return 1
 
     # Route to subcommand handler

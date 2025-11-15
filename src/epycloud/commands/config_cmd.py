@@ -28,6 +28,8 @@ def register_parser(subparsers: Any) -> None:
         subparsers: Subparsers from main argument parser
     """
     parser = subparsers.add_parser("config", help="Configuration management")
+    # Store parser for help printing
+    parser.set_defaults(_config_parser=parser)
     config_subparsers = parser.add_subparsers(dest="config_subcommand", help="Config subcommands")
 
     # config init
@@ -75,7 +77,11 @@ def handle(ctx: dict) -> int:
     subcommand = args.config_subcommand
 
     if not subcommand:
-        error("No subcommand provided. Use 'epycloud config --help' for usage.")
+        # Print help instead of error message
+        if hasattr(args, "_config_parser"):
+            args._config_parser.print_help()
+        else:
+            error("No subcommand provided. Use 'epycloud config --help' for usage.")
         return 1
 
     if subcommand == "init":
