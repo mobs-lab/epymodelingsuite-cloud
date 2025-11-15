@@ -11,7 +11,6 @@ Available subcommands:
     epycloud config set           Set config value
 """
 
-import argparse
 import os
 import shutil
 import subprocess
@@ -43,7 +42,7 @@ def register_parser(subparsers: Any) -> None:
     parser = subparsers.add_parser(
         "config",
         help="Configuration management",
-        description="Manage configuration files and settings.",
+        description="Manage configuration files and settings for epycloud CLI.",
         epilog="""Examples:
   epycloud config show
   epycloud config edit
@@ -70,7 +69,9 @@ def register_parser(subparsers: Any) -> None:
 
     # config edit
     edit_parser = config_subparsers.add_parser("edit", help="Edit base config in $EDITOR")
-    edit_parser.add_argument("--env", dest="edit_env", help="Edit environment config (dev, prod, local)")
+    edit_parser.add_argument(
+        "--env", dest="edit_env", help="Edit environment config (dev, prod, local)"
+    )
 
     # config edit-secrets
     config_subparsers.add_parser("edit-secrets", help="Edit secrets.yaml in $EDITOR")
@@ -302,7 +303,9 @@ def handle_edit_secrets(ctx: dict) -> int:
     # Create secrets file with secure permissions if it doesn't exist
     if not file_path.exists():
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text("# Secrets configuration\n# Store sensitive credentials here\n\ngithub:\n  personal_access_token: \"\"\n")
+        file_path.write_text(
+            '# Secrets configuration\n# Store sensitive credentials here\n\ngithub:\n  personal_access_token: ""\n'
+        )
         os.chmod(file_path, 0o600)
         info(f"Created {file_path} with secure permissions (0600)")
 
