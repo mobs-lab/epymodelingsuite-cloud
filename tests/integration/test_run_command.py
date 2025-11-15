@@ -11,21 +11,20 @@ class TestRunWorkflowCommand:
     """Test run workflow command integration."""
 
     @patch("epycloud.commands.run.subprocess.run")
-    @patch("urllib.request.urlopen")
-    def test_run_workflow_cloud_success(self, mock_urlopen, mock_subprocess, mock_config):
+    @patch("epycloud.commands.run.requests.post")
+    def test_run_workflow_cloud_success(self, mock_post, mock_subprocess, mock_config):
         """Test successful workflow submission to cloud."""
         # Setup mocks
         mock_subprocess.return_value = Mock(returncode=0, stdout="mock-access-token\n", stderr="")
 
         mock_response = Mock()
-        mock_response.read.return_value = (
-            b'{"name": "projects/test-project/locations/us-central1/'
-            b'workflows/epymodelingsuite-pipeline/executions/abc123", '
-            b'"state": "ACTIVE"}'
-        )
-        mock_response.__enter__ = Mock(return_value=mock_response)
-        mock_response.__exit__ = Mock(return_value=None)
-        mock_urlopen.return_value = mock_response
+        mock_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+                    "workflows/epymodelingsuite-pipeline/executions/abc123",
+            "state": "ACTIVE"
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
 
         # Create context
         ctx = {
@@ -51,11 +50,11 @@ class TestRunWorkflowCommand:
 
         # Validate
         assert exit_code == 0
-        assert mock_urlopen.called
+        assert mock_post.called
         assert mock_subprocess.called
 
         # Verify API call was made
-        call_args = mock_urlopen.call_args
+        call_args = mock_post.call_args
         assert call_args is not None
 
     def test_run_workflow_missing_config(self):
@@ -135,7 +134,7 @@ class TestRunWorkflowCommand:
         }
 
         with patch("epycloud.commands.run.subprocess.run") as mock_subprocess:
-            with patch("urllib.request.urlopen") as mock_urlopen:
+            with patch("epycloud.commands.run.requests.post") as mock_post:
                 # Setup subprocess mock for token
                 mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
 
@@ -143,8 +142,8 @@ class TestRunWorkflowCommand:
 
                 # Should succeed without making actual API call
                 assert exit_code == 0
-                # urlopen should not be called in dry run
-                assert not mock_urlopen.called
+                # requests.post should not be called in dry run
+                assert not mock_post.called
 
 
 class TestRunJobCommand:
