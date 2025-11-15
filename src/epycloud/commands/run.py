@@ -30,6 +30,7 @@ from epycloud.lib.command_helpers import (
 from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id, validate_run_id
+from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -97,6 +98,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Wait for completion and stream logs",
     )
 
+    workflow_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Auto-confirm without prompting",
+    )
+
     # ========== run job ==========
     job_parser = run_subparsers.add_parser(
         "job",
@@ -144,6 +151,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--wait",
         action="store_true",
         help="Wait for completion and stream logs",
+    )
+
+    job_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Auto-confirm without prompting",
     )
 
 
@@ -209,24 +222,29 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
     skip_output = args.skip_output
     max_parallelism = args.max_parallelism
     wait = args.wait
+    auto_confirm = args.yes
 
     if local:
         return _run_workflow_local(
+            ctx=ctx,
             config=config,
             exp_id=exp_id,
             run_id=run_id,
             skip_output=skip_output,
+            auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
         )
     else:
         return _run_workflow_cloud(
+            ctx=ctx,
             config=config,
             exp_id=exp_id,
             run_id=run_id,
             skip_output=skip_output,
             max_parallelism=max_parallelism,
             wait=wait,
+            auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
         )
@@ -273,6 +291,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
     num_tasks = args.num_tasks
     local = args.local
     wait = args.wait
+    auto_confirm = args.yes
 
     # Validate requirements
     if stage in ["B", "C"] and not run_id:
@@ -285,17 +304,20 @@ def _handle_job(ctx: dict[str, Any]) -> int:
 
     if local:
         return _run_job_local(
+            ctx=ctx,
             config=config,
             stage=stage,
             exp_id=exp_id,
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
         )
     else:
         return _run_job_cloud(
+            ctx=ctx,
             config=config,
             stage=stage,
             exp_id=exp_id,
@@ -303,43 +325,47 @@ def _handle_job(ctx: dict[str, Any]) -> int:
             task_index=task_index,
             num_tasks=num_tasks,
             wait=wait,
+            auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
         )
 
 
 def _run_workflow_cloud(
+    ctx: dict[str, Any],
     config: dict[str, Any],
     exp_id: str,
     run_id: str | None,
     skip_output: bool,
     max_parallelism: int | None,
     wait: bool,
+    auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
 ) -> int:
     """Submit workflow to Cloud Workflows.
 
     Args:
+        ctx: Command context
         config: Configuration dict
         exp_id: Experiment ID
         run_id: Optional run ID (auto-generated in workflow if not provided)
         skip_output: Skip stage C
         max_parallelism: Max parallel tasks
         wait: Wait for completion
+        auto_confirm: Auto-confirm without prompting
         verbose: Verbose output
         dry_run: Dry run mode
 
     Returns:
         Exit code
     """
-    info("Submitting workflow to Cloud Workflows...")
-    info(f"Experiment ID: {exp_id}")
-
     # Get config values
     google_cloud_config = config.get("google_cloud", {})
     github_config = config.get("github", {})
     pipeline_config = config.get("pipeline", {})
+    docker_config = config.get("docker", {})
+    batch_config = google_cloud_config.get("batch", {})
 
     project_id = google_cloud_config.get("project_id")
     region = google_cloud_config.get("region", "us-central1")
@@ -361,16 +387,49 @@ def _run_workflow_cloud(
     # Get batch service account email
     batch_sa_email = _get_batch_sa_email(project_id)
 
-    info(f"Bucket: gs://{bucket_name}")
-    info(f"Region: {region}")
-    if github_forecast_repo:
-        info(f"GitHub Repo: {github_forecast_repo}")
-    if skip_output:
-        warning("Output stage will be skipped")
-    if run_id:
-        info(f"Run ID: {run_id} (manually specified)")
-    else:
-        info("Run ID: (will be auto-generated)")
+    # Build Docker image URI
+    registry = docker_config.get("registry", "us-central1-docker.pkg.dev")
+    repo_name = docker_config.get("repo_name", "epymodelingsuite-repo")
+    image_name = docker_config.get("image_name", "epymodelingsuite")
+    image_tag = docker_config.get("image_tag", "latest")
+    image_uri = f"{registry}/{project_id}/{repo_name}/{image_name}:{image_tag}"
+
+    # Get Stage B machine type
+    stage_b_config = batch_config.get("stage_b", {})
+    stage_b_machine_type = stage_b_config.get("machine_type", "")
+
+    # Build storage path
+    generated_run_id = run_id if run_id else "<auto-generated>"
+    storage_path = f"gs://{bucket_name}/{dir_prefix}{exp_id}/{generated_run_id}/"
+
+    # Build confirmation info
+    confirmation_info = {
+        "command_type": "workflow",
+        "exp_id": exp_id,
+        "run_id": generated_run_id,
+        "environment": ctx.get("environment", ""),
+        "profile": ctx.get("profile", ""),
+        "project_id": project_id,
+        "region": region,
+        "bucket_name": bucket_name,
+        "storage_path": storage_path,
+        "modeling_suite_repo": github_config.get("modeling_suite_repo", ""),
+        "modeling_suite_ref": github_config.get("modeling_suite_ref", "main"),
+        "forecast_repo": github_forecast_repo,
+        "pat_configured": bool(github_config.get("personal_access_token")),
+        "max_parallelism": max_parallelism or pipeline_config.get("max_parallelism", 100),
+        "stage_b_machine_type": stage_b_machine_type,
+        "skip_output": skip_output,
+        "image_uri": image_uri,
+    }
+
+    # Show confirmation and prompt
+    confirmation_message = format_confirmation(confirmation_info, mode="cloud")
+    if not prompt_confirmation(confirmation_message, auto_confirm=auto_confirm):
+        info("Operation cancelled.")
+        return 0
+
+    info("Submitting workflow to Cloud Workflows...")
 
     # Build workflow argument
     workflow_arg = {
@@ -481,35 +540,67 @@ def _run_workflow_cloud(
 
 
 def _run_workflow_local(
+    ctx: dict[str, Any],
     config: dict[str, Any],
     exp_id: str,
     run_id: str | None,
     skip_output: bool,
+    auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
 ) -> int:
     """Run complete workflow locally with docker compose.
 
     Args:
+        ctx: Command context
         config: Configuration dict
         exp_id: Experiment ID
         run_id: Optional run ID
         skip_output: Skip stage C
+        auto_confirm: Auto-confirm without prompting
         verbose: Verbose output
         dry_run: Dry run mode
 
     Returns:
         Exit code
     """
-    info("Running workflow locally with Docker Compose...")
-    info(f"Experiment ID: {exp_id}")
+    # Get config values
+    docker_config = config.get("docker", {})
+    pipeline_config = config.get("pipeline", {})
+
+    image_name = docker_config.get("image_name", "epymodelingsuite")
+    image_tag = docker_config.get("image_tag", "latest")
+    dir_prefix = pipeline_config.get("dir_prefix", "pipeline/flu/")
 
     # Generate run ID if not provided
     if not run_id:
         run_id = _generate_run_id()
-        info(f"Generated Run ID: {run_id}")
-    else:
-        info(f"Run ID: {run_id}")
+
+    # Build storage path
+    storage_path = f"./local/bucket/{dir_prefix}{exp_id}/{run_id}/"
+
+    # Build confirmation info
+    confirmation_info = {
+        "command_type": "workflow",
+        "exp_id": exp_id,
+        "run_id": run_id,
+        "environment": ctx.get("environment", ""),
+        "profile": ctx.get("profile", ""),
+        "storage_path": storage_path,
+        "skip_output": skip_output,
+        "image_name": image_name,
+        "image_tag": image_tag,
+    }
+
+    # Show confirmation and prompt
+    confirmation_message = format_confirmation(confirmation_info, mode="local")
+    if not prompt_confirmation(confirmation_message, auto_confirm=auto_confirm):
+        info("Operation cancelled.")
+        return 0
+
+    info("Running workflow locally with Docker Compose...")
+    info(f"Experiment ID: {exp_id}")
+    info(f"Run ID: {run_id}")
 
     project_root = get_project_root()
 
@@ -615,6 +706,7 @@ def _run_workflow_local(
 
 
 def _run_job_cloud(
+    ctx: dict[str, Any],
     config: dict[str, Any],
     stage: str,
     exp_id: str,
@@ -622,12 +714,14 @@ def _run_job_cloud(
     task_index: int,
     num_tasks: int | None,
     wait: bool,
+    auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
 ) -> int:
     """Submit individual job to Cloud Batch.
 
     Args:
+        ctx: Command context
         config: Configuration dict
         stage: Stage (A, B, or C)
         exp_id: Experiment ID
@@ -635,29 +729,19 @@ def _run_job_cloud(
         task_index: Task index for stage B
         num_tasks: Number of tasks for stage C
         wait: Wait for completion
+        auto_confirm: Auto-confirm without prompting
         verbose: Verbose output
         dry_run: Dry run mode
 
     Returns:
         Exit code
     """
-    info(f"Submitting Stage {stage} job to Cloud Batch...")
-    info(f"Experiment ID: {exp_id}")
-
-    if run_id:
-        info(f"Run ID: {run_id}")
-
-    if stage == "B":
-        info(f"Task Index: {task_index}")
-    elif stage == "C":
-        info(f"Number of Tasks: {num_tasks}")
-
     # Get configuration
     google_cloud_config = config.get("google_cloud", {})
     docker_config = config.get("docker", {})
     github_config = config.get("github", {})
     pipeline_config = config.get("pipeline", {})
-    resources_config = config.get("resources", {})
+    batch_config = google_cloud_config.get("batch", {})
 
     project_id = google_cloud_config.get("project_id")
     region = google_cloud_config.get("region", "us-central1")
@@ -673,11 +757,11 @@ def _run_job_cloud(
 
     # Get stage-specific resources
     stage_key = f"stage_{stage.lower()}"
-    stage_resources = resources_config.get(stage_key, {})
-    cpu_milli = stage_resources.get("cpu_milli", 2000)
-    memory_mib = stage_resources.get("memory_mib", 8192)
-    machine_type = stage_resources.get("machine_type", "")
-    max_run_duration = stage_resources.get("max_run_duration", 3600)
+    stage_config = batch_config.get(stage_key, {})
+    cpu_milli = stage_config.get("cpu_milli", 2000)
+    memory_mib = stage_config.get("memory_mib", 8192)
+    machine_type = stage_config.get("machine_type", "")
+    max_run_duration = stage_config.get("max_run_duration", 3600)
 
     # Validate
     if not project_id or not bucket_name:
@@ -694,7 +778,34 @@ def _run_job_cloud(
     # Auto-generate run_id for stage A if not provided
     if stage == "A" and not run_id:
         run_id = _generate_run_id()
-        info(f"Generated Run ID: {run_id}")
+
+    # Build confirmation info
+    confirmation_info = {
+        "command_type": "job",
+        "exp_id": exp_id,
+        "run_id": run_id if run_id else "<auto-generated>",
+        "environment": ctx.get("environment", ""),
+        "profile": ctx.get("profile", ""),
+        "project_id": project_id,
+        "region": region,
+        "stage": stage,
+        "machine_type": machine_type,
+        "max_duration_hours": max_run_duration // 3600,
+        "image_uri": image_uri,
+    }
+
+    if stage == "B":
+        confirmation_info["task_index"] = task_index
+    elif stage == "C":
+        confirmation_info["num_tasks"] = num_tasks
+
+    # Show confirmation and prompt
+    confirmation_message = format_confirmation(confirmation_info, mode="cloud")
+    if not prompt_confirmation(confirmation_message, auto_confirm=auto_confirm):
+        info("Operation cancelled.")
+        return 0
+
+    info(f"Submitting Stage {stage} job to Cloud Batch...")
 
     # Build job configuration
     job_config = _build_batch_job_config(
@@ -713,15 +824,6 @@ def _run_job_cloud(
         max_run_duration=max_run_duration,
         batch_sa_email=batch_sa_email,
     )
-
-    info("")
-    info("Configuration:")
-    info(f"  Job ID: {job_id}")
-    info(f"  Image: {image_uri}")
-    info(f"  CPU: {cpu_milli} milli-cores")
-    info(f"  Memory: {memory_mib} MiB")
-    if machine_type:
-        info(f"  Machine Type: {machine_type}")
 
     if handle_dry_run(
         {"dry_run": dry_run},
@@ -818,38 +920,76 @@ def _build_env_from_config(config: dict[str, Any]) -> dict[str, str]:
 
 
 def _run_job_local(
+    ctx: dict[str, Any],
     config: dict[str, Any],
     stage: str,
     exp_id: str,
     run_id: str | None,
     task_index: int,
     num_tasks: int | None,
+    auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
 ) -> int:
     """Run individual job locally with docker compose.
 
     Args:
+        ctx: Command context
         config: Configuration dict
         stage: Stage (A, B, or C)
         exp_id: Experiment ID
         run_id: Run ID
         task_index: Task index for stage B
         num_tasks: Number of tasks for stage C
+        auto_confirm: Auto-confirm without prompting
         verbose: Verbose output
         dry_run: Dry run mode
 
     Returns:
         Exit code
     """
-    info(f"Running Stage {stage} locally with Docker Compose...")
-    info(f"Experiment ID: {exp_id}")
+    # Get config values
+    docker_config = config.get("docker", {})
+    pipeline_config = config.get("pipeline", {})
+
+    image_name = docker_config.get("image_name", "epymodelingsuite")
+    image_tag = docker_config.get("image_tag", "latest")
+    dir_prefix = pipeline_config.get("dir_prefix", "pipeline/flu/")
 
     # Auto-generate run_id for stage A if not provided
     if stage == "A" and not run_id:
         run_id = _generate_run_id()
-        info(f"Generated Run ID: {run_id}")
-    elif run_id:
+
+    # Build storage path
+    storage_path = f"./local/bucket/{dir_prefix}{exp_id}/{run_id if run_id else '<auto-generated>'}/"
+
+    # Build confirmation info
+    confirmation_info = {
+        "command_type": "job",
+        "exp_id": exp_id,
+        "run_id": run_id if run_id else "<auto-generated>",
+        "environment": ctx.get("environment", ""),
+        "profile": ctx.get("profile", ""),
+        "storage_path": storage_path,
+        "stage": stage,
+        "image_name": image_name,
+        "image_tag": image_tag,
+    }
+
+    if stage == "B":
+        confirmation_info["task_index"] = task_index
+    elif stage == "C":
+        confirmation_info["num_tasks"] = num_tasks
+
+    # Show confirmation and prompt
+    confirmation_message = format_confirmation(confirmation_info, mode="local")
+    if not prompt_confirmation(confirmation_message, auto_confirm=auto_confirm):
+        info("Operation cancelled.")
+        return 0
+
+    info(f"Running Stage {stage} locally with Docker Compose...")
+    info(f"Experiment ID: {exp_id}")
+    if run_id:
         info(f"Run ID: {run_id}")
 
     project_root = get_project_root()
@@ -868,7 +1008,6 @@ def _run_job_local(
             "RUN_ID": run_id,
             "TASK_INDEX": str(task_index),
         }
-        info(f"Task Index: {task_index}")
     else:  # C
         service = "output"
         runtime_vars = {
@@ -876,7 +1015,6 @@ def _run_job_local(
             "RUN_ID": run_id,
             "NUM_TASKS": str(num_tasks),
         }
-        info(f"Number of Tasks: {num_tasks}")
 
     # Merge base config env vars with runtime vars (runtime vars take precedence)
     env_vars = {**base_env, **runtime_vars}
