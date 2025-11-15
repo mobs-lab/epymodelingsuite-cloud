@@ -35,7 +35,7 @@ RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
     fi
 
 # Copy application scripts
-COPY scripts/ /scripts/
+COPY docker/scripts/ /scripts/
 RUN chmod +x /scripts/*.sh 2>/dev/null || true
 
 # =============================================================================

@@ -8,9 +8,9 @@ from unittest.mock import Mock
 
 import pytest
 
-# Add scripts directory to path for imports
-SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
+# Add docker/scripts directory to path for imports
+DOCKER_SCRIPTS = Path(__file__).parent.parent / "docker" / "scripts"
+sys.path.insert(0, str(DOCKER_SCRIPTS))
 
 
 @pytest.fixture
