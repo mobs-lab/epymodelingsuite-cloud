@@ -799,7 +799,6 @@ epycloud terraform output      # View Terraform outputs
 epycloud build cloud           # Cloud Build (recommended)
 epycloud build local           # Build locally and push
 epycloud build dev             # Build for local development
-epycloud build status          # Check build status
 
 # Execute (Cloud)
 epycloud run workflow --exp-id my-exp   # Run workflow on cloud
