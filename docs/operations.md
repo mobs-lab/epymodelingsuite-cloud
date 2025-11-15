@@ -110,9 +110,6 @@ This submits the build asynchronously and returns immediately with a build ID. M
 
 ```bash
 # View build status
-epycloud build status
-
-# Or use gcloud commands directly
 gcloud builds list --region=$REGION --ongoing
 gcloud builds log <BUILD_ID> --region=$REGION --stream
 gcloud builds describe <BUILD_ID> --region=$REGION
