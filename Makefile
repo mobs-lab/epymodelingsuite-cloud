@@ -1,19 +1,21 @@
 # ============================================================================
 # DEPRECATED: This Makefile is deprecated in favor of the epycloud CLI
 #
+# Install epycloud: uv tool install .
+#
 # Please use the following commands instead:
 #
-#   make build              →  uv run epycloud build cloud
-#   make build-local        →  uv run epycloud build local
-#   make build-dev          →  uv run epycloud build dev
-#   make run-builder-local  →  uv run epycloud run local builder --exp-id X
-#   make run-task-local     →  uv run epycloud run local runner --exp-id X --run-id Y --task-index N
-#   make run-output-local   →  uv run epycloud run local output --exp-id X --run-id Y --num-tasks N
-#   make run-workflow       →  uv run epycloud run workflow --exp-id X
-#   make tf-init            →  uv run epycloud terraform init
-#   make tf-plan            →  uv run epycloud terraform plan
-#   make tf-apply           →  uv run epycloud terraform apply
-#   make tf-destroy         →  uv run epycloud terraform destroy
+#   make build              →  epycloud build cloud
+#   make build-local        →  epycloud build local
+#   make build-dev          →  epycloud build dev
+#   make run-builder-local  →  epycloud run local builder --exp-id X
+#   make run-task-local     →  epycloud run local runner --exp-id X --run-id Y --task-index N
+#   make run-output-local   →  epycloud run local output --exp-id X --run-id Y --num-tasks N
+#   make run-workflow       →  epycloud run workflow --exp-id X
+#   make tf-init            →  epycloud terraform init
+#   make tf-plan            →  epycloud terraform plan
+#   make tf-apply           →  epycloud terraform apply
+#   make tf-destroy         →  epycloud terraform destroy
 #
 # This file will be removed in a future version.
 # ============================================================================
