@@ -154,13 +154,13 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Runs on Google Cloud Batch
 - Uses GCS for storage
 - Environment: `EXECUTION_MODE=cloud`
-- Commands: `uv run epycloud run workflow`, `uv run epycloud workflow list`
+- Commands: `epycloud run workflow`, `epycloud workflow list`
 
 **Local Execution**
 - Runs via Docker Compose on your machine
 - Uses local filesystem (`./local/bucket/`)
 - Environment: `EXECUTION_MODE=local`
-- Commands: `uv run epycloud run local builder`, `uv run epycloud run local runner`
+- Commands: `epycloud run local builder`, `epycloud run local runner`
 
 </details>
 
