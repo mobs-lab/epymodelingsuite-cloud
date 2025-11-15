@@ -18,6 +18,10 @@ from typing import Any
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
+    get_docker_config,
+    get_github_config,
+    get_github_pat,
+    get_image_uri,
     get_project_root,
     require_config,
 )
@@ -28,7 +32,6 @@ from epycloud.lib.formatters import (
     format_timestamp_full,
 )
 from epycloud.lib.output import error, info, success, warning
-from epycloud.lib.paths import get_secrets_file
 
 
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -183,22 +186,15 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
         error(str(e))
         return 2
 
-    # Get Docker config
-    docker_config = config.get("docker", {})
-    google_cloud_config = config.get("google_cloud", {})
-    github_config = config.get("github", {})
-
-    # Build image information
-    registry = docker_config.get("registry", "us-central1-docker.pkg.dev")
-    project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
-    repo_name = docker_config.get("repo_name", "epymodelingsuite-repo")
-    image_name = docker_config.get("image_name", "epymodelingsuite")
-    image_tag = args.tag or docker_config.get("image_tag", "latest")
-
-    # GitHub modeling suite repo (optional)
-    modeling_suite_repo = github_config.get("modeling_suite_repo", "")
-    modeling_suite_ref = github_config.get("modeling_suite_ref", "main")
+    # Get config
+    google_cloud = config.get("google_cloud", {})
+    project_id = google_cloud.get("project_id")
+    region = google_cloud.get("region", "us-central1")
+    docker = get_docker_config(config)
+    image_tag = args.tag or docker["image_tag"]
+    github = get_github_config(config)
+    modeling_suite_repo = github["modeling_suite_repo"]
+    modeling_suite_ref = github["modeling_suite_ref"]
 
     # Validate required config
     if not project_id:
@@ -207,7 +203,7 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
         return 2
 
     # Construct image path
-    image_path = f"{registry}/{project_id}/{repo_name}/{image_name}:{image_tag}"
+    image_path = get_image_uri(config, tag=image_tag)
 
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root()
@@ -215,8 +211,8 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
     return _build_cloud(
         project_id=project_id,
         region=region,
-        repo_name=repo_name,
-        image_name=image_name,
+        repo_name=docker["repo_name"],
+        image_name=docker["image_name"],
         image_tag=image_tag,
         image_path=image_path,
         modeling_suite_repo=modeling_suite_repo,
@@ -248,21 +244,14 @@ def _handle_local(ctx: dict[str, Any]) -> int:
         error(str(e))
         return 2
 
-    # Get Docker config
-    docker_config = config.get("docker", {})
-    google_cloud_config = config.get("google_cloud", {})
-    github_config = config.get("github", {})
-
-    # Build image information
-    registry = docker_config.get("registry", "us-central1-docker.pkg.dev")
-    project_id = google_cloud_config.get("project_id")
-    repo_name = docker_config.get("repo_name", "epymodelingsuite-repo")
-    image_name = docker_config.get("image_name", "epymodelingsuite")
-    image_tag = args.tag or docker_config.get("image_tag", "latest")
-
-    # GitHub modeling suite repo (optional)
-    modeling_suite_repo = github_config.get("modeling_suite_repo", "")
-    modeling_suite_ref = github_config.get("modeling_suite_ref", "main")
+    # Get config
+    google_cloud = config.get("google_cloud", {})
+    project_id = google_cloud.get("project_id")
+    docker = get_docker_config(config)
+    image_tag = args.tag or docker["image_tag"]
+    github = get_github_config(config)
+    modeling_suite_repo = github["modeling_suite_repo"]
+    modeling_suite_ref = github["modeling_suite_ref"]
 
     # Validate required config
     if not project_id:
@@ -271,23 +260,11 @@ def _handle_local(ctx: dict[str, Any]) -> int:
         return 2
 
     # Construct image path
-    image_path = f"{registry}/{project_id}/{repo_name}/{image_name}:{image_tag}"
+    image_path = get_image_uri(config, tag=image_tag)
 
-    # Get GitHub PAT from environment or secrets
-    github_pat = os.environ.get("GITHUB_PAT") or os.environ.get("EPYCLOUD_GITHUB_PAT")
-    if not github_pat and modeling_suite_repo:
-        # Check secrets config (merged directly into config by loader)
-        github_pat = config.get("github", {}).get("personal_access_token")
-
-    # Validate GitHub PAT if modeling suite is configured
+    # Get GitHub PAT
+    github_pat = get_github_pat(config, required=bool(modeling_suite_repo))
     if modeling_suite_repo and not github_pat:
-        secrets_file = get_secrets_file()
-        error("GitHub PAT required when modeling_suite_repo is configured")
-        info("Options:")
-        info("  1. Load from .env.local: source .env.local")
-        info("  2. Set environment variable: export GITHUB_PAT=your_token")
-        info("  3. Add to secrets.yaml: epycloud config edit-secrets")
-        info(f"     (File location: {secrets_file})")
         return 2
 
     # Get project root (where Makefile and docker/ dir are)
@@ -325,34 +302,18 @@ def _handle_dev(ctx: dict[str, Any]) -> int:
         error(str(e))
         return 2
 
-    # Get Docker config
-    docker_config = config.get("docker", {})
-    github_config = config.get("github", {})
-
-    # Build image information
-    image_name = docker_config.get("image_name", "epymodelingsuite")
+    # Get config
+    docker = get_docker_config(config)
+    image_name = docker["image_name"]
     image_tag = args.tag or "local"
     image_path = f"{image_name}:{image_tag}"
+    github = get_github_config(config)
+    modeling_suite_repo = github["modeling_suite_repo"]
+    modeling_suite_ref = github["modeling_suite_ref"]
 
-    # GitHub modeling suite repo (optional)
-    modeling_suite_repo = github_config.get("modeling_suite_repo", "")
-    modeling_suite_ref = github_config.get("modeling_suite_ref", "main")
-
-    # Get GitHub PAT from environment or secrets
-    github_pat = os.environ.get("GITHUB_PAT") or os.environ.get("EPYCLOUD_GITHUB_PAT")
-    if not github_pat and modeling_suite_repo:
-        # Check secrets config (merged directly into config by loader)
-        github_pat = config.get("github", {}).get("personal_access_token")
-
-    # Validate GitHub PAT if modeling suite is configured
+    # Get GitHub PAT
+    github_pat = get_github_pat(config, required=bool(modeling_suite_repo))
     if modeling_suite_repo and not github_pat:
-        secrets_file = get_secrets_file()
-        error("GitHub PAT required when modeling_suite_repo is configured")
-        info("Options:")
-        info("  1. Load from .env.local: source .env.local")
-        info("  2. Set environment variable: export GITHUB_PAT=your_token")
-        info("  3. Add to secrets.yaml: epycloud config edit-secrets")
-        info(f"     (File location: {secrets_file})")
         return 2
 
     # Get project root (where Makefile and docker/ dir are)
