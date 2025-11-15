@@ -24,6 +24,7 @@ from epycloud.lib.command_helpers import (
     require_config,
 )
 from epycloud.lib.formatters import (
+    create_subparsers,
     format_duration,
     format_severity,
     format_status,
@@ -49,12 +50,8 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     # Store parser for help printing
     parser.set_defaults(_workflow_parser=parser)
 
-    # Create subcommands
-    workflow_subparsers = parser.add_subparsers(
-        dest="workflow_subcommand",
-        help="",
-        title="Subcommands",
-    )
+    # Create subcommands with consistent formatting
+    workflow_subparsers = create_subparsers(parser, "workflow_subcommand")
 
     # ========== workflow list ==========
     list_parser = workflow_subparsers.add_parser(
