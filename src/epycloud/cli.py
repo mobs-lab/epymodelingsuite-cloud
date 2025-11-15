@@ -54,7 +54,12 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     parser.add_argument("--quiet", "-q", action="store_true", help="Quiet mode (errors only)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would happen")
-    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
+    parser.add_argument(
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Control colored output: auto (default, detect TTY), always (force colors), never (disable colors)",
+    )
 
     # Customize main parser options title
     parser._optionals.title = "Options"
@@ -125,9 +130,8 @@ def main() -> int:
     if args.env is None:
         args.env = "dev"
 
-    # Set color preference based on flag
-    if args.no_color:
-        set_color_enabled(False)
+    # Set color mode
+    set_color_enabled(args.color)
 
     # If no command provided, show help
     if not args.command:

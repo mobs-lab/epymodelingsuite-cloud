@@ -1,23 +1,31 @@
 """Pretty output and formatting utilities for epycloud CLI."""
 
+import os
 import sys
 
 
 # Global color state
-_color_enabled = None  # None = auto-detect, True = force on, False = force off
+_color_enabled = None  # None = auto-detect, "auto", "always", or "never"
 
 
-def set_color_enabled(enabled: bool) -> None:
+def set_color_enabled(mode: str) -> None:
     """
-    Set global color output preference.
+    Set color mode: 'auto', 'always', or 'never'.
 
     Parameters
     ----------
-    enabled : bool
-        True to enable colors, False to disable.
+    mode : str
+        Color mode: "auto" (detect TTY), "always" (force colors), or "never" (disable colors).
+
+    Raises
+    ------
+    ValueError
+        If mode is not one of "auto", "always", or "never".
     """
     global _color_enabled
-    _color_enabled = enabled
+    if mode not in ("auto", "always", "never"):
+        raise ValueError(f"Invalid color mode: {mode}")
+    _color_enabled = mode
 
 
 # ANSI color codes
@@ -53,18 +61,29 @@ def supports_color() -> bool:
     """
     Check if the terminal supports color output.
 
+    Respects the color mode set via set_color_enabled() and the NO_COLOR
+    environment variable (https://no-color.org/).
+
     Returns
     -------
     bool
-        True if stdout is a TTY and platform is not Windows.
+        True if colors should be displayed, False otherwise.
     """
     global _color_enabled
 
-    # If explicitly set, use that
-    if _color_enabled is not None:
-        return _color_enabled
+    # If explicitly set to always, force colors
+    if _color_enabled == "always":
+        return True
 
-    # Check if stdout is a TTY and NO_COLOR is not set
+    # If explicitly set to never, disable colors
+    if _color_enabled == "never":
+        return False
+
+    # Auto mode (default): check NO_COLOR env var first
+    if os.environ.get("NO_COLOR"):
+        return False
+
+    # Check if stdout is a TTY and not Windows
     return sys.stdout.isatty() and not sys.platform.startswith("win")
 
 
