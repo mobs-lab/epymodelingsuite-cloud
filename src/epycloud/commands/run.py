@@ -42,10 +42,6 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Execute pipeline stages or workflows",
         description="""Run pipeline workflows (complete A→B→C execution) or individual stages/jobs.
 
-Available subcommands:
-  workflow    Submit complete workflow (all stages: A → B → C)
-  job         Run a single stage or task (A, B, or C)
-
 Examples:
   epycloud run workflow --exp-id my-experiment
   epycloud run job --stage A --exp-id my-experiment
@@ -58,7 +54,11 @@ Examples:
     parser.set_defaults(_run_parser=parser)
 
     # Create subcommands for workflow vs job
-    run_subparsers = parser.add_subparsers(dest="run_subcommand", help="Run mode")
+    run_subparsers = parser.add_subparsers(
+        dest="run_subcommand",
+        help="",
+        title="Subcommands",
+    )
 
     # ========== run workflow ==========
     workflow_parser = run_subparsers.add_parser(

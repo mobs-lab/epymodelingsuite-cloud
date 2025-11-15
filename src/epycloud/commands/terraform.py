@@ -40,7 +40,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.set_defaults(_terraform_parser=parser)
 
     # Create subcommands
-    tf_subparsers = parser.add_subparsers(dest="terraform_subcommand", help="Terraform operation")
+    tf_subparsers = parser.add_subparsers(
+        dest="terraform_subcommand",
+        help="",
+        title="Subcommands",
+    )
 
     # ========== terraform init ==========
     tf_subparsers.add_parser(
