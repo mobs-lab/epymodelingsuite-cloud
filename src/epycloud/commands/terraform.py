@@ -1,4 +1,13 @@
-"""Terraform command for infrastructure management."""
+"""Terraform command for infrastructure management.
+
+Available subcommands:
+    epycloud terraform init     Initialize Terraform
+    epycloud terraform plan     Plan infrastructure changes
+    epycloud terraform apply    Apply infrastructure changes
+    epycloud terraform destroy  Destroy infrastructure
+    epycloud terraform output   Show Terraform outputs
+    epycloud tf                 Alias for 'terraform'
+"""
 
 import argparse
 import os

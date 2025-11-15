@@ -1,4 +1,12 @@
-"""Workflow command for managing Cloud Workflows executions."""
+"""Workflow command for managing Cloud Workflows executions.
+
+Available subcommands:
+    epycloud workflow list       List workflow executions
+    epycloud workflow describe   Describe execution details
+    epycloud workflow logs       Stream execution logs
+    epycloud workflow cancel     Cancel a running execution
+    epycloud workflow retry      Retry a failed execution
+"""
 
 import argparse
 import json
@@ -243,9 +251,7 @@ def _handle_list(ctx: dict[str, Any]) -> int:
             cutoff_time = parse_since_time(args.since)
             if cutoff_time:
                 executions = [
-                    e
-                    for e in executions
-                    if _parse_timestamp(e.get("startTime", "")) > cutoff_time
+                    e for e in executions if _parse_timestamp(e.get("startTime", "")) > cutoff_time
                 ]
 
         if not executions:
@@ -666,10 +672,12 @@ def _enrich_executions_with_arguments(
 
     # Use session for connection pooling across multiple requests
     with requests.Session() as session:
-        session.headers.update({
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        })
+        session.headers.update(
+            {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+        )
 
         for execution in executions:
             name = execution.get("name", "")

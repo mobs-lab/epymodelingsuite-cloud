@@ -1,5 +1,17 @@
-"""Configuration management commands."""
+"""Configuration management commands.
 
+Available subcommands:
+    epycloud config init          Initialize config directory
+    epycloud config show          Show current configuration
+    epycloud config edit          Edit base config in $EDITOR
+    epycloud config edit-secrets  Edit secrets.yaml in $EDITOR
+    epycloud config validate      Validate configuration
+    epycloud config path          Show config directory path
+    epycloud config get           Get config value
+    epycloud config set           Set config value
+"""
+
+import argparse
 import os
 import shutil
 import subprocess
@@ -27,7 +39,29 @@ def register_parser(subparsers: Any) -> None:
     Args:
         subparsers: Subparsers from main argument parser
     """
-    parser = subparsers.add_parser("config", help="Configuration management")
+    parser = subparsers.add_parser(
+        "config",
+        help="Configuration management",
+        description="""Manage configuration files and settings.
+
+Available subcommands:
+  init          Initialize config directory
+  show          Show current configuration
+  edit          Edit base config in $EDITOR
+  edit-secrets  Edit secrets.yaml in $EDITOR
+  validate      Validate configuration
+  path          Show config directory path
+  get           Get config value
+  set           Set config value
+
+Examples:
+  epycloud config show
+  epycloud config edit
+  epycloud config get google_cloud.project_id
+  epycloud config set google_cloud.project_id my-project
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     # Store parser for help printing
     parser.set_defaults(_config_parser=parser)
     config_subparsers = parser.add_subparsers(dest="config_subcommand", help="Config subcommands")

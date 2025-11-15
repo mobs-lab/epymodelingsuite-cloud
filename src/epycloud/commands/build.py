@@ -1,4 +1,10 @@
-"""Build command for Docker image management."""
+"""Build command for Docker image management.
+
+Available modes:
+    epycloud build cloud    Submit to Cloud Build (async, default)
+    epycloud build local    Build locally and push to registry
+    epycloud build dev      Build locally only (no push)
+"""
 
 import argparse
 import os

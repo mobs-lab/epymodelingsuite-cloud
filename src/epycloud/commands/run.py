@@ -1,4 +1,9 @@
-"""Run command for executing pipeline stages and workflows."""
+"""Run command for executing pipeline stages and workflows.
+
+Available subcommands:
+    epycloud run workflow    Submit complete workflow (all stages: A → B → C)
+    epycloud run job         Run a single stage or task (A, B, or C)
+"""
 
 import argparse
 import json
@@ -35,7 +40,18 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "run",
         help="Execute pipeline stages or workflows",
-        description="Run pipeline workflows (complete A→B→C execution) or individual stages/jobs",
+        description="""Run pipeline workflows (complete A→B→C execution) or individual stages/jobs.
+
+Available subcommands:
+  workflow    Submit complete workflow (all stages: A → B → C)
+  job         Run a single stage or task (A, B, or C)
+
+Examples:
+  epycloud run workflow --exp-id my-experiment
+  epycloud run job --stage A --exp-id my-experiment
+  epycloud run job --stage B --exp-id my-exp --run-id <run_id> --task-index 0
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # Store parser for help printing
