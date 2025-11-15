@@ -27,6 +27,7 @@ from epycloud.lib.command_helpers import (
     prepare_subprocess_env,
     require_config,
 )
+from epycloud.lib.formatters import CapitalizedHelpFormatter
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id, validate_run_id
 
@@ -47,7 +48,7 @@ Examples:
   epycloud run job --stage A --exp-id my-experiment
   epycloud run job --stage B --exp-id my-exp --run-id <run_id> --task-index 0
 """,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=CapitalizedHelpFormatter,
     )
 
     # Store parser for help printing

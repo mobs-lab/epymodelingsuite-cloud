@@ -24,6 +24,7 @@ import yaml
 from epycloud.config.loader import ConfigLoader, get_config_value, set_config_value
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import require_config
+from epycloud.lib.formatters import CapitalizedHelpFormatter
 from epycloud.lib.output import error, info, print_dict, success, warning
 from epycloud.lib.paths import (
     get_config_dir,
@@ -50,10 +51,11 @@ Examples:
   epycloud config get google_cloud.project_id
   epycloud config set google_cloud.project_id my-project
 """,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=CapitalizedHelpFormatter,
     )
     # Store parser for help printing
     parser.set_defaults(_config_parser=parser)
+
     config_subparsers = parser.add_subparsers(
         dest="config_subcommand",
         help="",

@@ -15,9 +15,29 @@ format_severity : Format log severity level with color coding
 format_table : Format data as ASCII table with headers
 parse_since_time : Parse relative time strings like "1h", "30m", "2d"
 parse_duration_string : Parse duration strings to timedelta objects
+
+Classes
+-------
+CapitalizedHelpFormatter : Custom argparse formatter with capitalized section titles
 """
 
+import argparse
 from datetime import UTC, datetime, timedelta
+
+
+class CapitalizedHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """
+    Custom help formatter that capitalizes section titles.
+
+    Extends RawDescriptionHelpFormatter to:
+    - Capitalize "usage:" to "Usage:"
+    - Preserve raw formatting for description text
+    """
+
+    def add_usage(self, usage, actions, groups, prefix=None):
+        if prefix is None:
+            prefix = "Usage: "
+        return super().add_usage(usage, actions, groups, prefix)
 
 
 def format_timestamp(iso_string: str, format: str = "full") -> str:
