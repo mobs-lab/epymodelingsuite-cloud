@@ -21,11 +21,18 @@ import requests
 
 from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
 from epycloud.lib.command_helpers import (
+    generate_run_id,
+    get_batch_config,
+    get_batch_service_account,
+    get_docker_config,
     get_gcloud_access_token,
+    get_github_config,
+    get_image_uri,
     get_project_root,
     handle_dry_run,
     prepare_subprocess_env,
     require_config,
+    validate_inputs,
 )
 from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, success, warning
@@ -211,12 +218,10 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
         return 2
 
     # Validate inputs
-    try:
-        exp_id = validate_exp_id(args.exp_id)
-        run_id = validate_run_id(args.run_id) if args.run_id else None
-    except ValidationError as e:
-        error(str(e))
+    validated = validate_inputs(args)
+    if validated is None:
         return 1
+    exp_id, run_id = validated
 
     local = args.local
     skip_output = args.skip_output
@@ -280,12 +285,10 @@ def _handle_job(ctx: dict[str, Any]) -> int:
         stage = "C"
 
     # Validate inputs
-    try:
-        exp_id = validate_exp_id(args.exp_id)
-        run_id = validate_run_id(args.run_id) if args.run_id else None
-    except ValidationError as e:
-        error(str(e))
+    validated = validate_inputs(args)
+    if validated is None:
         return 1
+    exp_id, run_id = validated
 
     task_index = args.task_index
     num_tasks = args.num_tasks
@@ -361,20 +364,18 @@ def _run_workflow_cloud(
         Exit code
     """
     # Get config values
-    google_cloud_config = config.get("google_cloud", {})
-    github_config = config.get("github", {})
-    pipeline_config = config.get("pipeline", {})
-    docker_config = config.get("docker", {})
-    batch_config = google_cloud_config.get("batch", {})
-
-    project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
-    bucket_name = google_cloud_config.get("bucket_name")
-    dir_prefix = pipeline_config.get("dir_prefix", "pipeline/flu/")
-    github_forecast_repo = github_config.get("forecast_repo", "")
+    google_cloud = config.get("google_cloud", {})
+    project_id = google_cloud.get("project_id")
+    region = google_cloud.get("region", "us-central1")
+    bucket_name = google_cloud.get("bucket_name")
+    pipeline = config.get("pipeline", {})
+    dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
+    github = get_github_config(config)
+    github_forecast_repo = github["forecast_repo"]
+    batch_config = get_batch_config(config)
 
     if not max_parallelism:
-        max_parallelism = pipeline_config.get("max_parallelism", 100)
+        max_parallelism = pipeline.get("max_parallelism", 100)
 
     # Validate required config
     if not project_id:
@@ -385,14 +386,10 @@ def _run_workflow_cloud(
         return 2
 
     # Get batch service account email
-    batch_sa_email = _get_batch_sa_email(project_id)
+    batch_sa_email = get_batch_service_account(project_id)
 
     # Build Docker image URI
-    registry = docker_config.get("registry", "us-central1-docker.pkg.dev")
-    repo_name = docker_config.get("repo_name", "epymodelingsuite-repo")
-    image_name = docker_config.get("image_name", "epymodelingsuite")
-    image_tag = docker_config.get("image_tag", "latest")
-    image_uri = f"{registry}/{project_id}/{repo_name}/{image_name}:{image_tag}"
+    image_uri = get_image_uri(config)
 
     # Get Stage B machine type
     stage_b_config = batch_config.get("stage_b", {})
@@ -413,11 +410,11 @@ def _run_workflow_cloud(
         "region": region,
         "bucket_name": bucket_name,
         "storage_path": storage_path,
-        "modeling_suite_repo": github_config.get("modeling_suite_repo", ""),
-        "modeling_suite_ref": github_config.get("modeling_suite_ref", "main"),
+        "modeling_suite_repo": github["modeling_suite_repo"],
+        "modeling_suite_ref": github["modeling_suite_ref"],
         "forecast_repo": github_forecast_repo,
-        "pat_configured": bool(github_config.get("personal_access_token")),
-        "max_parallelism": max_parallelism or pipeline_config.get("max_parallelism", 100),
+        "pat_configured": bool(github["personal_access_token"]),
+        "max_parallelism": max_parallelism,
         "stage_b_machine_type": stage_b_machine_type,
         "skip_output": skip_output,
         "image_uri": image_uri,
@@ -565,16 +562,15 @@ def _run_workflow_local(
         Exit code
     """
     # Get config values
-    docker_config = config.get("docker", {})
-    pipeline_config = config.get("pipeline", {})
-
-    image_name = docker_config.get("image_name", "epymodelingsuite")
-    image_tag = docker_config.get("image_tag", "latest")
-    dir_prefix = pipeline_config.get("dir_prefix", "pipeline/flu/")
+    docker = get_docker_config(config)
+    image_name = docker["image_name"]
+    image_tag = docker["image_tag"]
+    pipeline = config.get("pipeline", {})
+    dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
 
     # Generate run ID if not provided
     if not run_id:
-        run_id = _generate_run_id()
+        run_id = generate_run_id()
 
     # Build storage path
     storage_path = f"./local/bucket/{dir_prefix}{exp_id}/{run_id}/"
@@ -737,23 +733,18 @@ def _run_job_cloud(
         Exit code
     """
     # Get configuration
-    google_cloud_config = config.get("google_cloud", {})
-    docker_config = config.get("docker", {})
-    github_config = config.get("github", {})
-    pipeline_config = config.get("pipeline", {})
-    batch_config = google_cloud_config.get("batch", {})
-
-    project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
-    bucket_name = google_cloud_config.get("bucket_name")
-    dir_prefix = pipeline_config.get("dir_prefix", "pipeline/flu/")
+    google_cloud = config.get("google_cloud", {})
+    project_id = google_cloud.get("project_id")
+    region = google_cloud.get("region", "us-central1")
+    bucket_name = google_cloud.get("bucket_name")
+    pipeline = config.get("pipeline", {})
+    dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
+    batch_config = get_batch_config(config)
+    github = get_github_config(config)
+    github_forecast_repo = github["forecast_repo"]
 
     # Get image info
-    registry = docker_config.get("registry", "us-central1-docker.pkg.dev")
-    repo_name = docker_config.get("repo_name", "epymodelingsuite-repo")
-    image_name = docker_config.get("image_name", "epymodelingsuite")
-    image_tag = docker_config.get("image_tag", "latest")
-    image_uri = f"{registry}/{project_id}/{repo_name}/{image_name}:{image_tag}"
+    image_uri = get_image_uri(config)
 
     # Get stage-specific resources
     stage_key = f"stage_{stage.lower()}"
@@ -769,7 +760,7 @@ def _run_job_cloud(
         return 2
 
     # Get batch service account
-    batch_sa_email = _get_batch_sa_email(project_id)
+    batch_sa_email = get_batch_service_account(project_id)
 
     # Generate job ID
     timestamp = int(time.time())
@@ -777,7 +768,7 @@ def _run_job_cloud(
 
     # Auto-generate run_id for stage A if not provided
     if stage == "A" and not run_id:
-        run_id = _generate_run_id()
+        run_id = generate_run_id()
 
     # Build confirmation info
     confirmation_info = {
@@ -817,7 +808,7 @@ def _run_job_cloud(
         image_uri=image_uri,
         bucket_name=bucket_name,
         dir_prefix=dir_prefix,
-        github_forecast_repo=github_config.get("forecast_repo", ""),
+        github_forecast_repo=github_forecast_repo,
         cpu_milli=cpu_milli,
         memory_mib=memory_mib,
         machine_type=machine_type,
@@ -949,16 +940,15 @@ def _run_job_local(
         Exit code
     """
     # Get config values
-    docker_config = config.get("docker", {})
-    pipeline_config = config.get("pipeline", {})
-
-    image_name = docker_config.get("image_name", "epymodelingsuite")
-    image_tag = docker_config.get("image_tag", "latest")
-    dir_prefix = pipeline_config.get("dir_prefix", "pipeline/flu/")
+    docker = get_docker_config(config)
+    image_name = docker["image_name"]
+    image_tag = docker["image_tag"]
+    pipeline = config.get("pipeline", {})
+    dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
 
     # Auto-generate run_id for stage A if not provided
     if stage == "A" and not run_id:
-        run_id = _generate_run_id()
+        run_id = generate_run_id()
 
     # Build storage path
     storage_path = f"./local/bucket/{dir_prefix}{exp_id}/{run_id if run_id else '<auto-generated>'}/"
@@ -1186,41 +1176,3 @@ def _build_batch_job_config(
     return job_config
 
 
-def _get_batch_sa_email(project_id: str) -> str:
-    """Get batch service account email.
-
-    Args:
-        project_id: GCP project ID
-
-    Returns:
-        Service account email
-    """
-    # Try to get from Terraform output
-    try:
-        result = subprocess.run(
-            ["terraform", "output", "-raw", "batch_runtime_sa_email"],
-            cwd="terraform",
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except (subprocess.SubprocessError, FileNotFoundError):
-        pass
-
-    # Fall back to default
-    return f"batch-runtime@{project_id}.iam.gserviceaccount.com"
-
-
-def _generate_run_id() -> str:
-    """Generate a unique run ID.
-
-    Returns:
-        Run ID in format: YYYYMMDD-HHMMSS-<uuid-prefix>
-    """
-    now = datetime.now()
-    date_part = now.strftime("%Y%m%d")
-    time_part = now.strftime("%H%M%S")
-    unique_id = str(uuid4())[:8]
-    return f"{date_part}-{time_part}-{unique_id}"

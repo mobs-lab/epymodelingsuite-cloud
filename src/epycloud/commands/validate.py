@@ -12,7 +12,7 @@ import requests
 import yaml
 
 from epycloud.exceptions import ConfigError, ValidationError
-from epycloud.lib.command_helpers import handle_dry_run, require_config
+from epycloud.lib.command_helpers import get_github_config, handle_dry_run, require_config
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.validation import validate_exp_id, validate_github_token, validate_local_path
 
@@ -136,8 +136,8 @@ def handle(ctx: dict[str, Any]) -> int:
     else:
         # Remote (GitHub) validation
         # Get GitHub configuration
-        github_config = config.get("github", {})
-        forecast_repo = github_config.get("forecast_repo", "")
+        github = get_github_config(config)
+        forecast_repo = github["forecast_repo"]
 
         if not forecast_repo:
             error("github.forecast_repo not configured")

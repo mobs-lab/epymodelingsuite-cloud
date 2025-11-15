@@ -12,14 +12,27 @@ handle_dry_run : Handle dry-run mode with consistent messaging
 get_project_root : Get project root directory path
 get_gcloud_access_token : Retrieve Google Cloud access token
 prepare_subprocess_env : Prepare environment variables for subprocess calls
+get_docker_config : Extract Docker configuration with defaults
+get_github_config : Extract GitHub configuration
+get_batch_config : Extract Cloud Batch configuration
+get_image_uri : Build full Docker image URI from config
+get_github_pat : Get GitHub PAT from environment, secrets, or config
+get_batch_service_account : Get batch service account email from terraform or default
+generate_run_id : Generate a unique run ID
+validate_inputs : Validate exp_id and run_id from args
 """
 
+import argparse
 import os
 import subprocess
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 from typing import TypedDict
+from uuid import uuid4
 
 from epycloud.exceptions import CloudAPIError, ConfigError
+from epycloud.lib.output import error
 from epycloud.lib.output import info
 
 
@@ -265,3 +278,267 @@ def prepare_subprocess_env(base_vars: dict = None) -> dict:
         env.update(base_vars)
 
     return env
+
+
+def get_docker_config(config: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extract Docker configuration with defaults.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary.
+
+    Returns
+    -------
+    dict
+        Dict with keys: registry, repo_name, image_name, image_tag
+
+    Examples
+    --------
+    >>> docker = get_docker_config(config)
+    >>> registry = docker["registry"]
+    >>> image_name = docker["image_name"]
+    """
+    docker = config.get("docker", {})
+    return {
+        "registry": docker.get("registry", "us-central1-docker.pkg.dev"),
+        "repo_name": docker.get("repo_name", "epymodelingsuite-repo"),
+        "image_name": docker.get("image_name", "epymodelingsuite"),
+        "image_tag": docker.get("image_tag", "latest"),
+    }
+
+
+def get_github_config(config: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extract GitHub configuration.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary.
+
+    Returns
+    -------
+    dict
+        Dict with keys: forecast_repo, modeling_suite_repo,
+                       modeling_suite_ref, personal_access_token
+
+    Examples
+    --------
+    >>> github = get_github_config(config)
+    >>> forecast_repo = github["forecast_repo"]
+    >>> modeling_suite_repo = github["modeling_suite_repo"]
+    """
+    github = config.get("github", {})
+    return {
+        "forecast_repo": github.get("forecast_repo", ""),
+        "modeling_suite_repo": github.get("modeling_suite_repo", ""),
+        "modeling_suite_ref": github.get("modeling_suite_ref", "main"),
+        "personal_access_token": github.get("personal_access_token", ""),
+    }
+
+
+def get_batch_config(config: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extract Cloud Batch configuration.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary.
+
+    Returns
+    -------
+    dict
+        Full batch config dict with stage-specific settings
+
+    Examples
+    --------
+    >>> batch_config = get_batch_config(config)
+    >>> stage_a = batch_config.get("stage_a", {})
+    """
+    return config.get("google_cloud", {}).get("batch", {})
+
+
+def get_image_uri(config: dict[str, Any], tag: str | None = None) -> str:
+    """
+    Build full Docker image URI from config.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary.
+    tag : str, optional
+        Optional tag override (uses config default if None).
+
+    Returns
+    -------
+    str
+        Full image URI (e.g., "us-central1-docker.pkg.dev/project/repo/image:tag")
+
+    Examples
+    --------
+    >>> image_uri = get_image_uri(config)
+    >>> image_uri = get_image_uri(config, tag="v1.2.3")
+    """
+    docker = get_docker_config(config)
+    google_cloud = config.get("google_cloud", {})
+    project_id = google_cloud.get("project_id")
+
+    image_tag = tag or docker["image_tag"]
+
+    return (
+        f"{docker['registry']}/"
+        f"{project_id}/"
+        f"{docker['repo_name']}/"
+        f"{docker['image_name']}:{image_tag}"
+    )
+
+
+def get_github_pat(config: dict[str, Any], required: bool = False) -> str | None:
+    """
+    Get GitHub PAT from environment, secrets, or config.
+
+    Priority:
+    1. GITHUB_PAT environment variable
+    2. EPYCLOUD_GITHUB_PAT environment variable
+    3. github.personal_access_token from config
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary.
+    required : bool, optional
+        If True, print error and return None when not found, by default False.
+
+    Returns
+    -------
+    str or None
+        GitHub PAT or None if not found
+
+    Examples
+    --------
+    >>> github_pat = get_github_pat(config)
+    >>> github_pat = get_github_pat(config, required=True)
+    """
+    from epycloud.lib.paths import get_secrets_file
+
+    # Try environment first
+    github_pat = os.environ.get("GITHUB_PAT") or os.environ.get("EPYCLOUD_GITHUB_PAT")
+
+    # Fall back to config
+    if not github_pat:
+        github_pat = config.get("github", {}).get("personal_access_token")
+
+    # Handle required case
+    if required and not github_pat:
+        secrets_file = get_secrets_file()
+        error("GitHub PAT required for this operation")
+        info("Options:")
+        info("  1. Load from .env.local: source .env.local")
+        info("  2. Set environment variable: export GITHUB_PAT=your_token")
+        info("  3. Add to secrets.yaml: epycloud config edit-secrets")
+        info(f"     (File location: {secrets_file})")
+        return None
+
+    return github_pat
+
+
+def get_batch_service_account(project_id: str, project_root: Path | None = None) -> str:
+    """
+    Get batch service account email from terraform or default.
+
+    Parameters
+    ----------
+    project_id : str
+        Google Cloud project ID.
+    project_root : Path, optional
+        Optional project root (auto-detected if None).
+
+    Returns
+    -------
+    str
+        Batch service account email
+
+    Examples
+    --------
+    >>> sa_email = get_batch_service_account(project_id)
+    >>> sa_email = get_batch_service_account(project_id, project_root=Path("/path"))
+    """
+    if project_root is None:
+        project_root = get_project_root()
+
+    terraform_dir = project_root / "terraform"
+
+    # Try getting from terraform output
+    try:
+        result = subprocess.run(
+            ["terraform", "output", "-raw", "batch_service_account_email"],
+            cwd=terraform_dir,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+    # Fall back to default
+    return f"batch-runtime@{project_id}.iam.gserviceaccount.com"
+
+
+def generate_run_id() -> str:
+    """
+    Generate a unique run ID.
+
+    Returns
+    -------
+    str
+        Run ID in format: YYYYMMDD-HHMMSS-<uuid-prefix>
+
+    Examples
+    --------
+    >>> run_id = generate_run_id()
+    >>> # Returns something like: "20251115-143052-a1b2c3d4"
+    """
+    now = datetime.now()
+    date_part = now.strftime("%Y%m%d")
+    time_part = now.strftime("%H%M%S")
+    unique_id = str(uuid4())[:8]
+    return f"{date_part}-{time_part}-{unique_id}"
+
+
+def validate_inputs(args: argparse.Namespace) -> tuple[str, str | None] | None:
+    """
+    Validate exp_id and run_id from args.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command-line arguments.
+
+    Returns
+    -------
+    tuple of (str, str or None) or None
+        Tuple of (exp_id, run_id) on success, None on failure (error already printed)
+
+    Examples
+    --------
+    >>> validated = validate_inputs(args)
+    >>> if validated is None:
+    ...     return 1
+    >>> exp_id, run_id = validated
+    """
+    from epycloud.lib.validation import ValidationError
+    from epycloud.lib.validation import validate_exp_id
+    from epycloud.lib.validation import validate_run_id
+
+    try:
+        exp_id = validate_exp_id(args.exp_id)
+        run_id = validate_run_id(args.run_id) if args.run_id else None
+        return exp_id, run_id
+    except ValidationError as e:
+        error(str(e))
+        return None
