@@ -1,6 +1,5 @@
 """Confirmation prompts for interactive command execution."""
 
-import sys
 from typing import Any
 
 from epycloud.lib.output import Colors, colorize

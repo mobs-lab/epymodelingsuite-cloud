@@ -1,5 +1,7 @@
 """Integration tests for input validation."""
 
+from pathlib import Path
+
 import pytest
 
 from epycloud.exceptions import ValidationError
@@ -10,7 +12,6 @@ from epycloud.lib.validation import (
     validate_run_id,
     validate_stage_name,
 )
-from pathlib import Path
 
 
 class TestValidateExpId:

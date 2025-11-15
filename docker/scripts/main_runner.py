@@ -12,12 +12,11 @@ import dill  # Use dill instead of pickle for better serialization support
 # Add scripts directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from util import storage
-from util.logger import setup_logger
-from util.error_handling import handle_stage_error
-
 from epymodelingsuite.dispatcher import dispatch_runner
 from epymodelingsuite.telemetry import ExecutionTelemetry
+from util import storage
+from util.error_handling import handle_stage_error
+from util.logger import setup_logger
 
 # Task index formatting (supports up to 99999 tasks)
 INDEX_WIDTH = 5

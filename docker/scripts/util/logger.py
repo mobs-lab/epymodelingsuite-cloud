@@ -8,14 +8,13 @@ JSON structured logs for Google Cloud Logging integration.
 import logging
 import os
 import sys
-from typing import Optional
 
 
 def setup_logger(
     name: str,
-    task_index: Optional[int] = None,
-    exp_id: Optional[str] = None,
-    run_id: Optional[str] = None,
+    task_index: int | None = None,
+    exp_id: str | None = None,
+    run_id: str | None = None,
 ) -> logging.Logger:
     """
     Setup dual-mode logger for pipeline stages.
@@ -91,9 +90,9 @@ def setup_logger(
 
 def _create_cloud_formatter(
     stage: str,
-    task_index: Optional[int],
-    exp_id: Optional[str],
-    run_id: Optional[str],
+    task_index: int | None,
+    exp_id: str | None,
+    run_id: str | None,
 ) -> logging.Formatter:
     """
     Create JSON formatter for Google Cloud Logging.
@@ -141,7 +140,7 @@ def _create_cloud_formatter(
 
 def _create_local_formatter(
     stage: str,
-    task_index: Optional[int],
+    task_index: int | None,
 ) -> logging.Formatter:
     """
     Create human-readable formatter for local development.

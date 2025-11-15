@@ -20,10 +20,10 @@ Usage:
     save_bytes(output_path, data)
 """
 
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from epymodelingsuite.telemetry import ExecutionTelemetry
@@ -148,7 +148,7 @@ def get_path(*parts: str) -> str:
         return "/".join(full_parts)
 
 
-def _resolve_storage_location(path: str) -> tuple[Optional[str], str]:
+def _resolve_storage_location(path: str) -> tuple[str | None, str]:
     """Resolve the storage location from a path.
 
     In local mode:
@@ -403,7 +403,7 @@ def save_telemetry_summary(
     return json_path, txt_path
 
 
-def list_blobs(bucket_name: Optional[str], prefix: str = "") -> list[str]:
+def list_blobs(bucket_name: str | None, prefix: str = "") -> list[str]:
     """
     List all blob paths in storage with given prefix.
 
