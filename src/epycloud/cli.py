@@ -55,7 +55,11 @@ def create_parser() -> argparse.ArgumentParser:
     parser._optionals.title = "Options"
 
     # Subcommands
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(
+        dest="command",
+        help="Available commands",
+        title="Commands",
+    )
 
     # Monkey-patch add_parser to automatically set Options title and formatter
     original_add_parser = subparsers.add_parser
