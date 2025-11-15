@@ -8,7 +8,7 @@ from epycloud import __version__
 from epycloud.config.loader import ConfigLoader
 from epycloud.lib.formatters import CapitalizedHelpFormatter
 from epycloud.lib.output import error, info, set_color_enabled
-from epycloud.lib.paths import ensure_config_dir
+from epycloud.lib.paths import ensure_config_dir, list_environments
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -31,12 +31,17 @@ def create_parser() -> argparse.ArgumentParser:
 
     # Global options
     parser.add_argument("--version", "-v", action="version", version=f"epycloud {__version__}")
+
+    # Get available environments from config directory
+    available_envs = list_environments() or ["dev", "prod", "local"]
+
     parser.add_argument(
         "--env",
         "-e",
-        choices=["dev", "prod", "local"],
+        metavar="ENV",
+        choices=available_envs,
         default="dev",
-        help="Environment: dev|prod|local (default: dev)",
+        help=f"Environment: {', '.join(available_envs)} (default: dev)",
     )
     parser.add_argument("--profile", help="Override active profile (flu, covid, rsv, etc.)")
     parser.add_argument("--config", "-c", type=Path, help="Config file path (default: auto-detect)")
