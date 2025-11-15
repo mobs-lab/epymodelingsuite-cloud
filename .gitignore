@@ -32,9 +32,6 @@ Thumbs.db
 # Credentials
 *.json
 !cloudbuild.yaml
-!jobs/*.json.template
-jobs/stage-a.json
-jobs/stage-b.json
 .env.local
 
 # Logs

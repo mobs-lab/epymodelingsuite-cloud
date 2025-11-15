@@ -112,14 +112,13 @@ epymodelingsuite-cloud/
 │  └─ terraform.tfvars           # Project-specific values
 ├─ docker/
 │  ├─ Dockerfile
-│  └─ requirements.txt
-├─ scripts/
-│  ├─ main_builder.py         # Stage A: Generate N input files
-│  └─ main_runner.py             # Stage B: Process individual tasks
-├─ jobs/                         # Manual job templates for testing/debugging
-│  ├─ stage-a.json
-│  ├─ stage-b.json
-│  └─ README.md
+│  ├─ requirements.txt
+│  └─ scripts/                   # Docker runtime scripts
+│     ├─ main_builder.py         # Stage A: Generate N input files
+│     ├─ main_runner.py          # Stage B: Process individual tasks
+│     ├─ main_output.py          # Stage C: Aggregate results
+│     ├─ run_builder.sh          # Stage A wrapper for repo cloning
+│     └─ run_output.sh           # Stage C wrapper
 ├─ Makefile                      # Build/deploy automation
 ├─ cloudbuild.yaml               # Cloud Build configuration
 ├─ .env                          # Environment variables (gitignored)

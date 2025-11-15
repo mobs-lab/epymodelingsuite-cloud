@@ -72,7 +72,7 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Generates N input configuration files (pickled Python objects)
 - Runs as a single Google Cloud Batch job with 1 task
 - Outputs: `{EXP_ID}/{RUN_ID}/builder-artifacts/input_0000.pkl` through `input_{N-1}.pkl`
-- Script: [scripts/main_builder.py](scripts/main_builder.py)
+- Script: [docker/scripts/main_builder.py](docker/scripts/main_builder.py)
 
 **Builder**
 - Another name for Stage A
@@ -84,7 +84,7 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Runs as a single Google Cloud Batch job with N tasks
 - Each task processes one input file (determined by `BATCH_TASK_INDEX`)
 - Outputs: `{EXP_ID}/{RUN_ID}/runner-artifacts/result_0000.pkl` through `result_{N-1}.pkl`
-- Script: [scripts/main_runner.py](scripts/main_runner.py)
+- Script: [docker/scripts/main_runner.py](docker/scripts/main_runner.py)
 
 **Runner**
 - Another name for Stage B or individual simulation tasks
@@ -102,7 +102,7 @@ Understanding the key concepts and terminology used throughout this pipeline:
 - Runs as a single Google Cloud Batch job with 1 task
 - Reads all result files from Stage B and produces CSV.gz files
 - Outputs: `{EXP_ID}/{RUN_ID}/outputs/*.csv.gz` (quantiles, trajectories, metadata, etc.)
-- Script: [scripts/main_output.py](scripts/main_output.py)
+- Script: [docker/scripts/main_output.py](docker/scripts/main_output.py)
 
 **Output**
 - Another name for Stage C
