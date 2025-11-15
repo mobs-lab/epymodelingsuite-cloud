@@ -126,9 +126,8 @@ def handle(ctx: dict[str, Any]) -> int:
     # Get GitHub PAT from environment or secrets
     github_pat = os.environ.get("GITHUB_PAT") or os.environ.get("EPYCLOUD_GITHUB_PAT")
     if not github_pat and modeling_suite_repo:
-        # Check secrets config
-        secrets = config.get("_secrets", {})
-        github_pat = secrets.get("github", {}).get("personal_access_token")
+        # Check secrets config (merged directly into config by loader)
+        github_pat = config.get("github", {}).get("personal_access_token")
 
     # Validate GitHub PAT if modeling suite is configured
     if modeling_suite_repo and not github_pat:
