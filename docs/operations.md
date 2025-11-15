@@ -14,11 +14,12 @@ This document covers common operational commands for running and monitoring the 
 - [Running the Pipeline](#running-the-pipeline)
   - [A) Cloud Execution](#a-cloud-execution)
   - [B) Local Execution](#b-local-execution)
-- [Monitoring](#monitoring)
-  - [Workflow Executions](#workflow-executions)
+- [Monitoring and Debugging](#monitoring-and-debugging)
+  - [Quick Status Check](#quick-status-check)
+  - [Workflow Management](#workflow-management)
   - [Batch Jobs](#batch-jobs)
   - [Cloud Storage](#cloud-storage)
-  - [Logs](#logs)
+  - [Pipeline Logs](#pipeline-logs)
   - [Cloud Console Dashboards](#cloud-console-dashboards)
 - [Terraform Operations](#terraform-operations)
   - [Initialize Terraform](#initialize-terraform)
@@ -271,84 +272,162 @@ ls ./local/bucket/test-sim/<run_id>/outputs/  # Verify: should show *.csv.gz fil
 **Important:** The builder auto-generates a unique `RUN_ID` (format: `YYYYMMDD-HHMMSS-<uuid>`). Note this value from the builder output for use in runner and output stages. All local data is stored in `./local/bucket/{EXP_ID}/{RUN_ID}/`.
 
 
-## Monitoring
+## Monitoring and Debugging
 
-Monitor pipeline execution using Google Cloud Console dashboards, command-line tools, and logs.
+Monitor pipeline execution using the `epycloud` CLI, Google Cloud Console dashboards, and command-line tools.
 
-### Workflow Executions
+### Quick Status Check
+
+The `epycloud status` command provides a real-time overview of all active workflows and batch jobs:
+
+```bash
+# View all active workflows and batch jobs
+epycloud status
+
+# Filter by specific experiment
+epycloud status --exp-id experiment-01
+
+# Watch mode with auto-refresh (default: 3 seconds)
+epycloud status --watch
+
+# Custom refresh interval
+epycloud status --watch --interval 5
+```
+
+**Example output:**
+
+```
+Pipeline Status
+================================================================================
+
+Active Workflows:
+EXECUTION ID                              EXP_ID              START TIME
+--------------------------------------------------------------------------------
+abc123-def456-ghi789                      test-flu            2025-11-14 10:30:00
+
+Active Batch Jobs:
+JOB NAME                                          STAGE    STATUS       TASKS
+--------------------------------------------------------------------------------
+epycloud-test-flu-20251114-103052-abc123-stage-b  B        RUNNING      45/100
+
+Total active: 1 workflow(s), 1 batch job(s)
+```
+
+This command is ideal for:
+- Quick status checks without navigating to the Cloud Console
+- Monitoring multiple experiments simultaneously
+- Watching job progress in real-time with `--watch` mode
+- Identifying stuck or failed workflows
+
+### Workflow Management
 
 https://console.cloud.google.com/workflows
 
-List recent workflow runs:
+List and manage workflow executions:
 
 ```bash
-gcloud workflows executions list epymodelingsuite-pipeline --location=$REGION
-```
+# List workflow executions (default: 20 most recent)
+epycloud workflow list
 
-Get details of a specific execution:
+# List with more results
+epycloud workflow list --limit 50
 
-```bash
-gcloud workflows executions describe <execution-id> \
-  --workflow=epymodelingsuite-pipeline \
-  --location=$REGION
+# Filter by experiment ID
+epycloud workflow list --exp-id test-flu
+
+# Filter by status (ACTIVE, SUCCEEDED, FAILED, CANCELLED)
+epycloud workflow list --status ACTIVE
+
+# Describe workflow execution details
+epycloud workflow describe <execution-id>
+
+# View workflow-specific logs
+epycloud workflow logs <execution-id>
+epycloud workflow logs <execution-id> --follow
+epycloud workflow logs <execution-id> --tail 100
+
+# Cancel running workflow
+epycloud workflow cancel <execution-id>
+
+# Retry failed workflow
+epycloud workflow retry <execution-id>
 ```
 
 ### Batch Jobs
 
 https://console.cloud.google.com/batch
 
-List batch jobs:
+Monitor active batch jobs using the status command:
 
 ```bash
-gcloud batch jobs list --location=$REGION
+# View all active batch jobs (recommended)
+epycloud status
+
+# Filter by specific experiment
+epycloud status --exp-id experiment-01
+
+# Watch mode for real-time updates
+epycloud status --watch
 ```
 
-Get job details:
+For detailed job inspection when needed:
 
 ```bash
+# Describe specific job details
 gcloud batch jobs describe <job-name> --location=$REGION
-```
 
-List tasks for a job:
-
-```bash
+# List all tasks for a job
 gcloud batch tasks list --job=<job-name> --location=$REGION
 ```
+
+**Note:** The `epycloud status` command provides all the information needed for typical batch job monitoring. Use the raw `gcloud` commands above only when you need detailed task-level inspection or job metadata.
 
 ### Cloud Storage
 
 https://console.cloud.google.com/storage/browser
 
 
-### Logs
+### Pipeline Logs
 
 https://console.cloud.google.com/logs/
 
-View workflow logs:
+View pipeline logs using the `epycloud logs` command:
 
 ```bash
-gcloud logging read "resource.type=workflows.googleapis.com/Workflow" \
-  --limit=50 \
-  --format=json
-```
+# View logs for an experiment (default: last 100 entries)
+epycloud logs --exp-id experiment-01
 
-View batch job logs:
+# View more logs
+epycloud logs --exp-id experiment-01 --tail 500
 
-```bash
-gcloud logging read "resource.type=batch.googleapis.com/Job" \
-  --limit=50
-```
+# View all logs (no limit)
+epycloud logs --exp-id experiment-01 --tail 0
 
-View logs for specific experiment:
+# Filter by stage
+epycloud logs --exp-id experiment-01 --stage A
+epycloud logs --exp-id experiment-01 --stage B
+epycloud logs --exp-id experiment-01 --stage C
 
-```bash
-gcloud logging read "labels.exp_id=experiment-01" --limit=50
-```
+# Filter by run ID
+epycloud logs --exp-id experiment-01 --run-id 20251114-103052-abc123
 
-Tail live logs:
+# Filter by specific task
+epycloud logs --exp-id experiment-01 --task-index 5
 
-```bash
-gcloud logging tail "resource.type=batch.googleapis.com/Job"
+# Time-based filtering
+epycloud logs --exp-id experiment-01 --since 1h
+epycloud logs --exp-id experiment-01 --since 30m
+
+# Stream live logs
+epycloud logs --exp-id experiment-01 --follow
+
+# View workflow-specific logs
+epycloud workflow logs <execution-id>
+epycloud workflow logs <execution-id> --follow
+epycloud workflow logs <execution-id> --tail 100
+
+# Clean output for export (no colors)
+epycloud --no-color logs --exp-id experiment-01 > logs.txt
 ```
 
 
