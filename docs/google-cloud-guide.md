@@ -31,7 +31,7 @@ This document provides complete setup and implementation details for the Google 
   - [Label Structure](#label-structure)
   - [Monitoring Dashboards](#monitoring-dashboards)
   - [Custom Filtering](#custom-filtering)
-- [9) Makefile](#9-makefile)
+- [9) epycloud CLI](#9-epycloud-cli)
 - [10) Operational Notes](#10-operational-notes)
 - [11) Billing and Cost Tracking](#11-billing-and-cost-tracking)
 - [12) Implementation Summary](#12-implementation-summary)
@@ -53,27 +53,25 @@ echo -n "your_github_pat_here" | gcloud secrets create github-pat \
   --project=${PROJECT_ID}
 
 # 3. Initialize and deploy infrastructure
-make tf-init
-make tf-plan    # Review changes first
-make tf-apply
+epycloud terraform init
+epycloud terraform plan    # Review changes first
+epycloud terraform apply
 
 # 4. Build and push Docker image
-make build
+epycloud build cloud
 
-# 5. Add experiment file to your forecast repository.
+# 5. Add experiment file to your forecast repository and git push
 
 # 6. Run your first workflow
-EXP_ID=initial-test make run-workflow
+epycloud run workflow --exp-id initial-test
 
 # 7. Monitor execution
-gcloud workflows executions list epymodelingsuite-pipeline --location=$REGION
+epycloud status
+epycloud workflow list --exp-id initial-test
 
 # 8. View logs and details
-gcloud workflows executions describe <execution_id> \
-  --workflow=epymodelingsuite-pipeline --location=$REGION
-
-# View Batch job logs
-gcloud logging read "resource.type=batch.googleapis.com/Job" --limit 50
+epycloud workflow describe <execution-id>
+epycloud logs --exp-id initial-test
 ```
 
 **Next steps:**
@@ -527,25 +525,22 @@ The Dockerfile uses multi-stage builds with three stages:
 
 ```bash
 # Option 1: Cloud Build (recommended for production)
-make build
+epycloud build cloud
 
 # Option 2: Build cloud image locally and push to Artifact Registry
 source .env && gcloud auth configure-docker ${REGION}-docker.pkg.dev --project=${PROJECT_ID}
 source .env.local  # For GITHUB_PAT
-make build-local
+epycloud build local
 
 # Option 3: Build local dev image (for Docker Compose, no push)
 source .env.local  # For GITHUB_PAT
-make build-dev
-
-# Or manually with Cloud Build
-gcloud builds submit --region ${REGION} --config cloudbuild.yaml
+epycloud build dev
 ```
 
 **Build targets:**
-- `make build` - Uses Cloud Build on GCP, builds `cloud` target, pushes to Artifact Registry
-- `make build-local` - Builds `cloud` target locally, pushes to Artifact Registry (requires auth)
-- `make build-dev` - Builds `local` target locally, tags as `epymodelingsuite:local`, no push
+- `epycloud build cloud` - Uses Cloud Build on GCP, builds `cloud` target, pushes to Artifact Registry
+- `epycloud build local` - Builds `cloud` target locally, pushes to Artifact Registry (requires auth)
+- `epycloud build dev` - Builds `local` target locally, tags as `epymodelingsuite:local`, no push
 
 **Local secrets management:**
 - Create [.env.local](.env.local) (gitignored) for sensitive values like `GITHUB_PAT`
@@ -578,41 +573,47 @@ This approach ensures all containers have the same version of epymodelingsuite a
 
 #### Running locally
 
-For local execution, first build the local image, then use the Makefile commands:
+For local execution, first build the local image, then use the `epycloud` CLI commands:
 
 ```bash
 # Build local development image
 source .env.local  # For GITHUB_PAT if using private repos
-make build-dev
+epycloud build dev
 
-# Run builder
-EXP_ID=test-sim make run-builder-local
+# Run builder (Stage A) - this auto-generates RUN_ID
+epycloud run local builder --exp-id test-sim
+# Note the RUN_ID from the output, e.g., "20251114-123045-a1b2c3"
 
-# Run a single runner locally
-EXP_ID=test-sim TASK_INDEX=0 make run-task-local
+# Run a single runner locally (Stage B)
+epycloud run local runner --exp-id test-sim --run-id <run_id> --task-index 0
 
 # Run multiple runners for different tasks
 for i in {0..9}; do
-  EXP_ID=test-sim TASK_INDEX=$i make run-task-local &
+  epycloud run local runner --exp-id test-sim --run-id <run_id> --task-index $i &
 done
 wait
+
+# Run output generation (Stage C)
+epycloud run local output --exp-id test-sim --run-id <run_id> --num-tasks 10
 ```
 
-**Note:** The Makefile commands wrap `docker compose` calls with additional features:
+**Note:** The `epycloud` CLI wraps `docker compose` calls with additional features:
 - Automatically includes `--rm` flag to remove containers after execution (prevents orphaned containers)
-- Validates required environment variables (e.g., `EXP_ID`)
-- Passes environment variables to docker compose: `EXP_ID`, `RUN_ID`, `TASK_INDEX`
+- Validates required environment variables (e.g., `EXP_ID`, `RUN_ID`)
+- Passes environment variables to docker compose: `EXP_ID`, `RUN_ID`, `TASK_INDEX`, `NUM_TASKS`
 - Provides helpful output messages showing where files are read/written
 
-**What the Makefile does:**
-- `make run-builder-local` → runs `docker compose run --rm dispatcher` with `EXP_ID` and `RUN_ID`
-- `make run-task-local` → runs `docker compose run --rm runner` with `EXP_ID`, `RUN_ID`, and `TASK_INDEX`
+**What the epycloud CLI does:**
+- `epycloud run local builder` → runs `docker compose run --rm builder` with environment variables
+- `epycloud run local runner` → runs `docker compose run --rm runner` with environment variables
+- `epycloud run local output` → runs `docker compose run --rm output` with environment variables
 
 **Alternative (NOT recommended): Direct docker compose commands**
 ```bash
 # If you must run docker compose directly, always include --rm
-docker compose run --rm dispatcher
+docker compose run --rm builder
 TASK_INDEX=0 docker compose run --rm runner
+docker compose run --rm output
 ```
 
 #### Docker Compose configuration
@@ -758,7 +759,7 @@ After running `make tf-apply`, three Cloud Monitoring dashboards are automatical
 **Access dashboards:**
 ```bash
 # After terraform apply, get dashboard URLs:
-cd terraform && terraform output | grep dashboard
+epycloud terraform output | grep dashboard
 ```
 
 Or navigate to: [Cloud Console → Monitoring → Dashboards](https://console.cloud.google.com/monitoring/dashboards)
@@ -779,35 +780,47 @@ component=epymodelingsuite AND (stage=builder OR stage=runner)
 ```
 
 
-## 9) Makefile
+## 9) epycloud CLI
 
-See full implementation in [Makefile](Makefile). For detailed operational commands and workflows, see [/docs/operations.md](/docs/operations.md).
+The `epycloud` CLI provides all operational commands for the pipeline. For detailed commands and workflows, see [/docs/operations.md](/docs/operations.md).
 
 
 **Quick reference:**
 
 ```bash
 # Infrastructure
-make tf-init        # Initialize Terraform
-make tf-plan        # Preview changes
-make tf-apply       # Deploy infrastructure
-make tf-destroy     # Destroy resources
+epycloud terraform init        # Initialize Terraform
+epycloud terraform plan        # Preview changes
+epycloud terraform apply       # Deploy infrastructure
+epycloud terraform destroy     # Destroy resources
+epycloud terraform output      # View Terraform outputs
 
 # Build
-make build          # Cloud Build (recommended)
-make build-local    # Build locally and push
-make build-dev      # Build for local development
+epycloud build cloud           # Cloud Build (recommended)
+epycloud build local           # Build locally and push
+epycloud build dev             # Build for local development
+epycloud build status          # Check build status
 
-# Execute
-EXP_ID=my-exp make run-workflow  # Run on cloud
+# Execute (Cloud)
+epycloud run workflow --exp-id my-exp   # Run workflow on cloud
+
+# Monitor
+epycloud status                         # Quick status check
+epycloud workflow list                  # List workflows
+epycloud workflow list --exp-id my-exp  # Filter by experiment
+epycloud workflow describe <id>         # Workflow details
+epycloud logs --exp-id my-exp           # View logs
+epycloud logs --exp-id my-exp --stage B # Filter by stage
 
 # Local development
-make run-builder-local        # Run builder locally
-make run-task-local              # Run single task locally
+epycloud run local builder --exp-id test-sim
+epycloud run local runner --exp-id test-sim --run-id <run_id> --task-index 0
+epycloud run local output --exp-id test-sim --run-id <run_id> --num-tasks 10
 
-# Other
-make clean          # Clean local artifacts
-make help           # Show all commands
+# Configuration
+epycloud config show           # Show current config
+epycloud config edit           # Edit configuration
+epycloud config validate       # Validate configuration
 ```
 
 
