@@ -12,14 +12,12 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 import requests
 
-from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
+from epycloud.exceptions import CloudAPIError, ConfigError
 from epycloud.lib.command_helpers import (
     generate_run_id,
     get_batch_config,
@@ -36,7 +34,6 @@ from epycloud.lib.command_helpers import (
 )
 from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, success, warning
-from epycloud.lib.validation import validate_exp_id, validate_run_id
 from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
 
 

@@ -1,11 +1,8 @@
 """Tests for scripts/util/logger.py module."""
 
 import json
-import logging
-from io import StringIO
 
 import pytest
-
 from util import logger
 
 
@@ -248,7 +245,6 @@ class TestCloudFormatter:
         monkeypatch.setenv("EXECUTION_MODE", "cloud")
 
         # Mock ImportError when importing pythonjsonlogger
-        import sys
         from unittest.mock import MagicMock
 
         mock_module = MagicMock()

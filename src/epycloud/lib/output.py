@@ -3,7 +3,6 @@
 import os
 import sys
 
-
 # Global color state
 _color_enabled = None  # None = auto-detect, "auto", "always", or "never"
 

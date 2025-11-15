@@ -5,9 +5,9 @@ Loads all result pickle files from Stage B, generates formatted outputs using
 dispatch_output_generator, and saves CSV.gz files to storage.
 """
 
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 import dill
@@ -15,13 +15,12 @@ import dill
 # Add scripts directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from util import storage
-from util.config import resolve_configs
-from util.logger import setup_logger
-from util.error_handling import handle_stage_error
-
 from epymodelingsuite.dispatcher import dispatch_output_generator
 from epymodelingsuite.telemetry import ExecutionTelemetry, create_workflow_telemetry
+from util import storage
+from util.config import resolve_configs
+from util.error_handling import handle_stage_error
+from util.logger import setup_logger
 
 # Task index formatting (supports up to 99999 tasks)
 INDEX_WIDTH = 5

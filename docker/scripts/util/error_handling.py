@@ -2,8 +2,8 @@
 Standardized error handling for pipeline stages.
 """
 
-import sys
 import logging
+import sys
 from typing import NoReturn
 
 

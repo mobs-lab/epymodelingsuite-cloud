@@ -27,13 +27,11 @@ import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-from typing import TypedDict
+from typing import Any, TypedDict
 from uuid import uuid4
 
 from epycloud.exceptions import CloudAPIError, ConfigError
-from epycloud.lib.output import error
-from epycloud.lib.output import info
+from epycloud.lib.output import error, info
 
 
 class CommandContext(TypedDict):
@@ -531,9 +529,7 @@ def validate_inputs(args: argparse.Namespace) -> tuple[str, str | None] | None:
     ...     return 1
     >>> exp_id, run_id = validated
     """
-    from epycloud.lib.validation import ValidationError
-    from epycloud.lib.validation import validate_exp_id
-    from epycloud.lib.validation import validate_run_id
+    from epycloud.lib.validation import ValidationError, validate_exp_id, validate_run_id
 
     try:
         exp_id = validate_exp_id(args.exp_id)

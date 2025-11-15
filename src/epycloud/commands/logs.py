@@ -188,7 +188,7 @@ def _fetch_logs(
         Exit code
     """
     if tail == 0:
-        info(f"Fetching all available log entries...")
+        info("Fetching all available log entries...")
     else:
         info(f"Fetching last {tail} log entries...")
     print()

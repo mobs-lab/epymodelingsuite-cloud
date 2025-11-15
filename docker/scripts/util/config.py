@@ -2,16 +2,15 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from epymodelingsuite.config_loader import (
     load_basemodel_config_from_file,
-    load_sampling_config_from_file,
     load_calibration_config_from_file,
     load_output_config_from_file,
+    load_sampling_config_from_file,
 )
-from epymodelingsuite.utils import identify_config_type
 from epymodelingsuite.schema.general import validate_cross_config_consistency
+from epymodelingsuite.utils import identify_config_type
 
 # Module-level logger for utility logging
 _logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ _logger = logging.getLogger(__name__)
 
 def resolve_configs(
     exp_id: str, config_dir: str = "/data/forecast/experiments"
-) -> dict[str, Optional[str]]:
+) -> dict[str, str | None]:
     """Resolve config files for an experiment by parsing YAML structure.
 
     Searches for YAML files in {config_dir}/{exp_id}/config/ and identifies their type by
@@ -105,7 +104,7 @@ def resolve_configs(
 
 
 def load_all_configs(
-    config_paths: dict[str, Optional[str]], validate_consistency: bool = True
+    config_paths: dict[str, str | None], validate_consistency: bool = True
 ) -> tuple:
     """Load all configuration files and optionally validate consistency.
 
