@@ -137,8 +137,8 @@ def handle(ctx: dict[str, Any]) -> int:
         info("Options:")
         info("  1. Load from .env.local: source .env.local")
         info("  2. Set environment variable: export GITHUB_PAT=your_token")
-        info(f"  3. Add to secrets.yaml: $EDITOR {secrets_file}")
-        info("     (Set github.personal_access_token in the file)")
+        info(f"  3. Add to secrets.yaml: epycloud config edit-secrets")
+        info(f"     (File location: {secrets_file})")
         return 2
 
     # Execute build based on mode
