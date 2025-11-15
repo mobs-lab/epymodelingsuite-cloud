@@ -2,50 +2,49 @@
 
 ## Configuration Management
 
-**This project uses `.env` as the single source of truth for all configuration.**
+**This project uses the unified configuration system (`config.yaml`) for all configuration.**
 
-### DO NOT use `terraform.tfvars`
+### Configuration System
 
-The Makefile reads configuration from `.env` (in the project root) and passes values to Terraform via `-var` flags. This ensures:
-- Single source of truth across Make, Docker, and Terraform
+The `epycloud` CLI manages configuration and passes values to Terraform automatically. Configuration is stored in `~/.config/epymodelingsuite-cloud/config.yaml`.
+
+This ensures:
+- Single source of truth across CLI, Docker, and Terraform
 - No duplicate configuration files
 - Consistent behavior across all tools
+- Secure secrets management
 
 ### How to Configure
 
-1. Copy `.env.example` to `.env` in the project root:
+1. Initialize configuration:
    ```bash
-   cp .env.example .env
+   epycloud config init
    ```
 
-2. Edit `.env` with your values:
+2. Edit configuration:
    ```bash
-   vim .env  # or your preferred editor
+   epycloud config edit          # Edit base configuration
+   epycloud config edit-secrets  # Edit secrets (GitHub PAT)
    ```
 
-3. Source and apply:
+3. Verify and apply:
    ```bash
-   source .env
-   make tf-apply
+   epycloud config show         # Verify configuration
+   epycloud terraform apply     # Deploy infrastructure
    ```
 
 ### Available Configuration
 
-See [.env.example](../.env.example) for all available configuration options, including:
+Configuration is stored in YAML format with hierarchical structure. Key sections include:
 
-- Google Cloud infrastructure (project, region, bucket)
-- Docker image configuration
-- GitHub repositories
-- **Batch machine configuration** (CPU, memory, machine type, runtime)
-  - Stage A (Builder): `STAGE_A_CPU_MILLI`, `STAGE_A_MEMORY_MIB`, `STAGE_A_MACHINE_TYPE`
-  - Stage B (Runner): `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`, `STAGE_B_MAX_RUN_DURATION`
-  - Stage C (Output): `STAGE_C_CPU_MILLI`, `STAGE_C_MEMORY_MIB`, `STAGE_C_MACHINE_TYPE`, `STAGE_C_MAX_RUN_DURATION`
+- **Google Cloud infrastructure** (`google_cloud.project_id`, `region`, `bucket_name`)
+- **Docker image configuration** (`docker.repo_name`, `image_name`, `image_tag`)
+- **GitHub repositories** (`github.forecast_repo`, `modeling_suite_repo`)
+- **Batch machine configuration** (Cloud Batch resources)
+  - Stage A (Builder): `google_cloud.batch.stage_a` (cpu_milli, memory_mib, machine_type)
+  - Stage B (Runner): `google_cloud.batch.stage_b` (cpu_milli, memory_mib, machine_type, max_run_duration)
+  - Stage C (Output): `google_cloud.batch.stage_c` (cpu_milli, memory_mib, machine_type, max_run_duration)
 - **Pipeline control**
-  - `RUN_OUTPUT_STAGE`: Enable/disable Stage C output generation (default: `true`)
+  - `google_cloud.batch.run_output_stage`: Enable/disable Stage C output generation (default: `true`)
 
-### Why Not terraform.tfvars?
-
-While `terraform.tfvars` is the standard Terraform way to set variables, our Makefile-based workflow overrides it completely. Using `.env` provides:
-- Works with Make, docker-compose, and shell scripts
-- Single file to maintain
-- No confusion about which config file is active
+See [docs/variable-configuration.md](../docs/variable-configuration.md) for complete configuration reference.

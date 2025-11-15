@@ -41,13 +41,14 @@ This document provides complete setup and implementation details for the Google 
 Here are the essential commands to setup the pipeline. Please read the full documentation before actual execution.
 
 ```bash
-# 1. Set up environment variables
-cp .env.example .env
-
-# Edit .env with your project details (PROJECT_ID, REGION, BUCKET_NAME, etc.)
-source .env
+# 1. Initialize configuration
+epycloud config init
+epycloud config edit         # Configure Google Cloud settings
+epycloud config edit-secrets # Add GitHub PAT
+epycloud config show         # Verify configuration
 
 # 2. Create GitHub PAT and store in Secret Manager
+PROJECT_ID=$(epycloud config show | grep 'project_id:' | awk '{print $2}')
 echo -n "your_github_pat_here" | gcloud secrets create github-pat \
   --data-file=- \
   --project=${PROJECT_ID}
@@ -117,10 +118,8 @@ epymodelingsuite-cloud/
 │     ├─ main_output.py          # Stage C: Aggregate results
 │     ├─ run_builder.sh          # Stage A wrapper for repo cloning
 │     └─ run_output.sh           # Stage C wrapper
-├─ Makefile                      # Build/deploy automation
+├─ Makefile                      # Build/deploy automation (deprecated)
 ├─ cloudbuild.yaml               # Cloud Build configuration
-├─ .env                          # Environment variables (gitignored)
-├─ .env.example                  # Template for environment variables
 ├─ .gitignore
 └─ README.md
 ```
@@ -176,30 +175,36 @@ gcloud projects add-iam-policy-binding your-gcp-project-id \
 
 **Note**: Ask your Google Cloud project administrator to grant these roles if you encounter permission errors during deployment.
 
-Set these environment variables:
+Initialize and configure the project:
 
 ```bash
-# Copy the template and fill in your values
-cp .env.example .env
+# Initialize configuration system
+epycloud config init
 
-# Edit .env with your project details
-# The examples are:
-export PROJECT_ID=your-gcp-project-id
-export REGION=us-central1
-export REPO_NAME=epymodelingsuite-repo
-export BUCKET_NAME=your-bucket-name  # Assumes existing bucket
+# Edit configuration file (opens in $EDITOR)
+epycloud config edit
 
-# GitHub Private Repositories
-export GITHUB_FORECAST_REPO=owner/forecasting-repo  # Forecast data (format: owner/repo)
-export GITHUB_MODELING_SUITE_REPO=owner/epymodelingsuite  # Modeling suite package (format: owner/repo)
-export GITHUB_MODELING_SUITE_REF=main  # Branch or commit to build from
+# Configuration structure (config.yaml):
+# google_cloud:
+#   project_id: your-gcp-project-id
+#   region: us-central1
+#   bucket_name: your-bucket-name  # Must exist
+# docker:
+#   repo_name: epymodelingsuite-repo
+# github:
+#   forecast_repo: owner/forecasting-repo
+#   modeling_suite_repo: owner/epymodelingsuite
+#   modeling_suite_ref: main
 
-# After editing, load the variables
-source .env
+# Edit secrets (opens in $EDITOR with 0600 permissions)
+epycloud config edit-secrets
+# Add: github.personal_access_token: your_github_pat_here
+
+# Verify configuration
+epycloud config show
 ```
 
-
-**Note**: The terraform does not make a new bucket, but rather uses an **existing GCS bucket**.
+**Note**: The terraform does not create a new bucket, but rather uses an **existing GCS bucket**.
 
 ### Setting up GitHub Personal Access Token
 
@@ -294,16 +299,16 @@ See full implementation in [terraform/workflow.yaml](terraform/workflow.yaml).
 Google Cloud Batch allows you to specify compute resources in two ways:
 
 **Option 1: Automatic VM selection (recommended for getting started)**
-- Set `cpuMilli` and `memoryMib` to define task requirements
-- Leave `STAGE_B_MACHINE_TYPE=""` (empty)
+- Set `cpu_milli` and `memory_mib` in config to define task requirements
+- Leave `machine_type` empty (or omit it)
 - Google Cloud **automatically selects** an appropriate VM type
-- Example: `cpuMilli=2000, memoryMib=4096` → Google may provision `c4d-standard-2` (2 vCPU, 7 GB)
+- Example: `cpu_milli: 2000, memory_mib: 4096` → Google may provision `c4d-standard-2` (2 vCPU, 7 GB)
 
 **Option 2: Explicit machine type (recommended for production)**
-- Set `STAGE_B_MACHINE_TYPE="c4d-standard-2"`
-- `cpuMilli` and `memoryMib` become **task constraints** (must fit within the VM)
+- Set `machine_type: "c4d-standard-2"` in config
+- `cpu_milli` and `memory_mib` become **task constraints** (must fit within the VM)
 - Ensures predictable VM provisioning and scaling behavior
-- Better for avoiding task queueing with `TASK_COUNT_PER_NODE=1`
+- Better for avoiding task queueing with `task_count_per_node: 1`
 
 **cpuMilli** represents thousandths of a vCPU:
 - `1000 cpuMilli = 1 vCPU`
@@ -335,101 +340,96 @@ machineType: E2_HIGHCPU_8
 - `e2-highcpu-8`: 8 vCPU, 8 GB RAM (provides faster builds with more CPU)
 
 **Stage A Job (Generator)**
-```yaml
-computeResource:
-  cpuMilli: ${STAGE_A_CPU_MILLI}    # Default: 2000 (2 vCPUs)
-  memoryMib: ${STAGE_A_MEMORY_MIB}  # Default: 4096 (4 GB RAM)
-```
 - Single task that generates input files
-- Configurable via `.env`: `STAGE_A_CPU_MILLI`, `STAGE_A_MEMORY_MIB`, `STAGE_A_MACHINE_TYPE`
-- Default resources: 2 vCPUs, 4 GB RAM
+- Configurable in `config.yaml`: `google_cloud.batch.stage_a` section
+- Default resources: 2 vCPUs (`cpu_milli: 2000`), 4 GB RAM (`memory_mib: 4096`)
 
 **Stage B Job (Runner)**
-```yaml
-computeResource:
-  cpuMilli: ${STAGE_B_CPU_MILLI}    # Default: 2000 (2 vCPUs)
-  memoryMib: ${STAGE_B_MEMORY_MIB}  # Default: 4096 (4 GB RAM)
-maxRunDuration: ${STAGE_B_MAX_RUN_DURATION}s  # Default: 36000s (10 hours)
-taskCountPerNode: ${TASK_COUNT_PER_NODE}  # Default: 1 (dedicated VM per task)
-```
 - Parallel tasks processing individual simulations
-- Configurable via `.env`: `STAGE_B_CPU_MILLI`, `STAGE_B_MEMORY_MIB`, `STAGE_B_MACHINE_TYPE`, `STAGE_B_MAX_RUN_DURATION`, `TASK_COUNT_PER_NODE`
-- Default resources: 2 vCPUs, 4 GB RAM per task
-- Default timeout: 36000 seconds (10 hours) per task
+- Configurable in `config.yaml`: `google_cloud.batch.stage_b` section
+- Default resources: 2 vCPUs (`cpu_milli: 2000`), 4 GB RAM (`memory_mib: 4096`)
+- Default timeout: 36000 seconds (10 hours) per task (`max_run_duration: 36000`)
+- Default parallelism: 1 task per VM (`task_count_per_node: 1`)
 
 **Stage C Job (Output)**
-```yaml
-computeResource:
-  cpuMilli: ${STAGE_C_CPU_MILLI}    # Default: 2000 (2 vCPUs)
-  memoryMib: ${STAGE_C_MEMORY_MIB}  # Default: 8192 (8 GB RAM)
-maxRunDuration: ${STAGE_C_MAX_RUN_DURATION}s  # Default: 7200s (2 hours)
-```
 - Single task that aggregates all Stage B results
-- Configurable via `.env`: `STAGE_C_CPU_MILLI`, `STAGE_C_MEMORY_MIB`, `STAGE_C_MACHINE_TYPE`, `STAGE_C_MAX_RUN_DURATION`
-- Default resources: 2 vCPUs, 8 GB RAM
-- Default timeout: 7200 seconds (2 hours)
+- Configurable in `config.yaml`: `google_cloud.batch.stage_c` section
+- Default resources: 2 vCPUs (`cpu_milli: 2000`), 8 GB RAM (`memory_mib: 8192`)
+- Default timeout: 7200 seconds (2 hours) (`max_run_duration: 7200`)
 
 ### Tuning Compute Resources
 
-Resources are now **configurable via environment variables** in `.env`:
+Resources are configurable in `config.yaml` under `google_cloud.batch.stage_b`:
 
 **Example configurations:**
 
-```bash
-# Lightweight tasks (1 vCPU, 2 GB)
-export STAGE_B_CPU_MILLI=1000
-export STAGE_B_MEMORY_MIB=2048
-export STAGE_B_MACHINE_TYPE=""  # Auto-select
+```yaml
+# Lightweight tasks (1 vCPU, 2 GB) - config.yaml
+google_cloud:
+  batch:
+    stage_b:
+      cpu_milli: 1000
+      memory_mib: 2048
+      machine_type: ""  # Auto-select
 
 # Standard tasks (2 vCPUs, 8 GB) - Default
-export STAGE_B_CPU_MILLI=2000
-export STAGE_B_MEMORY_MIB=8192
-export STAGE_B_MACHINE_TYPE="e2-standard-2"
+google_cloud:
+  batch:
+    stage_b:
+      cpu_milli: 2000
+      memory_mib: 8192
+      machine_type: "e2-standard-2"
 
 # Compute-intensive tasks (2 vCPUs, 7 GB)
-export STAGE_B_CPU_MILLI=2000
-export STAGE_B_MEMORY_MIB=7168
-export STAGE_B_MACHINE_TYPE="c4d-standard-2"
+google_cloud:
+  batch:
+    stage_b:
+      cpu_milli: 2000
+      memory_mib: 7168
+      machine_type: "c4d-standard-2"
 
 # High-memory tasks (2 vCPUs, 15 GB)
-export STAGE_B_CPU_MILLI=8000
-export STAGE_B_MEMORY_MIB=15360
-export STAGE_B_MACHINE_TYPE="c4d-highmem-2"
+google_cloud:
+  batch:
+    stage_b:
+      cpu_milli: 8000
+      memory_mib: 15360
+      machine_type: "c4d-highmem-2"
 ```
 
 **Timeout configurations:**
 
-```bash
-# Short simulations (< 1 hour)
-export STAGE_B_MAX_RUN_DURATION=3600  # 1 hour
-
-# Medium simulations (1-5 hours)
-export STAGE_B_MAX_RUN_DURATION=18000  # 5 hours
-
-# Long simulations (5-10 hours) - Default
-export STAGE_B_MAX_RUN_DURATION=36000  # 10 hours
-
-# Very long simulations (customize as needed)
-export STAGE_B_MAX_RUN_DURATION=86400  # 24 hours
-# Note: Cloud Batch max limit is 604800s (7 days)
+```yaml
+# Edit config.yaml
+google_cloud:
+  batch:
+    stage_b:
+      max_run_duration: 3600   # Short (< 1 hour)
+      max_run_duration: 18000  # Medium (1-5 hours)
+      max_run_duration: 36000  # Long (5-10 hours) - Default
+      max_run_duration: 86400  # Very long (24 hours)
+      # Note: Cloud Batch max limit is 604800s (7 days)
 ```
 
 **Important notes:**
-- Tasks exceeding `STAGE_B_MAX_RUN_DURATION` will be terminated by Google Cloud Batch
+- Tasks exceeding `max_run_duration` will be terminated by Google Cloud Batch
 - Set this value based on your longest expected simulation runtime
 - Add buffer time (e.g., if max simulation is 8 hours, set to 10 hours)
 - Monitor task completion times to optimize this setting
 
-### Recommended Configuration: Dedicated VMs (taskCountPerNode=1)
+### Recommended Configuration: Dedicated VMs (task_count_per_node=1)
 
 For parallel execution with no task queueing, use **one task per VM**:
 
-```bash
-# Recommended configuration in .env
-export TASK_COUNT_PER_NODE=1
-export STAGE_B_CPU_MILLI=2000
-export STAGE_B_MEMORY_MIB=8192
-export STAGE_B_MACHINE_TYPE="c4d-standard-2"  # Explicit type for predictable scaling
+```yaml
+# Recommended configuration in config.yaml
+google_cloud:
+  batch:
+    task_count_per_node: 1
+    stage_b:
+      cpu_milli: 2000
+      memory_mib: 8192
+      machine_type: "c4d-standard-2"  # Explicit type for predictable scaling
 ```
 
 **Benefits:**
@@ -440,7 +440,7 @@ export STAGE_B_MACHINE_TYPE="c4d-standard-2"  # Explicit type for predictable sc
 
 **How it works:**
 ```
-With TASK_COUNT_PER_NODE=1:
+With task_count_per_node=1:
   - Google Cloud Batch creates up to N VMs for N tasks
   - Each VM runs exactly 1 task then terminates
   - If machine type is set, VM creation is predictable
@@ -448,9 +448,9 @@ With TASK_COUNT_PER_NODE=1:
 ```
 
 **Production recommendations:**
-1. **Set explicit `STAGE_B_MACHINE_TYPE`** for predictable VM provisioning
-2. **Match `STAGE_B_CPU_MILLI` to machine capacity**: e.g. `c4d-standard-2` (2 vCPU) → `CPU_MILLI=2000`
-3. **Set `TASK_COUNT_PER_NODE=1`** for parallel execution with variable task runtimes
+1. **Set explicit `machine_type`** in config for predictable VM provisioning
+2. **Match `cpu_milli` to machine capacity**: e.g. `c4d-standard-2` (2 vCPU) → `cpu_milli: 2000`
+3. **Set `task_count_per_node: 1`** for parallel execution with variable task runtimes
 4. **Monitor first run** in Cloud Console to verify expected number of VMs are created
 
 
@@ -479,9 +479,9 @@ While larger shared VMs could maximize vCPU utilization and reduce per-task cost
 
 **After modifying resources:**
 ```bash
-source .env
-make tf-plan    # Review changes
-make tf-apply   # Deploy updated configuration
+epycloud config edit      # Edit configuration
+epycloud terraform plan   # Review changes
+epycloud terraform apply  # Deploy updated configuration
 ```
 
 
@@ -517,9 +517,9 @@ The Dockerfile uses multi-stage builds with three stages:
    - Used by Cloud Batch jobs
 
 **Image naming:**
-- Image name: `epymodelingsuite` (configurable via `IMAGE_NAME` in `.env`)
-- Image tag: `latest` (configurable via `IMAGE_TAG`)
-- Full path: `${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/epymodelingsuite:latest`
+- Image name: `epymodelingsuite` (configurable via `docker.image_name` in config)
+- Image tag: `latest` (configurable via `docker.image_tag`)
+- Full path: `{region}-docker.pkg.dev/{project_id}/{repo_name}/epymodelingsuite:latest`
 
 ### Build & push
 
@@ -528,12 +528,17 @@ The Dockerfile uses multi-stage builds with three stages:
 epycloud build cloud
 
 # Option 2: Build cloud image locally and push to Artifact Registry
-source .env && gcloud auth configure-docker ${REGION}-docker.pkg.dev --project=${PROJECT_ID}
-source .env.local  # For GITHUB_PAT
+# Ensure GitHub PAT is configured
+epycloud config show  # Verify github.personal_access_token is set
+
+# Authenticate Docker (one-time setup)
+REGION=$(epycloud config show | grep 'region:' | awk '{print $2}')
+PROJECT_ID=$(epycloud config show | grep 'project_id:' | awk '{print $2}')
+gcloud auth configure-docker ${REGION}-docker.pkg.dev --project=${PROJECT_ID}
+
 epycloud build local
 
 # Option 3: Build local dev image (for Docker Compose, no push)
-source .env.local  # For GITHUB_PAT
 epycloud build dev
 ```
 
@@ -542,10 +547,10 @@ epycloud build dev
 - `epycloud build local` - Builds `cloud` target locally, pushes to Artifact Registry (requires auth)
 - `epycloud build dev` - Builds `local` target locally, tags as `epymodelingsuite:local`, no push
 
-**Local secrets management:**
-- Create [.env.local](.env.local) (gitignored) for sensitive values like `GITHUB_PAT`
-- Template available at [.env.local.example](.env.local.example)
-- Required for `build-local` and `build-dev` with private repositories
+**Secrets management:**
+- GitHub PAT stored in `~/.config/epymodelingsuite-cloud/secrets.yaml` (with 0600 permissions)
+- Configure via: `epycloud config edit-secrets`
+- Used for local builds when accessing private repositories
 - Cloud builds use Secret Manager instead
 
 **Cloud Build configuration** in [cloudbuild.yaml](cloudbuild.yaml):
@@ -562,8 +567,8 @@ epycloud build dev
 The epymodelingsuite package is installed during the Docker build in the `base` stage. The [Dockerfile](docker/Dockerfile) clones the private repository using GitHub PAT and installs it via `uv`:
 
 - Installs at **build time** (baked into the Docker image, not at runtime)
-- Uses GitHub PAT from Secret Manager (Cloud Build) or `.env.local` (local builds)
-- Supports specific branch/commit via `GITHUB_MODELING_SUITE_REF` build argument
+- Uses GitHub PAT from Secret Manager (Cloud Build) or `secrets.yaml` (local builds)
+- Supports specific branch/commit via `github.modeling_suite_ref` config setting
 - Repository is cloned to `/tmp/epymodelingsuite`, installed, then removed to keep image clean
 - PAT is not persisted in image layers (security best practice)
 
@@ -576,8 +581,10 @@ This approach ensures all containers have the same version of epymodelingsuite a
 For local execution, first build the local image, then use the `epycloud` CLI commands:
 
 ```bash
+# Ensure configuration is set up (including GitHub PAT if using private repos)
+epycloud config show
+
 # Build local development image
-source .env.local  # For GITHUB_PAT if using private repos
 epycloud build dev
 
 # Run builder (Stage A) - this auto-generates RUN_ID
@@ -600,7 +607,7 @@ epycloud run job --local --stage output --exp-id test-sim --run-id <run_id> --nu
 **Note:** The `epycloud` CLI wraps `docker compose` calls with additional features:
 - Automatically includes `--rm` flag to remove containers after execution (prevents orphaned containers)
 - Validates required environment variables (e.g., `EXP_ID`, `RUN_ID`)
-- Passes environment variables to docker compose: `EXP_ID`, `RUN_ID`, `TASK_INDEX`, `NUM_TASKS`
+- Loads config values and passes them to docker compose as environment variables
 - Provides helpful output messages showing where files are read/written
 
 **What the epycloud CLI does:**
@@ -627,9 +634,9 @@ The Docker Compose setup (defined in [docker-compose.yml](../docker-compose.yml)
 
 **Configuration:**
 - Uses the `local` build target (smaller image, no gcloud CLI)
-- Loads environment variables from `.env.local` (optional, for GitHub PAT)
+- Environment variables loaded from config.yaml by epycloud CLI
 - Sets `EXECUTION_MODE=local` automatically (enables local filesystem instead of GCS)
-- Environment variables: `EXP_ID`, `RUN_ID`, `TASK_INDEX`
+- Runtime variables: `EXP_ID`, `RUN_ID`, `TASK_INDEX`
 
 **Services:**
 - **dispatcher** - Runs `run_builder.sh` to generate input files
@@ -829,14 +836,14 @@ epycloud config validate       # Validate configuration
 
 * **Reproducibility**: tag images with immutable digests and store a `run_metadata.json` next to outputs (image digest, args, run time, counts).
 * **Quotas**:
-  - Cap `parallelism` in Workflows (default: 100, configurable via `MAX_PARALLELISM` in `.env`)
+  - Cap parallelism in Workflows (default: 100, configurable via `google_cloud.batch.max_parallelism` in config)
   - Cloud Batch supports up to 5,000 parallel tasks per job
   - Adjust CPU/Memory per task based on your region's vCPU quota
-  - **Avoid queueing**: Set explicit `STAGE_B_MACHINE_TYPE` with `TASK_COUNT_PER_NODE=1` for predictable VM provisioning
+  - **Avoid queueing**: Set explicit `machine_type` with `task_count_per_node: 1` for predictable VM provisioning
 * **VM Allocation Best Practices**:
-  - **Set `TASK_COUNT_PER_NODE=1`** for parallel execution (one task per VM)
-  - **Set explicit `STAGE_B_MACHINE_TYPE`** (e.g., "c4d-standard-2") for predictable scaling
-  - **Match `STAGE_B_CPU_MILLI` to machine capacity**: `c4d-standard-2` (2 vCPU) → `CPU_MILLI=2000`
+  - **Set `task_count_per_node: 1`** for parallel execution (one task per VM)
+  - **Set explicit `machine_type`** (e.g., "c4d-standard-2") for predictable scaling
+  - **Match `cpu_milli` to machine capacity**: `c4d-standard-2` (2 vCPU) → `cpu_milli: 2000`
   - Monitor first job run in Cloud Console to verify expected number of VMs are created
 * **Security**:
   - Principle of least privilege (scoped IAM on bucket, read-only PAT for repos)
