@@ -9,7 +9,6 @@ Available commands:
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from datetime import datetime
@@ -74,6 +73,17 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Wait for build to complete",
     )
+    cloud_parser.add_argument(
+        "-f",
+        "--file",
+        dest="dockerfile",
+        help="Path to Dockerfile (default: docker/Dockerfile)",
+    )
+    cloud_parser.add_argument(
+        "context",
+        nargs="?",
+        help="Build context directory (default: project root)",
+    )
 
     # epycloud build local
     local_parser = build_subparsers.add_parser(
@@ -95,6 +105,17 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Don't push to registry",
     )
+    local_parser.add_argument(
+        "-f",
+        "--file",
+        dest="dockerfile",
+        help="Path to Dockerfile (default: docker/Dockerfile)",
+    )
+    local_parser.add_argument(
+        "context",
+        nargs="?",
+        help="Build context directory (default: docker/)",
+    )
 
     # epycloud build dev
     dev_parser = build_subparsers.add_parser(
@@ -115,6 +136,17 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--push",
         action="store_true",
         help="Push to registry",
+    )
+    dev_parser.add_argument(
+        "-f",
+        "--file",
+        dest="dockerfile",
+        help="Path to Dockerfile (default: docker/Dockerfile)",
+    )
+    dev_parser.add_argument(
+        "context",
+        nargs="?",
+        help="Build context directory (default: docker/)",
     )
 
     # epycloud build status
@@ -218,6 +250,20 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root()
 
+    # Resolve dockerfile and context paths
+    dockerfile = getattr(args, "dockerfile", None)
+    context = getattr(args, "context", None)
+
+    if dockerfile:
+        dockerfile_path = Path(dockerfile).resolve()
+    else:
+        dockerfile_path = project_root / "docker" / "Dockerfile"
+
+    if context:
+        context_path = Path(context).resolve()
+    else:
+        context_path = project_root
+
     return _build_cloud(
         project_id=project_id,
         region=region,
@@ -231,7 +277,8 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
         wait=args.wait,
         verbose=verbose,
         dry_run=dry_run,
-        project_root=project_root,
+        dockerfile_path=dockerfile_path,
+        context_path=context_path,
     )
 
 
@@ -284,6 +331,20 @@ def _handle_local(ctx: dict[str, Any]) -> int:
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root()
 
+    # Resolve dockerfile and context paths
+    dockerfile = getattr(args, "dockerfile", None)
+    context = getattr(args, "context", None)
+
+    if dockerfile:
+        dockerfile_path = Path(dockerfile).resolve()
+    else:
+        dockerfile_path = project_root / "docker" / "Dockerfile"
+
+    if context:
+        context_path = Path(context).resolve()
+    else:
+        context_path = project_root / "docker"
+
     return _build_local(
         image_path=image_path,
         modeling_suite_repo=modeling_suite_repo,
@@ -293,7 +354,8 @@ def _handle_local(ctx: dict[str, Any]) -> int:
         push=not args.no_push,
         verbose=verbose,
         dry_run=dry_run,
-        project_root=project_root,
+        dockerfile_path=dockerfile_path,
+        context_path=context_path,
     )
 
 
@@ -337,6 +399,20 @@ def _handle_dev(ctx: dict[str, Any]) -> int:
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root()
 
+    # Resolve dockerfile and context paths
+    dockerfile = getattr(args, "dockerfile", None)
+    context = getattr(args, "context", None)
+
+    if dockerfile:
+        dockerfile_path = Path(dockerfile).resolve()
+    else:
+        dockerfile_path = project_root / "docker" / "Dockerfile"
+
+    if context:
+        context_path = Path(context).resolve()
+    else:
+        context_path = project_root / "docker"
+
     return _build_dev(
         image_name=image_name,
         image_path=image_path,
@@ -347,7 +423,8 @@ def _handle_dev(ctx: dict[str, Any]) -> int:
         push=args.push,
         verbose=verbose,
         dry_run=dry_run,
-        project_root=project_root,
+        dockerfile_path=dockerfile_path,
+        context_path=context_path,
     )
 
 
@@ -504,7 +581,8 @@ def _build_cloud(
     wait: bool,
     verbose: bool,
     dry_run: bool,
-    project_root: Path,
+    dockerfile_path: Path,
+    context_path: Path,
 ) -> int:
     """Build with Cloud Build (async by default).
 
@@ -534,8 +612,10 @@ def _build_cloud(
         Verbose output
     dry_run : bool
         Dry run mode
-    project_root : Path
-        Project root directory
+    dockerfile_path : Path
+        Absolute path to Dockerfile
+    context_path : Path
+        Absolute path to build context directory
 
     Returns
     -------
@@ -544,6 +624,8 @@ def _build_cloud(
     """
     info(f"Building with Cloud Build (async: {not wait})...")
     info(f"Image: {image_path}")
+    info(f"Dockerfile: {dockerfile_path}")
+    info(f"Context: {context_path}")
 
     if modeling_suite_repo:
         info(f"Repository: {modeling_suite_repo} @ {modeling_suite_ref}")
@@ -553,15 +635,16 @@ def _build_cloud(
     if no_cache:
         warning("Cache disabled (--no-cache)")
 
-    # Build gcloud command
+    # Build gcloud command with absolute context path
     cmd = [
         "gcloud",
         "builds",
         "submit",
         f"--project={project_id}",
         f"--region={region}",
-        "--config=cloudbuild.yaml",
+        f"--config={context_path / 'cloudbuild.yaml'}",
         f"--substitutions=_REGION={region},_REPO_NAME={repo_name},_IMAGE_NAME={image_name},_IMAGE_TAG={image_tag},_GITHUB_MODELING_SUITE_REPO={modeling_suite_repo},_GITHUB_MODELING_SUITE_REF={modeling_suite_ref}",
+        str(context_path),
     ]
 
     if not wait:
@@ -572,46 +655,38 @@ def _build_cloud(
         info(f"Would execute: {' '.join(cmd)}")
         return 0
 
-    # Change to project root
-    original_dir = Path.cwd()
-    try:
-        os.chdir(project_root)
+    # Execute command (no directory change needed)
+    result = subprocess.run(
+        cmd,
+        capture_output=not wait,
+        text=True,
+        check=False,
+    )
 
-        # Execute command
-        result = subprocess.run(
-            cmd,
-            capture_output=not wait,
-            text=True,
-            check=False,
-        )
+    if result.returncode != 0:
+        error("Cloud Build submission failed")
+        if verbose and result.stderr:
+            print(result.stderr, file=sys.stderr)
+        return 1
 
-        if result.returncode != 0:
-            error("Cloud Build submission failed")
-            if verbose and result.stderr:
-                print(result.stderr, file=sys.stderr)
-            return 1
+    if wait:
+        success("Build completed successfully!")
+    else:
+        # Parse build ID from output
+        build_id = result.stdout.strip() if result.stdout else None
 
-        if wait:
-            success("Build completed successfully!")
+        if build_id:
+            success("Build submitted successfully!")
+            info(f"Build ID: {build_id}")
+            print()
+            info("Monitor with:")
+            info(f"  gcloud builds describe {build_id} --region={region}")
+            info(f"  gcloud builds log {build_id} --region={region} --stream")
+            info(f"  gcloud builds list --region={region} --ongoing")
         else:
-            # Parse build ID from output
-            build_id = result.stdout.strip() if result.stdout else None
+            warning("Build submitted but could not parse build ID")
 
-            if build_id:
-                success("Build submitted successfully!")
-                info(f"Build ID: {build_id}")
-                print()
-                info("Monitor with:")
-                info(f"  gcloud builds describe {build_id} --region={region}")
-                info(f"  gcloud builds log {build_id} --region={region} --stream")
-                info(f"  gcloud builds list --region={region} --ongoing")
-            else:
-                warning("Build submitted but could not parse build ID")
-
-        return 0
-
-    finally:
-        os.chdir(original_dir)
+    return 0
 
 
 def _build_local(
@@ -623,7 +698,8 @@ def _build_local(
     push: bool,
     verbose: bool,
     dry_run: bool,
-    project_root: Path,
+    dockerfile_path: Path,
+    context_path: Path,
 ) -> int:
     """Build locally and push to Artifact Registry.
 
@@ -645,8 +721,10 @@ def _build_local(
         Verbose output
     dry_run : bool
         Dry run mode
-    project_root : Path
-        Project root directory
+    dockerfile_path : Path
+        Absolute path to Dockerfile
+    context_path : Path
+        Absolute path to build context directory
 
     Returns
     -------
@@ -655,6 +733,8 @@ def _build_local(
     """
     info("Building cloud image locally...")
     info(f"Image: {image_path}")
+    info(f"Dockerfile: {dockerfile_path}")
+    info(f"Context: {context_path}")
 
     if modeling_suite_repo:
         info(f"Repository: {modeling_suite_repo} @ {modeling_suite_ref}")
@@ -667,7 +747,7 @@ def _build_local(
     if not push:
         warning("Will not push to registry (--no-push)")
 
-    # Build docker command
+    # Build docker command with absolute paths
     cmd = [
         "docker",
         "buildx",
@@ -675,7 +755,7 @@ def _build_local(
         "--platform=linux/amd64",
         f"-t={image_path}",
         "--target=cloud",
-        "-f=docker/Dockerfile",
+        f"-f={dockerfile_path}",
     ]
 
     if no_cache:
@@ -689,7 +769,7 @@ def _build_local(
     if push:
         cmd.append("--push")
 
-    cmd.append(".")
+    cmd.append(str(context_path))
 
     if dry_run:
         # Mask GitHub PAT in output
@@ -700,28 +780,20 @@ def _build_local(
         info(f"Would execute: {' '.join(cmd_display)}")
         return 0
 
-    # Change to project root
-    original_dir = Path.cwd()
-    try:
-        os.chdir(project_root)
+    # Execute command (no directory change needed)
+    result = subprocess.run(cmd, check=False)
 
-        # Execute command
-        result = subprocess.run(cmd, check=False)
+    if result.returncode != 0:
+        error("Docker build failed")
+        return 1
 
-        if result.returncode != 0:
-            error("Docker build failed")
-            return 1
+    if push:
+        success(f"Image built and pushed: {image_path}")
+    else:
+        success(f"Image built: {image_path}")
+        info("Use --push to push to registry")
 
-        if push:
-            success(f"Image built and pushed: {image_path}")
-        else:
-            success(f"Image built: {image_path}")
-            info("Use --push to push to registry")
-
-        return 0
-
-    finally:
-        os.chdir(original_dir)
+    return 0
 
 
 def _build_dev(
@@ -734,7 +806,8 @@ def _build_dev(
     push: bool,
     verbose: bool,
     dry_run: bool,
-    project_root: Path,
+    dockerfile_path: Path,
+    context_path: Path,
 ) -> int:
     """Build dev image locally (no push by default).
 
@@ -758,8 +831,10 @@ def _build_dev(
         Verbose output
     dry_run : bool
         Dry run mode
-    project_root : Path
-        Project root directory
+    dockerfile_path : Path
+        Absolute path to Dockerfile
+    context_path : Path
+        Absolute path to build context directory
 
     Returns
     -------
@@ -768,6 +843,8 @@ def _build_dev(
     """
     info("Building local development image...")
     info(f"Image: {image_path}")
+    info(f"Dockerfile: {dockerfile_path}")
+    info(f"Context: {context_path}")
     info("Target: local (no gcloud)")
 
     if modeling_suite_repo:
@@ -783,13 +860,13 @@ def _build_dev(
     if push:
         warning("Will push to registry (--push)")
 
-    # Build docker command
+    # Build docker command with absolute paths
     cmd = [
         "docker",
         "build",
         f"-t={image_path}",
         "--target=local",
-        "-f=docker/Dockerfile",
+        f"-f={dockerfile_path}",
     ]
 
     if no_cache:
@@ -800,7 +877,7 @@ def _build_dev(
         cmd.append(f"--build-arg=GITHUB_MODELING_SUITE_REF={modeling_suite_ref}")
         cmd.append(f"--build-arg=GITHUB_PAT={github_pat}")
 
-    cmd.append(".")
+    cmd.append(str(context_path))
 
     if dry_run:
         # Mask GitHub PAT in output
@@ -811,33 +888,25 @@ def _build_dev(
         info(f"Would execute: {' '.join(cmd_display)}")
         return 0
 
-    # Change to project root
-    original_dir = Path.cwd()
-    try:
-        os.chdir(project_root)
+    # Execute command (no directory change needed)
+    result = subprocess.run(cmd, check=False)
 
-        # Execute command
-        result = subprocess.run(cmd, check=False)
+    if result.returncode != 0:
+        error("Docker build failed")
+        return 1
 
-        if result.returncode != 0:
-            error("Docker build failed")
+    success(f"Local image built: {image_path}")
+    info("Use with: docker compose or epycloud run --local")
+
+    if push:
+        # Push the image
+        info(f"Pushing {image_path}...")
+        push_result = subprocess.run(["docker", "push", image_path], check=False)
+
+        if push_result.returncode != 0:
+            error("Docker push failed")
             return 1
 
-        success(f"Local image built: {image_path}")
-        info("Use with: docker compose or epycloud run --local")
+        success(f"Image pushed: {image_path}")
 
-        if push:
-            # Push the image
-            info(f"Pushing {image_path}...")
-            push_result = subprocess.run(["docker", "push", image_path], check=False)
-
-            if push_result.returncode != 0:
-                error("Docker push failed")
-                return 1
-
-            success(f"Image pushed: {image_path}")
-
-        return 0
-
-    finally:
-        os.chdir(original_dir)
+    return 0

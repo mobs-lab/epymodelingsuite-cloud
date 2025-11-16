@@ -172,6 +172,7 @@ class TestRunJobCommand:
                 local=True,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
@@ -197,6 +198,7 @@ class TestRunJobCommand:
                 local=True,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
@@ -222,6 +224,7 @@ class TestRunJobCommand:
                 local=True,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
@@ -247,6 +250,7 @@ class TestRunJobCommand:
                 local=True,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
