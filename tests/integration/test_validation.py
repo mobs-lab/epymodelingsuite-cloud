@@ -1,6 +1,7 @@
 """Integration tests for input validation."""
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -9,6 +10,7 @@ from epycloud.lib.validation import (
     validate_exp_id,
     validate_github_token,
     validate_local_path,
+    validate_machine_type,
     validate_run_id,
     validate_stage_name,
 )
@@ -213,3 +215,107 @@ class TestValidateStageName:
         """Test empty stage name."""
         with pytest.raises(ValidationError, match="cannot be empty"):
             validate_stage_name("")
+
+
+class TestValidateMachineType:
+    """Test Google Cloud machine type validation."""
+
+    def test_valid_machine_type_format(self):
+        """Test machine types with valid format pass format validation."""
+        # Mock successful gcloud call
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "n2-standard-4\nc2-standard-8\nn2-highmem-16\n"
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = validate_machine_type("n2-standard-4", "my-project", "us-central1")
+            assert result == "n2-standard-4"
+
+    def test_invalid_machine_type_empty(self):
+        """Test empty machine type raises ValidationError."""
+        with pytest.raises(ValidationError, match="cannot be empty"):
+            validate_machine_type("", "my-project", "us-central1")
+
+        with pytest.raises(ValidationError, match="cannot be empty"):
+            validate_machine_type("   ", "my-project", "us-central1")
+
+    def test_invalid_machine_type_format_no_dash(self):
+        """Test machine type without proper format raises ValidationError."""
+        with pytest.raises(ValidationError, match="Invalid machine type format"):
+            validate_machine_type("NotValidFormat", "my-project", "us-central1")
+
+    def test_invalid_machine_type_format_uppercase(self):
+        """Test machine type with uppercase letters fails format validation."""
+        with pytest.raises(ValidationError, match="Invalid machine type format"):
+            validate_machine_type("N2-standard-4", "my-project", "us-central1")
+
+    def test_invalid_machine_type_format_special_chars(self):
+        """Test machine type with special characters fails."""
+        with pytest.raises(ValidationError, match="Invalid machine type format"):
+            validate_machine_type("n2@standard-4", "my-project", "us-central1")
+
+    def test_machine_type_exists_in_region(self):
+        """Test machine type found in gcloud output."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "n2-standard-4\nc2-standard-8\nn2-highmem-16\n"
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            result = validate_machine_type("c2-standard-8", "test-project", "us-east1")
+            assert result == "c2-standard-8"
+
+            # Verify gcloud was called with correct arguments
+            mock_run.assert_called_once()
+            call_args = mock_run.call_args[0][0]
+            assert "gcloud" in call_args
+            assert "compute" in call_args
+            assert "machine-types" in call_args
+            assert "--project=test-project" in call_args
+            assert "--filter=zone~us-east1" in call_args
+
+    def test_machine_type_not_found_with_suggestions(self):
+        """Test machine type not found provides suggestions."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "n2-standard-4\nn2-standard-8\nn2-highmem-16\nn2d-standard-4\n"
+
+        with patch("subprocess.run", return_value=mock_result):
+            with pytest.raises(ValidationError, match="not found in region") as exc_info:
+                validate_machine_type("n2-standard-999", "my-project", "us-central1")
+
+            # Check suggestions are included
+            assert "n2-standard-4" in str(exc_info.value) or "n2-standard-8" in str(exc_info.value)
+
+    def test_machine_type_not_found_no_similar(self):
+        """Test machine type not found when no similar types exist."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "e2-standard-4\ne2-standard-8\n"
+
+        with patch("subprocess.run", return_value=mock_result):
+            with pytest.raises(ValidationError, match="not found in region"):
+                validate_machine_type("c3-standard-4", "my-project", "us-central1")
+
+    def test_gcloud_command_fails(self):
+        """Test gcloud command failure is handled."""
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = "ERROR: (gcloud) unauthorized"
+
+        with patch("subprocess.run", return_value=mock_result):
+            with pytest.raises(ValidationError, match="gcloud command failed"):
+                validate_machine_type("n2-standard-4", "my-project", "us-central1")
+
+    def test_gcloud_timeout(self):
+        """Test gcloud timeout is handled."""
+        import subprocess
+
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("gcloud", 30)):
+            with pytest.raises(ValidationError, match="Timeout"):
+                validate_machine_type("n2-standard-4", "my-project", "us-central1")
+
+    def test_gcloud_not_installed(self):
+        """Test missing gcloud CLI is handled."""
+        with patch("subprocess.run", side_effect=FileNotFoundError("gcloud not found")):
+            with pytest.raises(ValidationError, match="gcloud CLI not found"):
+                validate_machine_type("n2-standard-4", "my-project", "us-central1")
