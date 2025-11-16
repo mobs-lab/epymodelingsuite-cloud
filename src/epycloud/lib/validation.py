@@ -5,6 +5,7 @@ and correctness. All validation functions raise ValidationError on invalid input
 """
 
 import re
+import subprocess
 from pathlib import Path
 
 from epycloud.exceptions import ValidationError
@@ -304,3 +305,103 @@ def validate_stage_name(stage: str) -> str:
         )
 
     return stage
+
+
+def validate_machine_type(machine_type: str, project_id: str, region: str) -> str:
+    """Validate Google Cloud machine type against available types in the region.
+
+    Queries the Compute Engine API to verify that the specified machine type
+    exists in the given region. Machine types are zone-specific, so this checks
+    all zones in the region.
+
+    Parameters
+    ----------
+    machine_type : str
+        Machine type to validate (e.g., "n2-standard-4", "c2-standard-8").
+    project_id : str
+        Google Cloud project ID.
+    region : str
+        Google Cloud region (e.g., "us-central1").
+
+    Returns
+    -------
+    str
+        Validated machine type string.
+
+    Raises
+    ------
+    ValidationError
+        If machine type is empty, has invalid format, or doesn't exist in region.
+
+    Examples
+    --------
+    >>> validate_machine_type("n2-standard-4", "my-project", "us-central1")
+    'n2-standard-4'
+    >>> validate_machine_type("invalid-machine", "my-project", "us-central1")
+    Traceback (most recent call last):
+        ...
+    ValidationError: Machine type 'invalid-machine' not found in region us-central1
+    """
+    if not machine_type or not machine_type.strip():
+        raise ValidationError("Machine type cannot be empty")
+
+    machine_type = machine_type.strip()
+
+    # Basic format validation (machine types are lowercase with dashes and numbers)
+    if not re.match(r"^[a-z0-9]+-[a-z0-9-]+$", machine_type):
+        raise ValidationError(
+            f"Invalid machine type format: {machine_type}. "
+            "Expected format like 'n2-standard-4' or 'c2-standard-8'"
+        )
+
+    # Query available machine types in the region using gcloud
+    try:
+        result = subprocess.run(
+            [
+                "gcloud",
+                "compute",
+                "machine-types",
+                "list",
+                f"--project={project_id}",
+                f"--filter=zone~{region}",
+                "--format=value(name)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            # If gcloud fails, log warning but allow the machine type
+            # (it might still be valid, just can't verify)
+            raise ValidationError(
+                f"Unable to validate machine type '{machine_type}': "
+                f"gcloud command failed. Error: {result.stderr.strip()}"
+            )
+
+        # Parse available machine types
+        available_types = set(result.stdout.strip().split("\n"))
+
+        if machine_type not in available_types:
+            # Provide helpful suggestions for similar machine types
+            suggestions = [mt for mt in available_types if machine_type.split("-")[0] in mt][:5]
+            suggestion_msg = ""
+            if suggestions:
+                suggestion_msg = f" Available similar types: {', '.join(sorted(suggestions))}"
+
+            raise ValidationError(
+                f"Machine type '{machine_type}' not found in region {region}.{suggestion_msg}"
+            )
+
+        return machine_type
+
+    except subprocess.TimeoutExpired:
+        raise ValidationError(
+            f"Timeout while validating machine type '{machine_type}'. "
+            "Check your network connection and gcloud configuration."
+        )
+    except FileNotFoundError:
+        raise ValidationError(
+            "gcloud CLI not found. Please install Google Cloud SDK to validate machine types."
+        )

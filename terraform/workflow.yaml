@@ -48,7 +48,9 @@ main:
           - maxRunDurationA: "${stage_a_max_run_duration}s"
           - cpuMilliB: ${stage_b_cpu_milli}
           - memoryMibB: ${stage_b_memory_mib}
-          - machineTypeB: "${stage_b_machine_type}"
+          # Allow runtime override of Stage B machine type; fall back to Terraform default if not provided
+          - machineTypeBOverride: $${default(map.get(input, "stageBMachineType"), "")}
+          - machineTypeB: $${if(machineTypeBOverride != "", machineTypeBOverride, "${stage_b_machine_type}")}
           - maxRunDurationB: "${stage_b_max_run_duration}s"
           - cpuMilliC: ${stage_c_cpu_milli}
           - memoryMibC: ${stage_c_memory_mib}
