@@ -195,6 +195,39 @@ def get_project_root() -> Path:
     return Path(__file__).parent.parent.parent.parent
 
 
+def check_docker_available() -> bool:
+    """
+    Check if Docker is available in the system PATH.
+
+    Returns
+    -------
+    bool
+        True if Docker is available, False otherwise.
+
+    Notes
+    -----
+    Uses 'docker --version' to check availability. This is a lightweight
+    check that doesn't require Docker daemon to be running.
+
+    Examples
+    --------
+    >>> if not check_docker_available():
+    ...     error("Docker is not installed or not in PATH")
+    ...     return 1
+    """
+    try:
+        result = subprocess.run(
+            ["docker", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
 def get_gcloud_access_token(verbose: bool = False) -> str:
     """
     Retrieve Google Cloud access token using gcloud CLI.

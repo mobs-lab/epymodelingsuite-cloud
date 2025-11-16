@@ -19,6 +19,7 @@ import requests
 
 from epycloud.exceptions import CloudAPIError, ConfigError, ValidationError
 from epycloud.lib.command_helpers import (
+    check_docker_available,
     generate_run_id,
     get_batch_config,
     get_batch_service_account,
@@ -1173,6 +1174,12 @@ def _run_docker_compose_stage(
     int
         Exit code
     """
+    # Check Docker availability
+    if not dry_run and not check_docker_available():
+        error("Docker is not installed or not in PATH")
+        info("Install Docker Engine or OrbStack (macOS)")
+        return 1
+
     # Use --project-directory to specify compose file location (no chdir needed)
     cmd = [
         "docker",
