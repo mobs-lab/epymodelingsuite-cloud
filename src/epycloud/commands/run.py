@@ -116,6 +116,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Auto-confirm without prompting",
     )
 
+    workflow_parser.add_argument(
+        "--project-directory",
+        help="Docker Compose project directory (default: auto-detected)",
+    )
+
     # ========== run job ==========
     job_parser = run_subparsers.add_parser(
         "job",
@@ -169,6 +174,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--yes",
         action="store_true",
         help="Auto-confirm without prompting",
+    )
+
+    job_parser.add_argument(
+        "--project-directory",
+        help="Docker Compose project directory (default: auto-detected)",
     )
 
 
@@ -242,8 +252,15 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
     wait = args.wait
     auto_confirm = args.yes
+    project_directory = getattr(args, "project_directory", None)
 
     if local:
+        # Resolve project directory
+        if project_directory:
+            project_dir_path = Path(project_directory).resolve()
+        else:
+            project_dir_path = get_project_root()
+
         return _run_workflow_local(
             ctx=ctx,
             config=config,
@@ -253,6 +270,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
             auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
+            project_directory=project_dir_path,
         )
     else:
         return _run_workflow_cloud(
@@ -314,6 +332,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
     local = args.local
     wait = args.wait
     auto_confirm = args.yes
+    project_directory = getattr(args, "project_directory", None)
 
     # Validate requirements
     if stage in ["B", "C"] and not run_id:
@@ -325,6 +344,12 @@ def _handle_job(ctx: dict[str, Any]) -> int:
         return 1
 
     if local:
+        # Resolve project directory
+        if project_directory:
+            project_dir_path = Path(project_directory).resolve()
+        else:
+            project_dir_path = get_project_root()
+
         return _run_job_local(
             ctx=ctx,
             config=config,
@@ -336,6 +361,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
             auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
+            project_directory=project_dir_path,
         )
     else:
         return _run_job_cloud(
@@ -596,6 +622,7 @@ def _run_workflow_local(
     auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
+    project_directory: Path,
 ) -> int:
     """Run complete workflow locally with docker compose.
 
@@ -617,6 +644,8 @@ def _run_workflow_local(
         Verbose output
     dry_run : bool
         Dry run mode
+    project_directory : Path
+        Absolute path to Docker Compose project directory
 
     Returns
     -------
@@ -659,8 +688,7 @@ def _run_workflow_local(
     info("Running workflow locally with Docker Compose...")
     info(f"Experiment ID: {exp_id}")
     info(f"Run ID: {run_id}")
-
-    project_root = get_project_root()
+    info(f"Project directory: {project_directory}")
 
     # Stage A: Builder
     info("")
@@ -669,7 +697,7 @@ def _run_workflow_local(
     info("=" * 60)
 
     result = _run_docker_compose_stage(
-        project_root=project_root,
+        project_directory=project_directory,
         service="builder",
         env_vars={"EXP_ID": exp_id, "RUN_ID": run_id},
         dry_run=dry_run,
@@ -682,7 +710,7 @@ def _run_workflow_local(
     success("Stage A completed successfully")
 
     # Detect number of tasks from builder artifacts
-    bucket_path = project_root / "local" / "bucket" / exp_id / run_id / "builder-artifacts"
+    bucket_path = project_directory / "local" / "bucket" / exp_id / run_id / "builder-artifacts"
 
     if not dry_run:
         if not bucket_path.exists():
@@ -710,7 +738,7 @@ def _run_workflow_local(
         info(f"Running task {task_idx + 1}/{num_tasks}...")
 
         result = _run_docker_compose_stage(
-            project_root=project_root,
+            project_directory=project_directory,
             service="runner",
             env_vars={
                 "EXP_ID": exp_id,
@@ -734,7 +762,7 @@ def _run_workflow_local(
         info("=" * 60)
 
         result = _run_docker_compose_stage(
-            project_root=project_root,
+            project_directory=project_directory,
             service="output",
             env_vars={
                 "EXP_ID": exp_id,
@@ -1001,6 +1029,7 @@ def _run_job_local(
     auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
+    project_directory: Path,
 ) -> int:
     """Run individual job locally with docker compose.
 
@@ -1026,6 +1055,8 @@ def _run_job_local(
         Verbose output
     dry_run : bool
         Dry run mode
+    project_directory : Path
+        Absolute path to Docker Compose project directory
 
     Returns
     -------
@@ -1044,7 +1075,8 @@ def _run_job_local(
         run_id = generate_run_id()
 
     # Build storage path
-    storage_path = f"./local/bucket/{dir_prefix}{exp_id}/{run_id if run_id else '<auto-generated>'}/"
+    run_id_display = run_id if run_id else "<auto-generated>"
+    storage_path = f"./local/bucket/{dir_prefix}{exp_id}/{run_id_display}/"
 
     # Build confirmation info
     confirmation_info = {
@@ -1074,8 +1106,7 @@ def _run_job_local(
     info(f"Experiment ID: {exp_id}")
     if run_id:
         info(f"Run ID: {run_id}")
-
-    project_root = get_project_root()
+    info(f"Project directory: {project_directory}")
 
     # Build base environment variables from config
     base_env = _build_env_from_config(config)
@@ -1103,7 +1134,7 @@ def _run_job_local(
     env_vars = {**base_env, **runtime_vars}
 
     result = _run_docker_compose_stage(
-        project_root=project_root,
+        project_directory=project_directory,
         service=service,
         env_vars=env_vars,
         dry_run=dry_run,
@@ -1119,7 +1150,7 @@ def _run_job_local(
 
 
 def _run_docker_compose_stage(
-    project_root: Path,
+    project_directory: Path,
     service: str,
     env_vars: dict[str, str],
     dry_run: bool,
@@ -1128,8 +1159,8 @@ def _run_docker_compose_stage(
 
     Parameters
     ----------
-    project_root : Path
-        Project root directory
+    project_directory : Path
+        Absolute path to Docker Compose project directory
     service : str
         Service name (builder, runner, output)
     env_vars : dict[str, str]
@@ -1142,7 +1173,16 @@ def _run_docker_compose_stage(
     int
         Exit code
     """
-    cmd = ["docker", "compose", "run", "--rm", service]
+    # Use --project-directory to specify compose file location (no chdir needed)
+    cmd = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(project_directory),
+        "run",
+        "--rm",
+        service,
+    ]
 
     if handle_dry_run(
         {"dry_run": dry_run},
@@ -1154,14 +1194,9 @@ def _run_docker_compose_stage(
     # Set environment variables for subprocess
     env = prepare_subprocess_env(env_vars)
 
-    # Change to project root
-    original_dir = Path.cwd()
-    try:
-        os.chdir(project_root)
-        result = subprocess.run(cmd, env=env, check=False)
-        return result.returncode
-    finally:
-        os.chdir(original_dir)
+    # Execute command (no directory change needed)
+    result = subprocess.run(cmd, env=env, check=False)
+    return result.returncode
 
 
 def _build_batch_job_config(
