@@ -27,8 +27,10 @@ from epycloud.lib.output import ask_confirmation, error, info, success, warning
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the terraform command parser.
 
-    Args:
-        subparsers: Subparser action from main parser
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction
+        Subparser action from main parser
     """
     parser = subparsers.add_parser(
         "terraform",
@@ -110,10 +112,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 def handle(ctx: dict[str, Any]) -> int:
     """Handle terraform command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -151,10 +157,14 @@ def handle(ctx: dict[str, Any]) -> int:
 def _handle_init(ctx: dict[str, Any]) -> int:
     """Handle terraform init command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     config = ctx["config"]
@@ -215,10 +225,14 @@ def _handle_init(ctx: dict[str, Any]) -> int:
 def _handle_plan(ctx: dict[str, Any]) -> int:
     """Handle terraform plan command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -285,10 +299,14 @@ def _handle_plan(ctx: dict[str, Any]) -> int:
 def _handle_apply(ctx: dict[str, Any]) -> int:
     """Handle terraform apply command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -367,10 +385,14 @@ def _handle_apply(ctx: dict[str, Any]) -> int:
 def _handle_destroy(ctx: dict[str, Any]) -> int:
     """Handle terraform destroy command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -454,10 +476,14 @@ def _handle_destroy(ctx: dict[str, Any]) -> int:
 def _handle_output(ctx: dict[str, Any]) -> int:
     """Handle terraform output command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -519,10 +545,14 @@ def _handle_output(ctx: dict[str, Any]) -> int:
 def _get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
     """Build TF_VAR_* environment variables from config.
 
-    Args:
-        config: Configuration dict
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration dict
 
-    Returns:
+    Returns
+    -------
+    dict[str, str]
         Dictionary of environment variables
     """
     env_vars = {}

@@ -40,8 +40,10 @@ from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the run command parser.
 
-    Args:
-        subparsers: Subparser action from main parser
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction
+        Subparser action from main parser
     """
     parser = subparsers.add_parser(
         "run",
@@ -167,10 +169,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 def handle(ctx: dict[str, Any]) -> int:
     """Handle the run command.
 
-    Args:
-        ctx: Command context with config and args
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context with config and args
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code (0 for success)
     """
     args = ctx["args"]
@@ -197,10 +203,14 @@ def handle(ctx: dict[str, Any]) -> int:
 def _handle_workflow(ctx: dict[str, Any]) -> int:
     """Handle workflow execution.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -255,10 +265,14 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
 def _handle_job(ctx: dict[str, Any]) -> int:
     """Handle individual job execution.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -345,19 +359,32 @@ def _run_workflow_cloud(
 ) -> int:
     """Submit workflow to Cloud Workflows.
 
-    Args:
-        ctx: Command context
-        config: Configuration dict
-        exp_id: Experiment ID
-        run_id: Optional run ID (auto-generated in workflow if not provided)
-        skip_output: Skip stage C
-        max_parallelism: Max parallel tasks
-        wait: Wait for completion
-        auto_confirm: Auto-confirm without prompting
-        verbose: Verbose output
-        dry_run: Dry run mode
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
+    config : dict[str, Any]
+        Configuration dict
+    exp_id : str
+        Experiment ID
+    run_id : str | None
+        Optional run ID (auto-generated in workflow if not provided)
+    skip_output : bool
+        Skip stage C
+    max_parallelism : int | None
+        Max parallel tasks
+    wait : bool
+        Wait for completion
+    auto_confirm : bool
+        Auto-confirm without prompting
+    verbose : bool
+        Verbose output
+    dry_run : bool
+        Dry run mode
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     # Get config values
@@ -545,17 +572,28 @@ def _run_workflow_local(
 ) -> int:
     """Run complete workflow locally with docker compose.
 
-    Args:
-        ctx: Command context
-        config: Configuration dict
-        exp_id: Experiment ID
-        run_id: Optional run ID
-        skip_output: Skip stage C
-        auto_confirm: Auto-confirm without prompting
-        verbose: Verbose output
-        dry_run: Dry run mode
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
+    config : dict[str, Any]
+        Configuration dict
+    exp_id : str
+        Experiment ID
+    run_id : str | None
+        Optional run ID
+    skip_output : bool
+        Skip stage C
+    auto_confirm : bool
+        Auto-confirm without prompting
+    verbose : bool
+        Verbose output
+    dry_run : bool
+        Dry run mode
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     # Get config values
@@ -713,20 +751,34 @@ def _run_job_cloud(
 ) -> int:
     """Submit individual job to Cloud Batch.
 
-    Args:
-        ctx: Command context
-        config: Configuration dict
-        stage: Stage (A, B, or C)
-        exp_id: Experiment ID
-        run_id: Run ID
-        task_index: Task index for stage B
-        num_tasks: Number of tasks for stage C
-        wait: Wait for completion
-        auto_confirm: Auto-confirm without prompting
-        verbose: Verbose output
-        dry_run: Dry run mode
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
+    config : dict[str, Any]
+        Configuration dict
+    stage : str
+        Stage (A, B, or C)
+    exp_id : str
+        Experiment ID
+    run_id : str | None
+        Run ID
+    task_index : int
+        Task index for stage B
+    num_tasks : int | None
+        Number of tasks for stage C
+    wait : bool
+        Wait for completion
+    auto_confirm : bool
+        Auto-confirm without prompting
+    verbose : bool
+        Verbose output
+    dry_run : bool
+        Dry run mode
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     # Get configuration
@@ -876,10 +928,14 @@ def _build_env_from_config(config: dict[str, Any]) -> dict[str, str]:
     Extracts all necessary configuration values and converts them to
     environment variables suitable for Docker Compose.
 
-    Args:
-        config: Configuration dict
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration dict
 
-    Returns:
+    Returns
+    -------
+    dict[str, str]
         Dictionary of environment variables
     """
     google_cloud = config.get("google_cloud", {})
@@ -921,19 +977,32 @@ def _run_job_local(
 ) -> int:
     """Run individual job locally with docker compose.
 
-    Args:
-        ctx: Command context
-        config: Configuration dict
-        stage: Stage (A, B, or C)
-        exp_id: Experiment ID
-        run_id: Run ID
-        task_index: Task index for stage B
-        num_tasks: Number of tasks for stage C
-        auto_confirm: Auto-confirm without prompting
-        verbose: Verbose output
-        dry_run: Dry run mode
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
+    config : dict[str, Any]
+        Configuration dict
+    stage : str
+        Stage (A, B, or C)
+    exp_id : str
+        Experiment ID
+    run_id : str | None
+        Run ID
+    task_index : int
+        Task index for stage B
+    num_tasks : int | None
+        Number of tasks for stage C
+    auto_confirm : bool
+        Auto-confirm without prompting
+    verbose : bool
+        Verbose output
+    dry_run : bool
+        Dry run mode
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     # Get config values
@@ -1030,13 +1099,20 @@ def _run_docker_compose_stage(
 ) -> int:
     """Run a docker compose service.
 
-    Args:
-        project_root: Project root directory
-        service: Service name (builder, runner, output)
-        env_vars: Environment variables
-        dry_run: Dry run mode
+    Parameters
+    ----------
+    project_root : Path
+        Project root directory
+    service : str
+        Service name (builder, runner, output)
+    env_vars : dict[str, str]
+        Environment variables
+    dry_run : bool
+        Dry run mode
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     cmd = ["docker", "compose", "run", "--rm", service]
@@ -1079,23 +1155,40 @@ def _build_batch_job_config(
 ) -> dict[str, Any]:
     """Build Cloud Batch job configuration.
 
-    Args:
-        stage: Stage (A, B, or C)
-        exp_id: Experiment ID
-        run_id: Run ID
-        task_index: Task index for stage B
-        num_tasks: Number of tasks for stage C
-        image_uri: Docker image URI
-        bucket_name: GCS bucket name
-        dir_prefix: Directory prefix
-        github_forecast_repo: GitHub forecast repo
-        cpu_milli: CPU in milli-cores
-        memory_mib: Memory in MiB
-        machine_type: Machine type (optional)
-        max_run_duration: Max run duration in seconds
-        batch_sa_email: Batch service account email
+    Parameters
+    ----------
+    stage : str
+        Stage (A, B, or C)
+    exp_id : str
+        Experiment ID
+    run_id : str
+        Run ID
+    task_index : int
+        Task index for stage B
+    num_tasks : int | None
+        Number of tasks for stage C
+    image_uri : str
+        Docker image URI
+    bucket_name : str
+        GCS bucket name
+    dir_prefix : str
+        Directory prefix
+    github_forecast_repo : str
+        GitHub forecast repo
+    cpu_milli : int
+        CPU in milli-cores
+    memory_mib : int
+        Memory in MiB
+    machine_type : str
+        Machine type (optional)
+    max_run_duration : int
+        Max run duration in seconds
+    batch_sa_email : str
+        Batch service account email
 
-    Returns:
+    Returns
+    -------
+    dict[str, Any]
         Job configuration dict
     """
     stage_name = {"A": "builder", "B": "runner", "C": "output"}[stage]

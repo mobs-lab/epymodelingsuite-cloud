@@ -25,8 +25,10 @@ from epycloud.lib.validation import validate_exp_id, validate_run_id, validate_s
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the logs command parser.
 
-    Args:
-        subparsers: Subparser action from main parser
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction
+        Subparser action from main parser
     """
     parser = subparsers.add_parser(
         "logs",
@@ -86,10 +88,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 def handle(ctx: dict[str, Any]) -> int:
     """Handle logs command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -178,13 +184,20 @@ def _fetch_logs(
 ) -> int:
     """Fetch logs once.
 
-    Args:
-        project_id: GCP project ID
-        log_filter: Cloud Logging filter
-        tail: Number of lines to show
-        verbose: Verbose output
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    log_filter : str
+        Cloud Logging filter
+    tail : int
+        Number of lines to show
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     if tail == 0:
@@ -249,12 +262,18 @@ def _stream_logs(
 ) -> int:
     """Stream logs in follow mode.
 
-    Args:
-        project_id: GCP project ID
-        log_filter: Cloud Logging filter
-        verbose: Verbose output
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    log_filter : str
+        Cloud Logging filter
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     info("Streaming logs (Ctrl+C to stop)...")
@@ -337,8 +356,10 @@ def _stream_logs(
 def _display_logs(logs: list[dict[str, Any]]) -> None:
     """Display logs in readable format.
 
-    Args:
-        logs: List of log entries
+    Parameters
+    ----------
+    logs : list[dict[str, Any]]
+        List of log entries
     """
     if not logs:
         info("No logs available")
@@ -391,10 +412,14 @@ def _display_logs(logs: list[dict[str, Any]]) -> None:
 def _normalize_stage_name(stage: str) -> str:
     """Normalize stage name to letter format.
 
-    Args:
-        stage: Stage name (A/B/C or builder/runner/output)
+    Parameters
+    ----------
+    stage : str
+        Stage name (A/B/C or builder/runner/output)
 
-    Returns:
+    Returns
+    -------
+    str
         Normalized stage name (A/B/C)
     """
     stage_map = {
@@ -408,10 +433,14 @@ def _normalize_stage_name(stage: str) -> str:
 def _parse_since_time(since: str) -> str | None:
     """Parse since duration to ISO timestamp.
 
-    Args:
-        since: Duration string (e.g., 1h, 30m, 24h)
+    Parameters
+    ----------
+    since : str
+        Duration string (e.g., 1h, 30m, 24h)
 
-    Returns:
+    Returns
+    -------
+    str | None
         ISO timestamp string or None if invalid
     """
     return parse_since_time(since)

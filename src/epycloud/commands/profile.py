@@ -19,8 +19,10 @@ from epycloud.lib.paths import (
 def register_parser(subparsers: Any) -> None:
     """Register profile command parser.
 
-    Args:
-        subparsers: Subparsers from main argument parser
+    Parameters
+    ----------
+    subparsers : Any
+        Subparsers from main argument parser
     """
     parser = subparsers.add_parser("profile", help="Profile management")
     # Store parser for help printing
@@ -64,10 +66,14 @@ def register_parser(subparsers: Any) -> None:
 def handle(ctx: dict) -> int:
     """Handle profile command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -103,10 +109,14 @@ def handle(ctx: dict) -> int:
 def handle_list(ctx: dict) -> int:
     """List all profiles.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     profiles_dir = get_config_dir() / "profiles"
@@ -156,10 +166,14 @@ def handle_list(ctx: dict) -> int:
 def handle_use(ctx: dict) -> int:
     """Activate a profile.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -183,10 +197,14 @@ def handle_use(ctx: dict) -> int:
 def handle_current(ctx: dict) -> int:
     """Show active profile.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     active_profile_file = get_active_profile_file()
@@ -204,10 +222,14 @@ def handle_current(ctx: dict) -> int:
 def handle_create(ctx: dict) -> int:
     """Create new profile.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -263,10 +285,14 @@ def handle_create(ctx: dict) -> int:
 def handle_edit(ctx: dict) -> int:
     """Edit profile config.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -296,10 +322,14 @@ def handle_edit(ctx: dict) -> int:
 def handle_show(ctx: dict) -> int:
     """Show profile details.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -324,10 +354,14 @@ def handle_show(ctx: dict) -> int:
 def handle_delete(ctx: dict) -> int:
     """Delete profile.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]

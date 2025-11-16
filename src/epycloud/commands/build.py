@@ -37,8 +37,10 @@ from epycloud.lib.output import error, info, success, warning
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the build command parser.
 
-    Args:
-        subparsers: Subparser action from main parser
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction
+        Subparser action from main parser
     """
     parser = subparsers.add_parser(
         "build",
@@ -137,10 +139,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 def handle(ctx: dict[str, Any]) -> int:
     """Handle the build command and route to appropriate subcommand.
 
-    Args:
-        ctx: Command context with config and args
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context with config and args
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code (0 for success)
     """
     args = ctx["args"]
@@ -170,10 +176,14 @@ def handle(ctx: dict[str, Any]) -> int:
 def _handle_cloud(ctx: dict[str, Any]) -> int:
     """Handle the cloud build subcommand.
 
-    Args:
-        ctx: Command context with config and args
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context with config and args
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code (0 for success)
     """
     args = ctx["args"]
@@ -228,10 +238,14 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
 def _handle_local(ctx: dict[str, Any]) -> int:
     """Handle the local build subcommand.
 
-    Args:
-        ctx: Command context with config and args
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context with config and args
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code (0 for success)
     """
     args = ctx["args"]
@@ -286,10 +300,14 @@ def _handle_local(ctx: dict[str, Any]) -> int:
 def _handle_dev(ctx: dict[str, Any]) -> int:
     """Handle the dev build subcommand.
 
-    Args:
-        ctx: Command context with config and args
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context with config and args
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code (0 for success)
     """
     args = ctx["args"]
@@ -336,10 +354,14 @@ def _handle_dev(ctx: dict[str, Any]) -> int:
 def _handle_status(ctx: dict[str, Any]) -> int:
     """Handle the status subcommand.
 
-    Args:
-        ctx: Command context with config and args
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context with config and args
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code (0 for success)
     """
     args = ctx["args"]
@@ -414,9 +436,12 @@ def _handle_status(ctx: dict[str, Any]) -> int:
 def _display_build_status(builds: list[dict], limit: int) -> None:
     """Format and display build status in table format.
 
-    Args:
-        builds: List of build dictionaries from gcloud
-        limit: Limit used for query (for display message)
+    Parameters
+    ----------
+    builds : list[dict]
+        List of build dictionaries from gcloud
+    limit : int
+        Limit used for query (for display message)
     """
     if not builds:
         info("No builds found")
@@ -483,22 +508,38 @@ def _build_cloud(
 ) -> int:
     """Build with Cloud Build (async by default).
 
-    Args:
-        project_id: GCP project ID
-        region: GCP region
-        repo_name: Artifact Registry repo name
-        image_name: Image name
-        image_tag: Image tag
-        image_path: Full image path
-        modeling_suite_repo: GitHub modeling suite repo
-        modeling_suite_ref: Modeling suite ref
-        no_cache: Disable cache
-        wait: Wait for completion
-        verbose: Verbose output
-        dry_run: Dry run mode
-        project_root: Project root directory
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    repo_name : str
+        Artifact Registry repo name
+    image_name : str
+        Image name
+    image_tag : str
+        Image tag
+    image_path : str
+        Full image path
+    modeling_suite_repo : str
+        GitHub modeling suite repo
+    modeling_suite_ref : str
+        Modeling suite ref
+    no_cache : bool
+        Disable cache
+    wait : bool
+        Wait for completion
+    verbose : bool
+        Verbose output
+    dry_run : bool
+        Dry run mode
+    project_root : Path
+        Project root directory
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     info(f"Building with Cloud Build (async: {not wait})...")
@@ -586,18 +627,30 @@ def _build_local(
 ) -> int:
     """Build locally and push to Artifact Registry.
 
-    Args:
-        image_path: Full image path
-        modeling_suite_repo: GitHub modeling suite repo
-        modeling_suite_ref: Modeling suite ref
-        github_pat: GitHub personal access token
-        no_cache: Disable cache
-        push: Push to registry
-        verbose: Verbose output
-        dry_run: Dry run mode
-        project_root: Project root directory
+    Parameters
+    ----------
+    image_path : str
+        Full image path
+    modeling_suite_repo : str
+        GitHub modeling suite repo
+    modeling_suite_ref : str
+        Modeling suite ref
+    github_pat : str
+        GitHub personal access token
+    no_cache : bool
+        Disable cache
+    push : bool
+        Push to registry
+    verbose : bool
+        Verbose output
+    dry_run : bool
+        Dry run mode
+    project_root : Path
+        Project root directory
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     info("Building cloud image locally...")
@@ -685,19 +738,32 @@ def _build_dev(
 ) -> int:
     """Build dev image locally (no push by default).
 
-    Args:
-        image_name: Image name
-        image_path: Full image path
-        modeling_suite_repo: GitHub modeling suite repo
-        modeling_suite_ref: Modeling suite ref
-        github_pat: GitHub personal access token
-        no_cache: Disable cache
-        push: Push to registry
-        verbose: Verbose output
-        dry_run: Dry run mode
-        project_root: Project root directory
+    Parameters
+    ----------
+    image_name : str
+        Image name
+    image_path : str
+        Full image path
+    modeling_suite_repo : str
+        GitHub modeling suite repo
+    modeling_suite_ref : str
+        Modeling suite ref
+    github_pat : str
+        GitHub personal access token
+    no_cache : bool
+        Disable cache
+    push : bool
+        Push to registry
+    verbose : bool
+        Verbose output
+    dry_run : bool
+        Dry run mode
+    project_root : Path
+        Project root directory
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     info("Building local development image...")

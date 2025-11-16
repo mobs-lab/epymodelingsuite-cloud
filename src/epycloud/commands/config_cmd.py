@@ -38,8 +38,10 @@ from epycloud.lib.paths import (
 def register_parser(subparsers: Any) -> None:
     """Register config command parser.
 
-    Args:
-        subparsers: Subparsers from main argument parser
+    Parameters
+    ----------
+    subparsers : Any
+        Subparsers from main argument parser
     """
     parser = subparsers.add_parser(
         "config",
@@ -99,10 +101,14 @@ def register_parser(subparsers: Any) -> None:
 def handle(ctx: dict) -> int:
     """Handle config command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -142,10 +148,14 @@ def handle(ctx: dict) -> int:
 def handle_init(ctx: dict) -> int:
     """Initialize config directory with templates.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     config_dir = get_config_dir()
@@ -202,10 +212,14 @@ def handle_init(ctx: dict) -> int:
 def handle_show(ctx: dict) -> int:
     """Show current configuration.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -250,10 +264,14 @@ def handle_show(ctx: dict) -> int:
 def handle_edit(ctx: dict) -> int:
     """Edit config file in $EDITOR.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -339,10 +357,14 @@ def handle_edit_secrets(ctx: dict) -> int:
 def handle_validate(ctx: dict) -> int:
     """Validate configuration.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     try:
@@ -409,10 +431,14 @@ def handle_validate(ctx: dict) -> int:
 def handle_path(ctx: dict) -> int:
     """Show config directory path.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     print(get_config_dir())
@@ -422,10 +448,14 @@ def handle_path(ctx: dict) -> int:
 def handle_get(ctx: dict) -> int:
     """Get config value.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     config = ctx["config"]
@@ -443,10 +473,14 @@ def handle_get(ctx: dict) -> int:
 def handle_set(ctx: dict) -> int:
     """Set config value.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     config_file = get_config_file()
