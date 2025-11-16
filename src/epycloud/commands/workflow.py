@@ -38,8 +38,10 @@ from epycloud.lib.output import error, info, success, warning
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the workflow command parser.
 
-    Args:
-        subparsers: Subparser action from main parser
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction
+        Subparser action from main parser
     """
     parser = subparsers.add_parser(
         "workflow",
@@ -144,10 +146,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 def handle(ctx: dict[str, Any]) -> int:
     """Handle workflow command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -186,10 +192,14 @@ def handle(ctx: dict[str, Any]) -> int:
 def _handle_list(ctx: dict[str, Any]) -> int:
     """Handle workflow list command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -295,10 +305,14 @@ def _handle_list(ctx: dict[str, Any]) -> int:
 def _handle_describe(ctx: dict[str, Any]) -> int:
     """Handle workflow describe command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -364,10 +378,14 @@ def _handle_describe(ctx: dict[str, Any]) -> int:
 def _handle_logs(ctx: dict[str, Any]) -> int:
     """Handle workflow logs command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -456,10 +474,14 @@ def _handle_logs(ctx: dict[str, Any]) -> int:
 def _handle_cancel(ctx: dict[str, Any]) -> int:
     """Handle workflow cancel command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -536,10 +558,14 @@ def _handle_cancel(ctx: dict[str, Any]) -> int:
 def _handle_retry(ctx: dict[str, Any]) -> int:
     """Handle workflow retry command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -657,14 +683,22 @@ def _enrich_executions_with_arguments(
     The list endpoint doesn't include arguments, so we need to fetch them
     individually for each execution.
 
-    Args:
-        executions: List of execution objects from list endpoint
-        project_id: GCP project ID
-        region: GCP region
-        token: OAuth access token
-        verbose: Enable verbose output
+    Parameters
+    ----------
+    executions : list[dict[str, Any]]
+        List of execution objects from list endpoint
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    token : str
+        OAuth access token
+    verbose : bool
+        Enable verbose output
 
-    Returns:
+    Returns
+    -------
+    list[dict[str, Any]]
         List of executions enriched with argument field
     """
     enriched = []
@@ -708,13 +742,20 @@ def _parse_execution_name(
 ) -> str:
     """Parse execution ID to full execution name.
 
-    Args:
-        execution_id: Execution ID or full name
-        project_id: GCP project ID
-        region: GCP region
-        workflow_name: Workflow name
+    Parameters
+    ----------
+    execution_id : str
+        Execution ID or full name
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    workflow_name : str
+        Workflow name
 
-    Returns:
+    Returns
+    -------
+    str
         Full execution name
     """
     if execution_id.startswith("projects/"):
@@ -730,10 +771,14 @@ def _parse_execution_name(
 def _parse_timestamp(timestamp: str) -> datetime:
     """Parse ISO 8601 timestamp.
 
-    Args:
-        timestamp: ISO 8601 timestamp string
+    Parameters
+    ----------
+    timestamp : str
+        ISO 8601 timestamp string
 
-    Returns:
+    Returns
+    -------
+    datetime
         Datetime object
     """
     try:
@@ -748,9 +793,12 @@ def _parse_timestamp(timestamp: str) -> datetime:
 def _display_execution_list(executions: list[dict[str, Any]], region: str) -> None:
     """Display list of executions.
 
-    Args:
-        executions: List of execution objects
-        region: GCP region
+    Parameters
+    ----------
+    executions : list[dict[str, Any]]
+        List of execution objects
+    region : str
+        GCP region
     """
     print()
     print(f"{'EXECUTION ID':<40} {'STATUS':<12} {'START TIME':<20} {'EXP_ID':<20}")
@@ -788,8 +836,10 @@ def _display_execution_list(executions: list[dict[str, Any]], region: str) -> No
 def _display_execution_details(execution: dict[str, Any]) -> None:
     """Display detailed execution information.
 
-    Args:
-        execution: Execution object
+    Parameters
+    ----------
+    execution : dict[str, Any]
+        Execution object
     """
     name = execution.get("name", "")
     execution_id = name.split("/")[-1] if name else "unknown"
@@ -870,8 +920,10 @@ def _display_execution_details(execution: dict[str, Any]) -> None:
 def _display_logs(logs: list[dict[str, Any]]) -> None:
     """Display logs in readable format.
 
-    Args:
-        logs: List of log entries
+    Parameters
+    ----------
+    logs : list[dict[str, Any]]
+        List of log entries
     """
     if not logs:
         info("No logs available")
@@ -904,13 +956,20 @@ def _display_logs(logs: list[dict[str, Any]]) -> None:
 def _stream_logs(project_id: str, execution_id: str, region: str, verbose: bool) -> int:
     """Stream logs in follow mode.
 
-    Args:
-        project_id: GCP project ID
-        execution_id: Execution ID
-        region: GCP region
-        verbose: Verbose output
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    execution_id : str
+        Execution ID
+    region : str
+        GCP region
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     info("Streaming logs (Ctrl+C to stop)...")

@@ -22,8 +22,10 @@ from epycloud.lib.output import error, info, warning
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the status command parser.
 
-    Args:
-        subparsers: Subparser action from main parser
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction
+        Subparser action from main parser
     """
     parser = subparsers.add_parser(
         "status",
@@ -53,10 +55,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 def handle(ctx: dict[str, Any]) -> int:
     """Handle status command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     args = ctx["args"]
@@ -99,13 +105,20 @@ def _show_status(
 ) -> int:
     """Show current status.
 
-    Args:
-        project_id: GCP project ID
-        region: GCP region
-        exp_id: Optional experiment ID filter
-        verbose: Verbose output
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    exp_id : str | None
+        Optional experiment ID filter
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     try:
@@ -148,14 +161,22 @@ def _watch_status(
 ) -> int:
     """Watch status with auto-refresh.
 
-    Args:
-        project_id: GCP project ID
-        region: GCP region
-        exp_id: Optional experiment ID filter
-        interval: Refresh interval in seconds
-        verbose: Verbose output
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    exp_id : str | None
+        Optional experiment ID filter
+    interval : int
+        Refresh interval in seconds
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code
     """
     info(f"Watching pipeline status (refreshing every {interval}s, Ctrl+C to stop)...")
@@ -208,13 +229,20 @@ def _fetch_active_workflows(
 ) -> list[dict[str, Any]]:
     """Fetch active workflow executions.
 
-    Args:
-        project_id: GCP project ID
-        region: GCP region
-        exp_id: Optional experiment ID filter
-        verbose: Verbose output
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    exp_id : str | None
+        Optional experiment ID filter
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    list[dict[str, Any]]
         List of active workflow executions
     """
     workflow_name = "epymodelingsuite-pipeline"
@@ -260,13 +288,20 @@ def _fetch_active_batch_jobs(
 ) -> list[dict[str, Any]]:
     """Fetch active Cloud Batch jobs.
 
-    Args:
-        project_id: GCP project ID
-        region: GCP region
-        exp_id: Optional experiment ID filter
-        verbose: Verbose output
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    exp_id : str | None
+        Optional experiment ID filter
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    list[dict[str, Any]]
         List of active batch jobs
     """
     try:
@@ -307,14 +342,20 @@ def _fetch_active_batch_jobs(
 def _get_access_token(verbose: bool = False) -> str:
     """Get GCP access token using gcloud.
 
-    Args:
-        verbose: Verbose output
+    Parameters
+    ----------
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    str
         Access token
 
-    Raises:
-        CloudAPIError: If unable to get token
+    Raises
+    ------
+    CloudAPIError
+        If unable to get token
     """
     return get_gcloud_access_token(verbose)
 
@@ -326,10 +367,14 @@ def _display_status(
 ) -> None:
     """Display pipeline status.
 
-    Args:
-        workflows: List of active workflow executions
-        jobs: List of active batch jobs
-        exp_id_filter: Optional experiment ID filter for display
+    Parameters
+    ----------
+    workflows : list[dict[str, Any]]
+        List of active workflow executions
+    jobs : list[dict[str, Any]]
+        List of active batch jobs
+    exp_id_filter : str | None
+        Optional experiment ID filter for display
     """
     print()
     if exp_id_filter:

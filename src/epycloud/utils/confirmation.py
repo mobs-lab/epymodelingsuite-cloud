@@ -8,10 +8,14 @@ from epycloud.lib.output import Colors, colorize
 def _heading(text: str) -> str:
     """Format a section heading with color.
 
-    Args:
-        text: Heading text (without brackets)
+    Parameters
+    ----------
+    text : str
+        Heading text (without brackets)
 
-    Returns:
+    Returns
+    -------
+    str
         Colored heading with brackets
     """
     return colorize(f"[{text}]", Colors.CYAN)
@@ -20,11 +24,16 @@ def _heading(text: str) -> str:
 def format_confirmation(info: dict[str, Any], mode: str) -> str:
     """Format confirmation information with sections.
 
-    Args:
-        info: Dictionary containing confirmation information
-        mode: Execution mode ('cloud' or 'local')
+    Parameters
+    ----------
+    info : dict[str, Any]
+        Dictionary containing confirmation information
+    mode : str
+        Execution mode ('cloud' or 'local')
 
-    Returns:
+    Returns
+    -------
+    str
         Formatted confirmation message
     """
     lines = []
@@ -180,11 +189,16 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
 def prompt_confirmation(message: str, auto_confirm: bool = False) -> bool:
     """Display confirmation message and prompt for user input.
 
-    Args:
-        message: Confirmation message to display
-        auto_confirm: If True, skip prompt and auto-confirm
+    Parameters
+    ----------
+    message : str
+        Confirmation message to display
+    auto_confirm : bool
+        If True, skip prompt and auto-confirm
 
-    Returns:
+    Returns
+    -------
+    bool
         True if user confirms or auto_confirm is True, False otherwise
     """
     print(message)

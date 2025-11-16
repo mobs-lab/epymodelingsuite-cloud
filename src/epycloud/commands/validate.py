@@ -20,8 +20,10 @@ from epycloud.lib.validation import validate_exp_id, validate_github_token, vali
 def register_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the validate command parser.
 
-    Args:
-        subparsers: Subparser action from main parser
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction
+        Subparser action from main parser
     """
     parser = subparsers.add_parser(
         "validate",
@@ -58,10 +60,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 def handle(ctx: dict[str, Any]) -> int:
     """Handle validate command.
 
-    Args:
-        ctx: Command context
+    Parameters
+    ----------
+    ctx : dict[str, Any]
+        Command context
 
-    Returns:
+    Returns
+    -------
+    int
         Exit code (0=passed, 1=failed, 2=config error)
     """
     args = ctx["args"]
@@ -214,11 +220,16 @@ def _validate_directory(
 ) -> dict[str, Any]:
     """Validate all config sets in a directory.
 
-    Args:
-        config_dir: Path to config directory
-        verbose: Verbose output
+    Parameters
+    ----------
+    config_dir : Path
+        Path to config directory
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    dict[str, Any]
         Validation result dictionary
     """
     # Import epymodelingsuite utilities
@@ -322,13 +333,20 @@ def _validate_config_set(
 ) -> tuple[bool, str | None]:
     """Validate a set of configs.
 
-    Args:
-        basemodel_path: Path to basemodel config
-        modelset_path: Path to modelset config
-        output_path: Path to output config (optional)
-        verbose: Verbose output
+    Parameters
+    ----------
+    basemodel_path : Path
+        Path to basemodel config
+    modelset_path : Path
+        Path to modelset config
+    output_path : Path | None
+        Path to output config (optional)
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    tuple[bool, str | None]
         Tuple of (success, error_message)
     """
     try:
@@ -384,13 +402,20 @@ def _validate_remote(
 ) -> dict[str, Any]:
     """Validate remote experiment configuration from GitHub.
 
-    Args:
-        exp_id: Experiment ID
-        forecast_repo: GitHub forecast repository (owner/repo)
-        github_token: GitHub personal access token
-        verbose: Verbose output
+    Parameters
+    ----------
+    exp_id : str
+        Experiment ID
+    forecast_repo : str
+        GitHub forecast repository (owner/repo)
+    github_token : str
+        GitHub personal access token
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    dict[str, Any]
         Validation result dictionary
     """
     # Fetch config files from GitHub
@@ -445,17 +470,26 @@ def _fetch_config_files(
 ) -> dict[str, str]:
     """Fetch config files from GitHub repository.
 
-    Args:
-        forecast_repo: GitHub repository (owner/repo format)
-        exp_id: Experiment ID
-        github_token: GitHub personal access token
-        verbose: Verbose output
+    Parameters
+    ----------
+    forecast_repo : str
+        GitHub repository (owner/repo format)
+    exp_id : str
+        Experiment ID
+    github_token : str
+        GitHub personal access token
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    dict[str, str]
         Dictionary mapping filename -> file content
 
-    Raises:
-        Exception: If files cannot be fetched
+    Raises
+    ------
+    Exception
+        If files cannot be fetched
     """
     # Get list of files in the config directory
     config_dir_path = f"experiments/{exp_id}/config"
@@ -525,17 +559,26 @@ def _fetch_github_file(
 ) -> str:
     """Fetch a file from GitHub repository using API.
 
-    Args:
-        repo: Repository in owner/repo format
-        path: File path in repository
-        token: GitHub personal access token
-        verbose: Verbose output
+    Parameters
+    ----------
+    repo : str
+        Repository in owner/repo format
+    path : str
+        File path in repository
+    token : str
+        GitHub personal access token
+    verbose : bool
+        Verbose output
 
-    Returns:
+    Returns
+    -------
+    str
         File content as string
 
-    Raises:
-        Exception: If file cannot be fetched
+    Raises
+    ------
+    Exception
+        If file cannot be fetched
     """
     api_url = f"https://api.github.com/repos/{repo}/contents/{path}"
 
@@ -571,8 +614,10 @@ def _fetch_github_file(
 def _display_validation_results(result: dict[str, Any]) -> None:
     """Display validation results in text format.
 
-    Args:
-        result: Validation result dictionary
+    Parameters
+    ----------
+    result : dict[str, Any]
+        Validation result dictionary
     """
     print()
     print(f"Validating: {result['directory']}")
