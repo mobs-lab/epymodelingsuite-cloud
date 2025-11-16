@@ -17,6 +17,7 @@ from typing import Any
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
+    check_docker_available,
     get_docker_config,
     get_github_config,
     get_github_pat,
@@ -731,6 +732,12 @@ def _build_local(
     int
         Exit code
     """
+    # Check Docker availability
+    if not dry_run and not check_docker_available():
+        error("Docker is not installed or not in PATH")
+        info("Install Docker Engine or OrbStack (macOS)")
+        return 1
+
     info("Building cloud image locally...")
     info(f"Image: {image_path}")
     info(f"Dockerfile: {dockerfile_path}")
@@ -841,6 +848,12 @@ def _build_dev(
     int
         Exit code
     """
+    # Check Docker availability
+    if not dry_run and not check_docker_available():
+        error("Docker is not installed or not in PATH")
+        info("Install Docker Engine or OrbStack (macOS)")
+        return 1
+
     info("Building local development image...")
     info(f"Image: {image_path}")
     info(f"Dockerfile: {dockerfile_path}")
