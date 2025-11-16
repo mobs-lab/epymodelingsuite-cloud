@@ -110,6 +110,8 @@ def mock_config():
         },
         "github": {
             "forecast_repo": "test-org/test-repo",
+            "modeling_suite_repo": "test-org/modeling-suite",
+            "modeling_suite_ref": "main",
         },
         "pipeline": {
             "dir_prefix": "pipeline/test/",
