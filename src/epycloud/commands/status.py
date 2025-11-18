@@ -305,7 +305,16 @@ def _fetch_active_batch_jobs(
         List of active batch jobs
     """
     try:
-        # Build gcloud command
+        # Build gcloud command filter
+        # Note: Multiple state checks need parentheses for OR grouping
+        state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
+
+        if exp_id:
+            # Combine state filter with exp_id filter using AND
+            filter_expr = f"{state_filter} AND labels.exp_id={exp_id}"
+        else:
+            filter_expr = state_filter
+
         cmd = [
             "gcloud",
             "batch",
@@ -314,11 +323,8 @@ def _fetch_active_batch_jobs(
             f"--project={project_id}",
             f"--location={region}",
             "--format=json",
-            "--filter=state:RUNNING OR state:QUEUED OR state:SCHEDULED",
+            f"--filter={filter_expr}",
         ]
-
-        if exp_id:
-            cmd.append(f"--filter=labels.exp_id={exp_id}")
 
         result = subprocess.run(
             cmd,
@@ -448,18 +454,20 @@ def _display_status(
                 first_group = list(task_groups.values())[0] if task_groups else {}
                 task_counts = first_group.get("counts", {})
 
-                succeeded = task_counts.get("succeeded", 0)
-                failed = task_counts.get("failed", 0)
-                running = task_counts.get("running", 0)
+                # Convert counts to integers (API may return strings)
+                succeeded = int(task_counts.get("SUCCEEDED", 0))
+                failed = int(task_counts.get("FAILED", 0))
+                running = int(task_counts.get("RUNNING", 0))
+                pending = int(task_counts.get("PENDING", 0))
 
                 # Calculate total tasks
-                total = sum(task_counts.values()) if task_counts else 0
+                total = succeeded + failed + running + pending
                 completed = succeeded + failed
 
                 if total > 0:
                     tasks_str = f"{completed}/{total}"
                 else:
-                    tasks_str = f"{running} running"
+                    tasks_str = f"{running} running" if running > 0 else "pending"
             else:
                 tasks_str = "N/A"
 
