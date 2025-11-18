@@ -27,6 +27,9 @@ main:
           # Combine: YYYYMMDD-HHMMSS-<uuid-prefix>
           - runId: $${datePart + "-" + timePart + "-" + uniqueId}
 
+          # Sanitize exp_id for use in labels (replace / with - for GCP label compliance)
+          - expIdLabel: $${text.replace_all(input.exp_id, "/", "-")}
+
           # Build GCS paths
           - dirPrefixRaw: $${default(map.get(input, "dirPrefix"), "")}
           - dirPrefix: $${if(dirPrefixRaw == "", "", if(text.substring(dirPrefixRaw, len(dirPrefixRaw) - 1, len(dirPrefixRaw)) == "/", dirPrefixRaw, dirPrefixRaw + "/"))}
@@ -78,7 +81,7 @@ main:
               project: epymodelingsuite-cloud
               environment: production
               stage: builder
-              exp_id: $${expId}
+              exp_id: $${expIdLabel}
               run_id: $${runId}
               managed-by: workflows
             taskGroups:
@@ -189,7 +192,7 @@ main:
               project: epymodelingsuite-cloud
               environment: production
               stage: runner
-              exp_id: $${expId}
+              exp_id: $${expIdLabel}
               run_id: $${runId}
               managed-by: workflows
             taskGroups:
@@ -277,7 +280,7 @@ main:
                         project: epymodelingsuite-cloud
                         environment: production
                         stage: output
-                        exp_id: $${expId}
+                        exp_id: $${expIdLabel}
                         run_id: $${runId}
                         managed-by: workflows
                       taskGroups:
