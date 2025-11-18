@@ -249,7 +249,7 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
     image_path = get_image_uri(config, tag=image_tag)
 
     # Get project root (where Makefile and docker/ dir are)
-    project_root = get_project_root()
+    project_root = get_project_root().resolve()
 
     # Resolve dockerfile and context paths
     dockerfile = getattr(args, "dockerfile", None)
@@ -258,12 +258,12 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
     if dockerfile:
         dockerfile_path = Path(dockerfile).resolve()
     else:
-        dockerfile_path = project_root / "docker" / "Dockerfile"
+        dockerfile_path = (project_root / "docker" / "Dockerfile").resolve()
 
     if context:
         context_path = Path(context).resolve()
     else:
-        context_path = project_root
+        context_path = project_root.resolve()
 
     return _build_cloud(
         project_id=project_id,
@@ -330,7 +330,7 @@ def _handle_local(ctx: dict[str, Any]) -> int:
         return 2
 
     # Get project root (where Makefile and docker/ dir are)
-    project_root = get_project_root()
+    project_root = get_project_root().resolve()
 
     # Resolve dockerfile and context paths
     dockerfile = getattr(args, "dockerfile", None)
@@ -339,12 +339,12 @@ def _handle_local(ctx: dict[str, Any]) -> int:
     if dockerfile:
         dockerfile_path = Path(dockerfile).resolve()
     else:
-        dockerfile_path = project_root / "docker" / "Dockerfile"
+        dockerfile_path = (project_root / "docker" / "Dockerfile").resolve()
 
     if context:
         context_path = Path(context).resolve()
     else:
-        context_path = project_root
+        context_path = project_root.resolve()
 
     return _build_local(
         image_path=image_path,
@@ -398,7 +398,7 @@ def _handle_dev(ctx: dict[str, Any]) -> int:
         return 2
 
     # Get project root (where Makefile and docker/ dir are)
-    project_root = get_project_root()
+    project_root = get_project_root().resolve()
 
     # Resolve dockerfile and context paths
     dockerfile = getattr(args, "dockerfile", None)
@@ -407,12 +407,12 @@ def _handle_dev(ctx: dict[str, Any]) -> int:
     if dockerfile:
         dockerfile_path = Path(dockerfile).resolve()
     else:
-        dockerfile_path = project_root / "docker" / "Dockerfile"
+        dockerfile_path = (project_root / "docker" / "Dockerfile").resolve()
 
     if context:
         context_path = Path(context).resolve()
     else:
-        context_path = project_root
+        context_path = project_root.resolve()
 
     return _build_dev(
         image_name=image_name,
