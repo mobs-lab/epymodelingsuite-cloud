@@ -801,8 +801,8 @@ def _display_execution_list(executions: list[dict[str, Any]], region: str) -> No
         GCP region
     """
     print()
-    print(f"{'EXECUTION ID':<40} {'STATUS':<12} {'START TIME':<20} {'EXP_ID':<20}")
-    print("-" * 100)
+    print(f"{'EXECUTION ID':<40} {'STATUS':<12} {'START TIME':<20} {'EXP_ID':<40}")
+    print("-" * 120)
 
     for execution in executions:
         name = execution.get("name", "")
@@ -823,10 +823,11 @@ def _display_execution_list(executions: list[dict[str, Any]], region: str) -> No
         # Format start time
         start_time_str = format_timestamp_full(start_time) if start_time else "unknown"
 
-        # Color code status
-        status_display = format_status(state, "workflow")
+        # Color code status (pad before coloring to avoid ANSI escape code width issues)
+        status_padded = f"{state:<12}"
+        status_display = format_status(status_padded, "workflow")
 
-        print(f"{execution_id:<40} {status_display:<20} {start_time_str:<20} {exp_id:<20}")
+        print(f"{execution_id:<40} {status_display} {start_time_str:<20} {exp_id:<40}")
 
     print()
     info(f"Total: {len(executions)} execution(s)")
