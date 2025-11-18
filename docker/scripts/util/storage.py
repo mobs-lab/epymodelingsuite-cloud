@@ -72,6 +72,48 @@ def _get_gcs_client():
     return _gcs_client
 
 
+def _detect_content_type(path: str) -> str:
+    """Detect MIME content type from file path extension.
+
+    Parameters
+    ----------
+    path : str
+        File path (with extension)
+
+    Returns
+    -------
+    str
+        MIME content type string
+
+    Notes
+    -----
+    For compressed files (.gz), detects the underlying type before compression.
+    Falls back to 'application/octet-stream' for unknown extensions.
+    """
+    # Strip .gz suffix to detect underlying content type
+    clean_path = path[:-3] if path.endswith(".gz") else path
+
+    # Map extensions to content types
+    extension_map = {
+        ".csv": "text/csv",
+        ".json": "application/json",
+        ".txt": "text/plain",
+        ".png": "image/png",
+        ".pdf": "application/pdf",
+        ".svg": "image/svg+xml",
+        ".pkl": "application/octet-stream",
+        ".parquet": "application/octet-stream",
+    }
+
+    # Find matching extension
+    for ext, content_type in extension_map.items():
+        if clean_path.endswith(ext):
+            return content_type
+
+    # Default fallback
+    return "application/octet-stream"
+
+
 def get_config() -> dict:
     """Get storage configuration from environment variables.
 
@@ -252,7 +294,7 @@ def load_bytes(path: str, decompress: bool | None = None) -> bytes:
     return data
 
 
-def save_bytes(path: str, data: bytes, compress: bool | None = None) -> None:
+def save_bytes(path: str, data: bytes, compress: bool | None = None, content_type: str | None = None) -> None:
     """Save bytes to storage.
 
     In cloud mode: Uploads to GCS bucket (using GCS_BUCKET env var)
@@ -267,6 +309,9 @@ def save_bytes(path: str, data: bytes, compress: bool | None = None) -> None:
     compress : bool | None, optional
         Whether to gzip-compress the data before saving.
         If None (default), auto-detects from filename (.gz extension)
+    content_type : str | None, optional
+        MIME content type for the file (e.g., 'text/csv', 'image/png').
+        If None (default), auto-detects from filename extension
 
     Raises
     ------
@@ -290,6 +335,10 @@ def save_bytes(path: str, data: bytes, compress: bool | None = None) -> None:
     if compress:
         data = gzip.compress(data)
 
+    # Auto-detect content type from filename if not explicitly set
+    if content_type is None:
+        content_type = _detect_content_type(path)
+
     if mode == "local":
         # Local filesystem mode
         base_path = _get_local_base_path()
@@ -307,7 +356,7 @@ def save_bytes(path: str, data: bytes, compress: bool | None = None) -> None:
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(final_path)
 
-        blob.upload_from_string(data)
+        blob.upload_from_string(data, content_type=content_type)
         _storage_logger.log_write(f"gs://{bucket_name}/{final_path}", len(data))
 
 
