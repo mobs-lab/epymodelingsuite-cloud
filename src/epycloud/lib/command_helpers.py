@@ -183,8 +183,13 @@ def get_project_root() -> Path:
 
     Notes
     -----
-    Assumes this file is located at: project_root/src/epycloud/lib/command_helpers.py
-    Navigates up 4 levels to reach project root.
+    When running from source (development):
+        Assumes this file is at: project_root/src/epycloud/lib/command_helpers.py
+        Navigates up 4 levels to reach project root.
+
+    When installed as a tool:
+        Uses current working directory as project root.
+        This allows running build commands from the project directory.
 
     Examples
     --------
@@ -192,7 +197,15 @@ def get_project_root() -> Path:
     >>> terraform_dir = root / "terraform"
     >>> docker_dir = root / "docker"
     """
-    return Path(__file__).parent.parent.parent.parent
+    # Try to detect if running from source or installed
+    potential_root = Path(__file__).parent.parent.parent.parent
+
+    # Check if this looks like a development setup (has pyproject.toml and docker/)
+    if (potential_root / "pyproject.toml").exists() and (potential_root / "docker").exists():
+        return potential_root
+
+    # Otherwise, assume installed - use current working directory
+    return Path.cwd()
 
 
 def find_terraform_dir(terraform_dir: str | None = None) -> Path:
