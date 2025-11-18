@@ -82,7 +82,7 @@ def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]
 
     # First pass: Check which files exist and load them
     for i in range(num_tasks):
-        result_path = storage.get_path("runner-artifacts", f"result_{i:0{INDEX_WIDTH}d}.pkl")
+        result_path = storage.get_path("runner-artifacts", f"result_{i:0{INDEX_WIDTH}d}.pkl.gz")
         logger.debug(f"Checking: {result_path}")
 
         try:
