@@ -195,6 +195,59 @@ def get_project_root() -> Path:
     return Path(__file__).parent.parent.parent.parent
 
 
+def find_terraform_dir(terraform_dir: str | None = None) -> Path:
+    """
+    Find the terraform directory.
+
+    Searches in the following order:
+    1. Explicit path if provided via terraform_dir parameter
+    2. Current working directory (./terraform)
+    3. Package installation path (for development mode)
+
+    Parameters
+    ----------
+    terraform_dir : str or None, optional
+        Explicit path to terraform directory. If provided, this is used directly.
+
+    Returns
+    -------
+    Path
+        Absolute path to terraform directory.
+
+    Raises
+    ------
+    FileNotFoundError
+        If terraform directory cannot be found in any location.
+
+    Examples
+    --------
+    >>> tf_dir = find_terraform_dir()
+    >>> tf_dir = find_terraform_dir("/path/to/terraform")
+    """
+    # 1. Explicit path provided
+    if terraform_dir:
+        path = Path(terraform_dir).resolve()
+        if path.exists() and path.is_dir():
+            return path
+        raise FileNotFoundError(f"Specified terraform directory not found: {path}")
+
+    # 2. Current working directory
+    cwd_terraform = Path.cwd() / "terraform"
+    if cwd_terraform.exists() and cwd_terraform.is_dir():
+        return cwd_terraform
+
+    # 3. Package installation path (development mode)
+    pkg_terraform = get_project_root() / "terraform"
+    if pkg_terraform.exists() and pkg_terraform.is_dir():
+        return pkg_terraform
+
+    raise FileNotFoundError(
+        "Terraform directory not found. Please either:\n"
+        "  1. Run this command from the epymodelingsuite-cloud repository root, or\n"
+        "  2. Specify the path with --terraform-dir /path/to/terraform"
+    )
+
+
 def check_docker_available() -> bool:
     """
     Check if Docker is available in the system PATH.

@@ -16,7 +16,7 @@ from typing import Any
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
-    get_project_root,
+    find_terraform_dir,
     handle_dry_run,
     require_config,
 )
@@ -41,6 +41,13 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # Store parser for help printing
     parser.set_defaults(_terraform_parser=parser)
+
+    # Common terraform options
+    parser.add_argument(
+        "--terraform-dir",
+        metavar="DIR",
+        help="Path to terraform directory (default: ./terraform or package location)",
+    )
 
     # Create subcommands with consistent formatting
     tf_subparsers = create_subparsers(parser, "terraform_subcommand")
@@ -167,6 +174,7 @@ def _handle_init(ctx: dict[str, Any]) -> int:
     int
         Exit code
     """
+    args = ctx["args"]
     config = ctx["config"]
     verbose = ctx["verbose"]
     ctx["dry_run"]
@@ -174,11 +182,12 @@ def _handle_init(ctx: dict[str, Any]) -> int:
     info("Initializing Terraform...")
 
     # Get terraform directory
-    project_root = get_project_root()
-    terraform_dir = project_root / "terraform"
-
-    if not terraform_dir.exists():
-        error(f"Terraform directory not found: {terraform_dir}")
+    try:
+        terraform_dir_arg = getattr(args, "terraform_dir", None)
+        terraform_dir = find_terraform_dir(terraform_dir_arg)
+        info(f"Using terraform directory: {terraform_dir}")
+    except FileNotFoundError as e:
+        error(str(e))
         return 1
 
     # Get environment variables from config
@@ -243,11 +252,12 @@ def _handle_plan(ctx: dict[str, Any]) -> int:
     info("Planning infrastructure changes...")
 
     # Get terraform directory
-    project_root = get_project_root()
-    terraform_dir = project_root / "terraform"
-
-    if not terraform_dir.exists():
-        error(f"Terraform directory not found: {terraform_dir}")
+    try:
+        terraform_dir_arg = getattr(args, "terraform_dir", None)
+        terraform_dir = find_terraform_dir(terraform_dir_arg)
+        info(f"Using terraform directory: {terraform_dir}")
+    except FileNotFoundError as e:
+        error(str(e))
         return 1
 
     # Get environment variables from config
@@ -326,11 +336,12 @@ def _handle_apply(ctx: dict[str, Any]) -> int:
             return 0
 
     # Get terraform directory
-    project_root = get_project_root()
-    terraform_dir = project_root / "terraform"
-
-    if not terraform_dir.exists():
-        error(f"Terraform directory not found: {terraform_dir}")
+    try:
+        terraform_dir_arg = getattr(args, "terraform_dir", None)
+        terraform_dir = find_terraform_dir(terraform_dir_arg)
+        info(f"Using terraform directory: {terraform_dir}")
+    except FileNotFoundError as e:
+        error(str(e))
         return 1
 
     # Get environment variables from config
@@ -417,11 +428,12 @@ def _handle_destroy(ctx: dict[str, Any]) -> int:
             return 0
 
     # Get terraform directory
-    project_root = get_project_root()
-    terraform_dir = project_root / "terraform"
-
-    if not terraform_dir.exists():
-        error(f"Terraform directory not found: {terraform_dir}")
+    try:
+        terraform_dir_arg = getattr(args, "terraform_dir", None)
+        terraform_dir = find_terraform_dir(terraform_dir_arg)
+        info(f"Using terraform directory: {terraform_dir}")
+    except FileNotFoundError as e:
+        error(str(e))
         return 1
 
     # Get environment variables from config
@@ -492,11 +504,11 @@ def _handle_output(ctx: dict[str, Any]) -> int:
     ctx["dry_run"]
 
     # Get terraform directory
-    project_root = get_project_root()
-    terraform_dir = project_root / "terraform"
-
-    if not terraform_dir.exists():
-        error(f"Terraform directory not found: {terraform_dir}")
+    try:
+        terraform_dir_arg = getattr(args, "terraform_dir", None)
+        terraform_dir = find_terraform_dir(terraform_dir_arg)
+    except FileNotFoundError as e:
+        error(str(e))
         return 1
 
     # Get environment variables from config
