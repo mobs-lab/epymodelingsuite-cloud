@@ -344,7 +344,7 @@ def _handle_local(ctx: dict[str, Any]) -> int:
     if context:
         context_path = Path(context).resolve()
     else:
-        context_path = project_root / "docker"
+        context_path = project_root
 
     return _build_local(
         image_path=image_path,
@@ -412,7 +412,7 @@ def _handle_dev(ctx: dict[str, Any]) -> int:
     if context:
         context_path = Path(context).resolve()
     else:
-        context_path = project_root / "docker"
+        context_path = project_root
 
     return _build_dev(
         image_name=image_name,
