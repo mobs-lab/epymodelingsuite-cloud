@@ -97,7 +97,7 @@ def main() -> None:
         )
 
         # Load input file (workload from dispatcher)
-        input_path = storage.get_path("builder-artifacts", f"input_{idx:0{INDEX_WIDTH}d}.pkl")
+        input_path = storage.get_path("builder-artifacts", f"input_{idx:0{INDEX_WIDTH}d}.pkl.gz")
         logger.debug(f"Loading input: {input_path}")
 
         try:
@@ -118,7 +118,7 @@ def main() -> None:
                 raise
 
             # Save results
-            output_path = storage.get_path("runner-artifacts", f"result_{idx:0{INDEX_WIDTH}d}.pkl")
+            output_path = storage.get_path("runner-artifacts", f"result_{idx:0{INDEX_WIDTH}d}.pkl.gz")
             logger.debug(f"Saving results: {output_path}")
 
             try:
