@@ -264,14 +264,26 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
     all_outputs = [obj for objects in output_dict.values() for obj in objects]
 
     files_saved = 0
+    files_skipped = 0
     for output_obj in all_outputs:
-        # Save byte-based outputs (CSVBytes, PNG, PDF, SVG)
-        if output_obj.output_type in (
-            TabularOutputTypeEnum.CSVBytes,
-            FigureOutputTypeEnum.PNG,
-            FigureOutputTypeEnum.PDF,
-            FigureOutputTypeEnum.SVG,
-        ):
+        # Determine if this is a serializable byte-based output
+        is_byte_output = False
+
+        # Check tabular outputs
+        if isinstance(output_obj.output_type, TabularOutputTypeEnum):
+            is_byte_output = output_obj.output_type in (
+                TabularOutputTypeEnum.CSVBytes,
+                TabularOutputTypeEnum.Parquet,
+            )
+        # Check figure outputs
+        elif isinstance(output_obj.output_type, FigureOutputTypeEnum):
+            is_byte_output = output_obj.output_type in (
+                FigureOutputTypeEnum.PNG,
+                FigureOutputTypeEnum.PDF,
+                FigureOutputTypeEnum.SVG,
+            )
+
+        if is_byte_output:
             output_path = storage.get_path("outputs", output_obj.name)
             logger.debug(f"Saving: {output_path}")
             storage.save_bytes(output_path, output_obj.data)
@@ -280,8 +292,9 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
         # Skip in-memory formats (DataFrame, MPLFigure)
         else:
             logger.debug(f"Skipping in-memory output: {output_obj.name} ({output_obj.output_type})")
+            files_skipped += 1
 
-    logger.info(f"Successfully saved {files_saved} output files to storage")
+    logger.info(f"Successfully saved {files_saved} output files to storage (skipped {files_skipped} in-memory objects)")
 
 
 def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
