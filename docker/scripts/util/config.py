@@ -28,6 +28,9 @@ def resolve_configs(
     - Files with 'modelset.calibration' -> calibration config
     - Files with 'output' -> output config
 
+    Supports nested directory structures by searching for the experiment in subdirectories
+    if not found directly under config_dir.
+
     Parameters
     ----------
     exp_id : str
@@ -49,6 +52,27 @@ def resolve_configs(
         If multiple files of the same type are found
     """
     exp_config_dir = Path(config_dir) / exp_id / "config"
+
+    # If direct path doesn't exist, search in subdirectories
+    if not exp_config_dir.exists():
+        _logger.debug(f"Direct path not found: {exp_config_dir}, searching in subdirectories...")
+        base_dir = Path(config_dir)
+
+        # Search for exp_id in subdirectories (e.g., test/test-flu-projection-small)
+        found_paths = list(base_dir.glob(f"*/{exp_id}/config"))
+
+        if not found_paths:
+            raise FileNotFoundError(
+                f"Config directory not found for exp_id '{exp_id}': {exp_config_dir}"
+            )
+
+        if len(found_paths) > 1:
+            raise ValueError(
+                f"Multiple config directories found for exp_id '{exp_id}': {found_paths}"
+            )
+
+        exp_config_dir = found_paths[0]
+        _logger.info(f"Found config directory: {exp_config_dir}")
 
     if not exp_config_dir.exists():
         raise FileNotFoundError(
