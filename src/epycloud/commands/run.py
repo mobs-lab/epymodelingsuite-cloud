@@ -711,14 +711,14 @@ def _run_workflow_local(
     success("Stage A completed successfully")
 
     # Detect number of tasks from builder artifacts
-    bucket_path = project_directory / "local" / "bucket" / exp_id / run_id / "builder-artifacts"
+    bucket_path = project_directory / "local" / "bucket" / dir_prefix.rstrip("/") / exp_id / run_id / "builder-artifacts"
 
     if not dry_run:
         if not bucket_path.exists():
             error(f"Builder artifacts not found: {bucket_path}")
             return 1
 
-        input_files = list(bucket_path.glob("input_*.pkl"))
+        input_files = list(bucket_path.glob("input_*.pkl*"))
         num_tasks = len(input_files)
 
         if num_tasks == 0:
@@ -787,7 +787,7 @@ def _run_workflow_local(
     info("=" * 60)
     success("Workflow completed successfully!")
     info("=" * 60)
-    info(f"Results in: ./local/bucket/{exp_id}/{run_id}/")
+    info(f"Results in: ./local/bucket/{dir_prefix}{exp_id}/{run_id}/")
 
     return 0
 
@@ -1144,7 +1144,7 @@ def _run_job_local(
 
     if result == 0:
         success(f"Stage {stage} completed successfully")
-        info(f"Results in: ./local/bucket/{exp_id}/{run_id}/")
+        info(f"Results in: ./local/bucket/{dir_prefix}{exp_id}/{run_id}/")
     else:
         error(f"Stage {stage} failed")
 
