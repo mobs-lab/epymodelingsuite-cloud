@@ -1,0 +1,69 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud builds submit. It follows the same syntax as .gitignore.
+
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials and environment files
+*.json
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Terraform state
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+
+# Local execution files
+local/
+runner-artifacts/
+
+# Documentation (not needed for build)
+docs/
+*.md
+!README.md
+
+# Test files (not needed for build)
+tests/
+*.pdf
+
+# Keep only what's needed for the build
+!cloudbuild.yaml
+!docker/
+!src/
+!pyproject.toml
+!uv.lock
