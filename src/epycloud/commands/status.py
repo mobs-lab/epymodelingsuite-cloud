@@ -382,18 +382,17 @@ def _display_status(
     exp_id_filter : str | None
         Optional experiment ID filter for display
     """
-    print()
-    if exp_id_filter:
-        print(f"Pipeline Status: {exp_id_filter}")
-    else:
-        print("Pipeline Status")
-    print("=" * 100)
-    print()
+    from epycloud.lib.output import supports_color
 
     # Display active workflows
     if workflows:
-        print("Active Workflows:")
-        print()
+        # Section header with color
+        if supports_color():
+            print("\n\033[36m[Active workflows]\033[0m")
+        else:
+            print("\n[Active workflows]")
+
+        print("-" * 100)
         print(f"{'EXECUTION ID':<40} {'EXP_ID':<40} {'START TIME':<20}")
         print("-" * 100)
 
@@ -427,14 +426,16 @@ def _display_status(
             print(f"{execution_id:<40} {exp_id:<40} {start_time_str:<20}")
 
         print()
-    else:
-        info("No active workflows")
-        print()
 
     # Display active batch jobs
     if jobs:
-        print("Active Batch Jobs:")
-        print()
+        # Section header with color
+        if supports_color():
+            print("\033[36m[Active batch jobs]\033[0m")
+        else:
+            print("[Active batch jobs]")
+
+        print("-" * 100)
         print(f"{'JOB NAME':<30} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
         print("-" * 100)
 
@@ -478,15 +479,13 @@ def _display_status(
             print(f"{job_name:<30} {stage:<8} {status_display} {tasks_str:<15}")
 
         print()
-    else:
-        info("No active batch jobs")
-        print()
 
     # Summary
     total_active = len(workflows) + len(jobs)
     if total_active == 0:
-        print("All pipelines idle")
+        if supports_color():
+            print("\n\033[90mAll pipelines idle\033[0m\n")
+        else:
+            print("\nAll pipelines idle\n")
     else:
-        print(f"Total active: {len(workflows)} workflow(s), {len(jobs)} batch job(s)")
-
-    print()
+        print(f"\nTotal: {len(workflows)} workflow(s), {len(jobs)} batch job(s)\n")
