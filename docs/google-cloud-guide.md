@@ -96,7 +96,7 @@ The pipeline is consisted from following tech stacks/components:
   * `main_runner.py` (Stage B: consume one pickle per task using `BATCH_TASK_INDEX`)
 * **Workflow YAML**:
   * Orchestrates: Stage A → wait → list GCS → Stage B (`taskCount=N`) → wait
-* **Makefile (optional)**: common commands (build/push/deploy/run)
+* **epycloud CLI**: unified command-line interface for all operations
 
 
 ## 1) Repository structure
@@ -107,8 +107,7 @@ epymodelingsuite-cloud/
 │  ├─ main.tf                    # Google Cloud resources
 │  ├─ variables.tf
 │  ├─ outputs.tf
-│  ├─ workflow.yaml              # Workflows orchestration definition
-│  └─ terraform.tfvars           # Project-specific values
+│  └─ workflow.yaml              # Workflows orchestration definition
 ├─ docker/
 │  ├─ Dockerfile
 │  ├─ requirements.txt
@@ -118,7 +117,7 @@ epymodelingsuite-cloud/
 │     ├─ main_output.py          # Stage C: Aggregate results
 │     ├─ run_builder.sh          # Stage A wrapper for repo cloning
 │     └─ run_output.sh           # Stage C wrapper
-├─ Makefile                      # Build/deploy automation (deprecated)
+├─ src/epycloud/                 # CLI package
 ├─ cloudbuild.yaml               # Cloud Build configuration
 ├─ .gitignore
 └─ README.md
@@ -560,7 +559,7 @@ epycloud build dev
 - Automatically pushes to Artifact Registry
 - **Fetches GitHub PAT from Secret Manager** for private repository access
 - Passes `GITHUB_MODELING_SUITE_REPO` and `GITHUB_MODELING_SUITE_REF` as build arguments
-- Submits builds asynchronously via Makefile for non-blocking operation
+- Submits builds asynchronously via `epycloud build cloud` for non-blocking operation
 
 **How epymodelingsuite is installed:**
 

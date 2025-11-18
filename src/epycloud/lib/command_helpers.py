@@ -533,9 +533,8 @@ def get_github_pat(config: dict[str, Any], required: bool = False) -> str | None
         secrets_file = get_secrets_file()
         error("GitHub PAT required for this operation")
         info("Options:")
-        info("  1. Load from .env.local: source .env.local")
-        info("  2. Set environment variable: export GITHUB_PAT=your_token")
-        info("  3. Add to secrets.yaml: epycloud config edit-secrets")
+        info("  1. Set environment variable: export GITHUB_PAT=your_token")
+        info("  2. Add to secrets.yaml: epycloud config edit-secrets")
         info(f"     (File location: {secrets_file})")
         return None
 
