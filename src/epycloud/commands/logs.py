@@ -131,11 +131,15 @@ def handle(ctx: dict[str, Any]) -> int:
     # Resource type: Cloud Batch jobs
     filter_parts.append('resource.type="batch.googleapis.com/Job"')
 
-    # Labels
-    filter_parts.append(f'labels.exp_id="{exp_id}"')
+    # Labels (must be sanitized to match what was set in job creation)
+    from epycloud.lib.validation import sanitize_label_value
+
+    exp_id_label = sanitize_label_value(exp_id)
+    filter_parts.append(f'labels.exp_id="{exp_id_label}"')
 
     if run_id:
-        filter_parts.append(f'labels.run_id="{run_id}"')
+        run_id_label = sanitize_label_value(run_id)
+        filter_parts.append(f'labels.run_id="{run_id_label}"')
 
     if stage:
         filter_parts.append(f'labels.stage="{stage}"')

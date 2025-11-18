@@ -35,7 +35,7 @@ from epycloud.lib.command_helpers import (
 )
 from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, success, warning
-from epycloud.lib.validation import validate_machine_type
+from epycloud.lib.validation import sanitize_label_value, validate_machine_type
 from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
 
 
@@ -1262,6 +1262,10 @@ def _build_batch_job_config(
     """
     stage_name = {"A": "builder", "B": "runner", "C": "output"}[stage]
 
+    # Sanitize labels for GCP compliance (exp_id may contain '/')
+    exp_id_label = sanitize_label_value(exp_id)
+    run_id_label = sanitize_label_value(run_id)
+
     # Build environment variables
     env_vars = {
         "EXECUTION_MODE": "cloud",
@@ -1323,8 +1327,8 @@ def _build_batch_job_config(
         "labels": {
             "component": "epymodelingsuite",
             "stage": stage_name,
-            "exp_id": exp_id,
-            "run_id": run_id,
+            "exp_id": exp_id_label,
+            "run_id": run_id_label,
             "managed-by": "manual",
         },
         "taskGroups": [{"taskCount": 1, "taskSpec": task_spec}],

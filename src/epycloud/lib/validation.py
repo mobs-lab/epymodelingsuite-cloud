@@ -309,6 +309,50 @@ def validate_stage_name(stage: str) -> str:
     return stage
 
 
+def sanitize_label_value(value: str) -> str:
+    """Sanitize a string for use as a GCP label value.
+
+    GCP labels have specific requirements:
+    - Only lowercase letters, numbers, hyphens, and underscores
+    - Must start with a letter or number
+    - Max 63 characters
+
+    Parameters
+    ----------
+    value : str
+        The value to sanitize
+
+    Returns
+    -------
+    str
+        Sanitized label value
+
+    Examples
+    --------
+    >>> sanitize_label_value("test/test-flu-projection-2025-01")
+    'test-test-flu-projection-2025-01'
+    >>> sanitize_label_value("20251118-061019-bfea55a4")
+    '20251118-061019-bfea55a4'
+    """
+    # Replace forward slashes with hyphens (common in exp_id like "test/test-flu-projection")
+    sanitized = value.replace("/", "-")
+
+    # Replace any other invalid characters with hyphens
+    sanitized = "".join(c if c.isalnum() or c in "-_" else "-" for c in sanitized)
+
+    # Convert to lowercase
+    sanitized = sanitized.lower()
+
+    # Truncate to 63 characters if needed
+    if len(sanitized) > 63:
+        sanitized = sanitized[:63]
+
+    # Ensure it doesn't start or end with hyphen/underscore
+    sanitized = sanitized.strip("-_")
+
+    return sanitized
+
+
 def validate_machine_type(machine_type: str, project_id: str, region: str) -> str:
     """Validate Google Cloud machine type against available types in the region.
 

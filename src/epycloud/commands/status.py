@@ -312,8 +312,12 @@ def _fetch_active_batch_jobs(
         state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
 
         if exp_id:
+            # Sanitize exp_id for label filtering (must match what was set in job creation)
+            from epycloud.lib.validation import sanitize_label_value
+
+            exp_id_label = sanitize_label_value(exp_id)
             # Combine state filter with exp_id filter using AND
-            filter_expr = f"{state_filter} AND labels.exp_id={exp_id}"
+            filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
         else:
             filter_expr = state_filter
 
