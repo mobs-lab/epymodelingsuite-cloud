@@ -286,7 +286,12 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
         if is_byte_output:
             output_path = storage.get_path("outputs", output_obj.name)
             logger.debug(f"Saving: {output_path}")
-            storage.save_bytes(output_path, output_obj.data)
+
+            # CSVBytes are already gzipped by pandas to_csv(compression="gzip")
+            # Disable auto-compression to avoid double-gzipping
+            compress = False if output_obj.output_type == TabularOutputTypeEnum.CSVBytes else None
+            storage.save_bytes(output_path, output_obj.data, compress=compress)
+
             logger.debug(f"Saved: {len(output_obj.data):,} bytes")
             files_saved += 1
         # Skip in-memory formats (DataFrame, MPLFigure)
