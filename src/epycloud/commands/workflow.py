@@ -229,8 +229,8 @@ def _handle_list(ctx: dict[str, Any]) -> int:
     if args.limit:
         params.append(f"pageSize={args.limit}")
     if args.status:
-        # Note: API filter syntax is: state=SUCCEEDED or state=FAILED
-        params.append(f"filter=state={args.status}")
+        # Note: API filter syntax requires quotes: state="SUCCEEDED" or state="FAILED"
+        params.append(f'filter=state="{args.status}"')
 
     if params:
         list_url += "?" + "&".join(params)

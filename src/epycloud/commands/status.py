@@ -249,7 +249,7 @@ def _fetch_active_workflows(
     list_url = (
         f"https://workflowexecutions.googleapis.com/v1/"
         f"projects/{project_id}/locations/{region}/workflows/{workflow_name}/executions"
-        f"?pageSize=20&filter=state=ACTIVE"
+        f'?pageSize=20&filter=state="ACTIVE"&view=FULL'
     )
 
     try:
@@ -396,6 +396,8 @@ def _display_status(
             execution_id = name.split("/")[-1] if name else "unknown"
 
             # Extract exp_id from argument
+            # Note: The list API returns minimal argument data.
+            # We need to check labels or fetch full details for exp_id.
             argument_str = workflow.get("argument", "{}")
             exp_id = "unknown"
             try:
@@ -403,6 +405,11 @@ def _display_status(
                 exp_id = arg.get("exp_id", "unknown")
             except json.JSONDecodeError:
                 pass
+
+            # If not found in argument (common in list responses), try labels
+            if exp_id == "unknown":
+                labels = workflow.get("labels", {})
+                exp_id = labels.get("exp_id", "unknown")
 
             # Format start time
             start_time = workflow.get("startTime", "")
