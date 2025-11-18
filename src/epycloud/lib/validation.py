@@ -14,13 +14,13 @@ from epycloud.exceptions import ValidationError
 def validate_exp_id(exp_id: str) -> str:
     """Validate and sanitize experiment ID.
 
-    Experiment IDs must contain only alphanumeric characters, dashes, and
-    underscores. Path traversal attempts are rejected.
+    Experiment IDs must contain only alphanumeric characters, dashes, underscores,
+    and forward slashes (for nested directories). Path traversal attempts are rejected.
 
     Parameters
     ----------
     exp_id : str
-        Experiment ID to validate.
+        Experiment ID to validate. Can include directory path (e.g., "test/my-exp-01").
 
     Returns
     -------
@@ -38,6 +38,8 @@ def validate_exp_id(exp_id: str) -> str:
     'test-sim-2024'
     >>> validate_exp_id("  my_exp_01  ")
     'my_exp_01'
+    >>> validate_exp_id("test/my-exp-01")
+    'test/my-exp-01'
     >>> validate_exp_id("../etc/passwd")
     Traceback (most recent call last):
         ...
@@ -48,19 +50,19 @@ def validate_exp_id(exp_id: str) -> str:
 
     exp_id = exp_id.strip()
 
-    # Check for path traversal attempts first (more specific error message)
-    if ".." in exp_id or "/" in exp_id or "\\" in exp_id:
+    # Check for path traversal attempts (.. or backslashes)
+    if ".." in exp_id or "\\" in exp_id:
         raise ValidationError(f"Invalid experiment ID: {exp_id}. Path traversal not allowed")
 
-    # Must be alphanumeric + dash/underscore only
-    if not re.match(r"^[a-zA-Z0-9_-]+$", exp_id):
+    # Must be alphanumeric + dash/underscore/forward-slash only
+    if not re.match(r"^[a-zA-Z0-9_/-]+$", exp_id):
         raise ValidationError(
-            f"Invalid experiment ID: {exp_id}. Must contain only letters, numbers, dash, underscore"
+            f"Invalid experiment ID: {exp_id}. Must contain only letters, numbers, dash, underscore, and forward slash"
         )
 
     # Reasonable length limit
-    if len(exp_id) > 100:
-        raise ValidationError(f"Experiment ID too long: {len(exp_id)} chars (max 100)")
+    if len(exp_id) > 200:
+        raise ValidationError(f"Experiment ID too long: {len(exp_id)} chars (max 200)")
 
     return exp_id
 

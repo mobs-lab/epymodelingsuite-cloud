@@ -28,13 +28,13 @@ def resolve_configs(
     - Files with 'modelset.calibration' -> calibration config
     - Files with 'output' -> output config
 
-    Supports nested directory structures by searching for the experiment in subdirectories
-    if not found directly under config_dir.
+    Supports nested directory structures. If exp_id contains a path (e.g., "test/my-exp"),
+    it will be used directly. Otherwise, searches for the experiment in subdirectories.
 
     Parameters
     ----------
     exp_id : str
-        Experiment ID (e.g., 'test-sim', 'flu_round05')
+        Experiment ID (e.g., 'test-sim', 'flu_round05', 'test/my-exp')
     config_dir : str, optional
         Base directory for experiments (default: '/data/forecast/experiments')
 
@@ -53,8 +53,9 @@ def resolve_configs(
     """
     exp_config_dir = Path(config_dir) / exp_id / "config"
 
-    # If direct path doesn't exist, search in subdirectories
-    if not exp_config_dir.exists():
+    # If direct path doesn't exist and exp_id doesn't contain a path separator,
+    # search in subdirectories
+    if not exp_config_dir.exists() and "/" not in exp_id:
         _logger.debug(f"Direct path not found: {exp_config_dir}, searching in subdirectories...")
         base_dir = Path(config_dir)
 
