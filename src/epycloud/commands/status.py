@@ -39,12 +39,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     parser.add_argument(
+        "-w",
         "--watch",
         action="store_true",
         help="Watch mode (auto-refresh)",
     )
 
     parser.add_argument(
+        "-n",
         "--interval",
         type=int,
         default=10,
