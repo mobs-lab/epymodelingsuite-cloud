@@ -205,7 +205,7 @@ def generate_outputs(
     Returns
     -------
     dict
-        Dictionary mapping filenames to gzipped data bytes
+        Dictionary mapping output keys to lists of OutputObject instances
 
     Raises
     ------
@@ -230,9 +230,13 @@ def generate_outputs(
     if output_dict is None:
         raise ValueError("dispatch_output_generator returned None - no outputs generated")
 
-    logger.info(f"Generated {len(output_dict)} output files")
-    for filename in output_dict.keys():
-        logger.debug(f"  - {filename}")
+    # Count total output objects
+    total_outputs = sum(len(output_objects) for output_objects in output_dict.values())
+    logger.info(f"Output dictionary contains {len(output_dict)} keys with {total_outputs} OutputObject instances")
+    for output_key, output_objects in output_dict.items():
+        logger.debug(f"  - {output_key}: {len(output_objects)} files")
+        for obj in output_objects:
+            logger.debug(f"    - {obj.name} ({obj.output_type})")
 
     return output_dict
 
@@ -243,7 +247,7 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
     Parameters
     ----------
     output_dict : dict
-        Dictionary mapping filenames to gzipped data bytes
+        Dictionary mapping output keys to lists of OutputObject instances
     logger : logging.Logger
         Logger instance for output
 
@@ -252,15 +256,32 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
     Exception
         If any file save operation fails
     """
+    from epymodelingsuite.schema.output import TabularOutputTypeEnum, FigureOutputTypeEnum
+
     logger.info("Saving output files to storage")
 
-    for filename, gzipped_data in output_dict.items():
-        output_path = storage.get_path("outputs", filename)
-        logger.debug(f"Saving: {output_path}")
-        storage.save_bytes(output_path, gzipped_data)
-        logger.debug(f"Saved: {len(gzipped_data):,} bytes")
+    # Flatten output_dict to get all OutputObjects
+    all_outputs = [obj for objects in output_dict.values() for obj in objects]
 
-    logger.info(f"Successfully saved {len(output_dict)} output files")
+    files_saved = 0
+    for output_obj in all_outputs:
+        # Save byte-based outputs (CSVBytes, PNG, PDF, SVG)
+        if output_obj.output_type in (
+            TabularOutputTypeEnum.CSVBytes,
+            FigureOutputTypeEnum.PNG,
+            FigureOutputTypeEnum.PDF,
+            FigureOutputTypeEnum.SVG,
+        ):
+            output_path = storage.get_path("outputs", output_obj.name)
+            logger.debug(f"Saving: {output_path}")
+            storage.save_bytes(output_path, output_obj.data)
+            logger.debug(f"Saved: {len(output_obj.data):,} bytes")
+            files_saved += 1
+        # Skip in-memory formats (DataFrame, MPLFigure)
+        else:
+            logger.debug(f"Skipping in-memory output: {output_obj.name} ({output_obj.output_type})")
+
+    logger.info(f"Successfully saved {files_saved} output files to storage")
 
 
 def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
