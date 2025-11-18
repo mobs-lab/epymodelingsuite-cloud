@@ -69,7 +69,9 @@ main:
           - memoryMibC: $${if(memoryMibCOverride > 0, memoryMibCOverride, ${stage_c_memory_mib})}
           - machineTypeC: $${if(machineTypeCOverride != "", machineTypeCOverride, "${stage_c_machine_type}")}
           - maxRunDurationC: "${stage_c_max_run_duration}s"
-          - taskCountPerNode: ${task_count_per_node}
+          # Task count per node - allow runtime override
+          - taskCountPerNodeOverride: $${default(map.get(input, "taskCountPerNode"), 0)}
+          - taskCountPerNode: $${if(taskCountPerNodeOverride > 0, taskCountPerNodeOverride, ${task_count_per_node})}
           - runOutputStage: ${run_output_stage}
 
           # Network configuration

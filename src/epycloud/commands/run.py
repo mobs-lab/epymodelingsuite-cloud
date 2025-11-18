@@ -116,6 +116,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     workflow_parser.add_argument(
+        "--task-count-per-node",
+        type=int,
+        help="Max tasks per VM node (1 = dedicated VM per task, default: from config)",
+    )
+
+    workflow_parser.add_argument(
         "--wait",
         action="store_true",
         help="Wait for completion and stream logs",
@@ -172,6 +178,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     job_parser.add_argument(
         "--machine-type",
         help="Override machine type for this job (auto-sets CPU/memory to machine max)",
+    )
+
+    job_parser.add_argument(
+        "--task-count-per-node",
+        type=int,
+        help="Max tasks per VM node (1 = dedicated VM per task, default: from config)",
     )
 
     job_parser.add_argument(
@@ -265,6 +277,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
     local = args.local
     skip_output = args.skip_output
     max_parallelism = args.max_parallelism
+    task_count_per_node = getattr(args, "task_count_per_node", None)
     stage_a_machine_type_override = getattr(args, "stage_a_machine_type", None)
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
     stage_c_machine_type_override = getattr(args, "stage_c_machine_type", None)
@@ -298,6 +311,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             skip_output=skip_output,
             max_parallelism=max_parallelism,
+            task_count_per_node=task_count_per_node,
             stage_a_machine_type_override=stage_a_machine_type_override,
             stage_b_machine_type_override=stage_b_machine_type_override,
             stage_c_machine_type_override=stage_c_machine_type_override,
@@ -353,6 +367,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
     wait = args.wait
     auto_confirm = args.yes
     machine_type_override = getattr(args, "machine_type", None)
+    task_count_per_node = getattr(args, "task_count_per_node", None)
     project_directory = getattr(args, "project_directory", None)
 
     # Validate requirements
@@ -394,6 +409,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
             task_index=task_index,
             num_tasks=num_tasks,
             machine_type_override=machine_type_override,
+            task_count_per_node=task_count_per_node,
             wait=wait,
             auto_confirm=auto_confirm,
             verbose=verbose,
@@ -408,6 +424,7 @@ def _run_workflow_cloud(
     run_id: str | None,
     skip_output: bool,
     max_parallelism: int | None,
+    task_count_per_node: int | None,
     stage_a_machine_type_override: str | None,
     stage_b_machine_type_override: str | None,
     stage_c_machine_type_override: str | None,
@@ -432,6 +449,8 @@ def _run_workflow_cloud(
         Skip stage C
     max_parallelism : int | None
         Max parallel tasks
+    task_count_per_node : int | None
+        Max tasks per VM node (1 = dedicated VM per task)
     stage_a_machine_type_override : str | None
         Override Stage A machine type (auto-sets CPU/memory to machine max)
     stage_b_machine_type_override : str | None
@@ -465,6 +484,9 @@ def _run_workflow_cloud(
 
     if not max_parallelism:
         max_parallelism = pipeline.get("max_parallelism", 100)
+
+    if not task_count_per_node:
+        task_count_per_node = batch_config.get("task_count_per_node", 1)
 
     # Validate required config
     if not project_id:
@@ -593,6 +615,9 @@ def _run_workflow_cloud(
 
     if max_parallelism:
         workflow_arg["maxParallelism"] = max_parallelism
+
+    if task_count_per_node:
+        workflow_arg["taskCountPerNode"] = task_count_per_node
 
     if stage_a_machine_type_override:
         workflow_arg["stageAMachineType"] = stage_a_machine_type_override
@@ -889,6 +914,7 @@ def _run_job_cloud(
     task_index: int,
     num_tasks: int | None,
     machine_type_override: str | None,
+    task_count_per_node: int | None,
     wait: bool,
     auto_confirm: bool,
     verbose: bool,
@@ -914,6 +940,8 @@ def _run_job_cloud(
         Number of tasks for stage C
     machine_type_override : str | None
         Override machine type for this job (auto-sets CPU/memory to machine max)
+    task_count_per_node : int | None
+        Max tasks per VM node (1 = dedicated VM per task)
     wait : bool
         Wait for completion
     auto_confirm : bool
@@ -963,6 +991,10 @@ def _run_job_cloud(
         except ValidationError as e:
             error(str(e))
             return 1
+
+    # Set default for task_count_per_node if not provided
+    if not task_count_per_node:
+        task_count_per_node = batch_config.get("task_count_per_node", 1)
 
     # Validate
     if not project_id or not bucket_name:
@@ -1024,6 +1056,7 @@ def _run_job_cloud(
         memory_mib=memory_mib,
         machine_type=machine_type,
         max_run_duration=max_run_duration,
+        task_count_per_node=task_count_per_node,
         batch_sa_email=batch_sa_email,
     )
 
@@ -1327,6 +1360,7 @@ def _build_batch_job_config(
     memory_mib: int,
     machine_type: str,
     max_run_duration: int,
+    task_count_per_node: int,
     batch_sa_email: str,
 ) -> dict[str, Any]:
     """Build Cloud Batch job configuration.
@@ -1443,7 +1477,7 @@ def _build_batch_job_config(
             "run_id": run_id_label,
             "managed-by": "manual",
         },
-        "taskGroups": [{"taskCount": 1, "taskSpec": task_spec}],
+        "taskGroups": [{"taskCount": 1, "taskSpec": task_spec, "taskCountPerNode": task_count_per_node}],
         "logsPolicy": {"destination": "CLOUD_LOGGING"},
         "allocationPolicy": allocation_policy,
     }
