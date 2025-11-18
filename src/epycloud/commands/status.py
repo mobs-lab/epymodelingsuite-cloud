@@ -392,9 +392,9 @@ def _display_status(
         else:
             print("\n[Active workflows]")
 
-        print("-" * 100)
-        print(f"{'EXECUTION ID':<40} {'EXP_ID':<40} {'START TIME':<20}")
-        print("-" * 100)
+        print("-" * 120)
+        print(f"{'EXECUTION ID':<40} {'EXP_ID':<40} {'START TIME':<37}")
+        print("-" * 120)
 
         for workflow in workflows:
             name = workflow.get("name", "")
@@ -423,7 +423,7 @@ def _display_status(
             else:
                 start_time_str = "unknown"
 
-            print(f"{execution_id:<40} {exp_id:<40} {start_time_str:<20}")
+            print(f"{execution_id:<40} {exp_id:<40} {start_time_str:<37}")
 
         print()
 
@@ -435,9 +435,9 @@ def _display_status(
         else:
             print("[Active batch jobs]")
 
-        print("-" * 100)
-        print(f"{'JOB NAME':<30} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
-        print("-" * 100)
+        print("-" * 120)
+        print(f"{'JOB NAME':<40} {'EXP_ID':<40} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
+        print("-" * 120)
 
         for job in jobs:
             job_name = job.get("name", "").split("/")[-1]
@@ -447,6 +447,14 @@ def _display_status(
             # Get labels
             labels = job.get("labels", {})
             stage = labels.get("stage", "unknown")
+
+            # Get exp_id from environment variables (original, unsanitized)
+            task_groups_list = job.get("taskGroups", [])
+            exp_id = "unknown"
+            if task_groups_list:
+                task_spec = task_groups_list[0].get("taskSpec", {})
+                env_vars = task_spec.get("environment", {}).get("variables", {})
+                exp_id = env_vars.get("EXP_ID", labels.get("exp_id", "unknown"))
 
             # Get task counts
             task_groups = status.get("taskGroups", {})
@@ -476,7 +484,7 @@ def _display_status(
             status_padded = f"{state:<12}"
             status_display = format_status(status_padded, "batch")
 
-            print(f"{job_name:<30} {stage:<8} {status_display} {tasks_str:<15}")
+            print(f"{job_name:<40} {exp_id:<40} {stage:<8} {status_display} {tasks_str:<15}")
 
         print()
 
