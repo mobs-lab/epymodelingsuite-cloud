@@ -45,19 +45,29 @@ main:
           - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
 
           # Batch machine configuration
-          - cpuMilliA: ${stage_a_cpu_milli}
-          - memoryMibA: ${stage_a_memory_mib}
-          - machineTypeA: "${stage_a_machine_type}"
+          # Stage A - allow runtime override of machine type and resources
+          - machineTypeAOverride: $${default(map.get(input, "stageAMachineType"), "")}
+          - cpuMilliAOverride: $${default(map.get(input, "stageACpuMilli"), 0)}
+          - memoryMibAOverride: $${default(map.get(input, "stageAMemoryMib"), 0)}
+          - cpuMilliA: $${if(cpuMilliAOverride > 0, cpuMilliAOverride, ${stage_a_cpu_milli})}
+          - memoryMibA: $${if(memoryMibAOverride > 0, memoryMibAOverride, ${stage_a_memory_mib})}
+          - machineTypeA: $${if(machineTypeAOverride != "", machineTypeAOverride, "${stage_a_machine_type}")}
           - maxRunDurationA: "${stage_a_max_run_duration}s"
-          - cpuMilliB: ${stage_b_cpu_milli}
-          - memoryMibB: ${stage_b_memory_mib}
-          # Allow runtime override of Stage B machine type; fall back to Terraform default if not provided
+          # Stage B - allow runtime override of machine type and resources
           - machineTypeBOverride: $${default(map.get(input, "stageBMachineType"), "")}
+          - cpuMilliBOverride: $${default(map.get(input, "stageBCpuMilli"), 0)}
+          - memoryMibBOverride: $${default(map.get(input, "stageBMemoryMib"), 0)}
+          - cpuMilliB: $${if(cpuMilliBOverride > 0, cpuMilliBOverride, ${stage_b_cpu_milli})}
+          - memoryMibB: $${if(memoryMibBOverride > 0, memoryMibBOverride, ${stage_b_memory_mib})}
           - machineTypeB: $${if(machineTypeBOverride != "", machineTypeBOverride, "${stage_b_machine_type}")}
           - maxRunDurationB: "${stage_b_max_run_duration}s"
-          - cpuMilliC: ${stage_c_cpu_milli}
-          - memoryMibC: ${stage_c_memory_mib}
-          - machineTypeC: "${stage_c_machine_type}"
+          # Stage C - allow runtime override of machine type and resources
+          - machineTypeCOverride: $${default(map.get(input, "stageCMachineType"), "")}
+          - cpuMilliCOverride: $${default(map.get(input, "stageCCpuMilli"), 0)}
+          - memoryMibCOverride: $${default(map.get(input, "stageCMemoryMib"), 0)}
+          - cpuMilliC: $${if(cpuMilliCOverride > 0, cpuMilliCOverride, ${stage_c_cpu_milli})}
+          - memoryMibC: $${if(memoryMibCOverride > 0, memoryMibCOverride, ${stage_c_memory_mib})}
+          - machineTypeC: $${if(machineTypeCOverride != "", machineTypeCOverride, "${stage_c_machine_type}")}
           - maxRunDurationC: "${stage_c_max_run_duration}s"
           - taskCountPerNode: ${task_count_per_node}
           - runOutputStage: ${run_output_stage}
