@@ -18,8 +18,8 @@ google_cloud:
 
     stage_a:
       cpu_milli: 2000
-      memory_mib: 4096
-      machine_type: ""
+      memory_mib: 8192
+      machine_type: "c4d-standard-2"
       max_run_duration: 3600
 
     stage_b:

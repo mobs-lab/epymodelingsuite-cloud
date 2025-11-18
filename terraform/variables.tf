@@ -46,13 +46,13 @@ variable "stage_a_cpu_milli" {
 
 variable "stage_a_memory_mib" {
   type        = number
-  default     = 4096
+  default     = 8192
   description = "Memory allocation for Stage A in MiB"
 }
 
 variable "stage_a_machine_type" {
   type        = string
-  default     = ""
+  default     = "c4d-standard-2"
   description = "Machine type for Stage A (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
 }
 
