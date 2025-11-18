@@ -914,6 +914,7 @@ def _run_job_cloud(
         bucket_name=bucket_name,
         dir_prefix=dir_prefix,
         github_forecast_repo=github_forecast_repo,
+        project_id=project_id,
         cpu_milli=cpu_milli,
         memory_mib=memory_mib,
         machine_type=machine_type,
@@ -1216,6 +1217,7 @@ def _build_batch_job_config(
     bucket_name: str,
     dir_prefix: str,
     github_forecast_repo: str,
+    project_id: str,
     cpu_milli: int,
     memory_mib: int,
     machine_type: str,
@@ -1244,6 +1246,8 @@ def _build_batch_job_config(
         Directory prefix
     github_forecast_repo : str
         GitHub forecast repo
+    project_id : str
+        Google Cloud project ID
     cpu_milli : int
         CPU in milli-cores
     memory_mib : int
@@ -1286,8 +1290,11 @@ def _build_batch_job_config(
     else:  # C
         env_vars["NUM_TASKS"] = str(num_tasks)
         env_vars["GITHUB_FORECAST_REPO"] = github_forecast_repo
-        entrypoint = "python3"
-        commands = ["-u", "/scripts/main_output.py"]
+        env_vars["GCLOUD_PROJECT_ID"] = project_id
+        env_vars["GITHUB_PAT_SECRET"] = "github-pat"
+        env_vars["FORECAST_REPO_DIR"] = "/data/forecast/"
+        entrypoint = "/bin/bash"
+        commands = ["/scripts/run_output.sh"]
 
     # Build task spec
     task_spec = {
