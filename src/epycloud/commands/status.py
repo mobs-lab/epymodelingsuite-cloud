@@ -394,7 +394,7 @@ def _display_status(
     if workflows:
         print("Active Workflows:")
         print()
-        print(f"{'EXECUTION ID':<40} {'EXP_ID':<20} {'START TIME':<20}")
+        print(f"{'EXECUTION ID':<40} {'EXP_ID':<40} {'START TIME':<20}")
         print("-" * 100)
 
         for workflow in workflows:
@@ -424,7 +424,7 @@ def _display_status(
             else:
                 start_time_str = "unknown"
 
-            print(f"{execution_id:<40} {exp_id:<20} {start_time_str:<20}")
+            print(f"{execution_id:<40} {exp_id:<40} {start_time_str:<20}")
 
         print()
     else:
@@ -435,7 +435,7 @@ def _display_status(
     if jobs:
         print("Active Batch Jobs:")
         print()
-        print(f"{'JOB NAME':<50} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
+        print(f"{'JOB NAME':<30} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
         print("-" * 100)
 
         for job in jobs:
@@ -471,10 +471,11 @@ def _display_status(
             else:
                 tasks_str = "N/A"
 
-            # Color code status
-            status_display = format_status(state, "batch")
+            # Color code status (pad before coloring to avoid ANSI escape code width issues)
+            status_padded = f"{state:<12}"
+            status_display = format_status(status_padded, "batch")
 
-            print(f"{job_name:<50} {stage:<8} {status_display:<20} {tasks_str:<15}")
+            print(f"{job_name:<30} {stage:<8} {status_display} {tasks_str:<15}")
 
         print()
     else:
