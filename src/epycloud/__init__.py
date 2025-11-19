@@ -1,4 +1,6 @@
 """epycloud - CLI for epymodelingsuite cloud pipeline management."""
 
-__version__ = "0.1.1"
+from importlib.metadata import version
+
+__version__ = version("epycloud")
 __author__ = "MOBS Lab"
