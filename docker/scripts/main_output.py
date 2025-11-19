@@ -53,7 +53,7 @@ def detect_result_type(result) -> str:
         raise ValueError(f"Unknown result type: {type_name}")
 
 
-def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]:
+def load_all_results(num_tasks: int, logger: logging.Logger, allow_partial: bool = False) -> tuple[list, str]:
     """Load all result pickle files from Stage B.
 
     Parameters
@@ -62,6 +62,10 @@ def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]
         Number of result files to load
     logger : logging.Logger
         Logger instance for output
+    allow_partial : bool, optional
+        If True, allow partial results (some tasks failed/missing)
+        If False, raise error if any tasks failed
+        Default is False in function signature, but main() passes True by default via ALLOW_PARTIAL_RESULTS env var
 
     Returns
     -------
@@ -71,7 +75,7 @@ def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]
     Raises
     ------
     ValueError
-        If any result files are missing or if no results could be loaded
+        If any result files are missing (when allow_partial=False) or if no results could be loaded
     """
     results = []
     result_type = None
@@ -117,9 +121,9 @@ def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]
         },
     )
 
-    # If any tasks failed, raise detailed error
+    # If any tasks failed
     if total_failed > 0:
-        error_msg = f"Cannot generate outputs: {total_failed} task(s) failed out of {num_tasks}\n"
+        error_msg = f"Partial results: {total_failed} task(s) failed out of {num_tasks}\n"
         error_msg += f"Successfully completed: {successful}/{num_tasks}\n"
 
         if missing_tasks:
@@ -127,10 +131,16 @@ def load_all_results(num_tasks: int, logger: logging.Logger) -> tuple[list, str]
         if failed_tasks:
             error_msg += f"Failed to load (tasks): {failed_tasks}\n"
 
-        error_msg += "\nPlease investigate Stage B failures before generating outputs."
-        error_msg += "\nCheck logs for tasks that failed or did not complete."
-
-        raise ValueError(error_msg)
+        if allow_partial:
+            # Log warning but continue with partial results
+            logger.warning(error_msg)
+            logger.warning("Continuing with partial results (ALLOW_PARTIAL_RESULTS=true)")
+        else:
+            # Strict mode: raise error
+            error_msg += "\nPlease investigate Stage B failures before generating outputs."
+            error_msg += "\nCheck logs for tasks that failed or did not complete."
+            error_msg += "\nTo generate outputs with partial results, set ALLOW_PARTIAL_RESULTS=true"
+            raise ValueError(error_msg)
 
     if successful == 0:
         raise ValueError("No results loaded - all tasks failed or no tasks were run")
@@ -387,6 +397,9 @@ def main() -> None:
         Run identifier (defaults to "unknown")
     NUM_TASKS : str (optional)
         Number of result files to load (defaults to 1 if not in config)
+    ALLOW_PARTIAL_RESULTS : str (optional)
+        If "true" (default), allow partial results when some tasks fail
+        If "false", raise error if any tasks fail
     EXECUTION_MODE : str
         Storage mode: "cloud" (GCS) or "local" (filesystem)
 
@@ -428,12 +441,19 @@ def main() -> None:
     num_tasks = int(os.getenv("NUM_TASKS", config.get("num_tasks", 1)))
     logger.info(f"Number of tasks: {num_tasks}")
 
+    # Check if partial results are allowed (default: true)
+    allow_partial = os.getenv("ALLOW_PARTIAL_RESULTS", "true").lower() in ("true", "1", "yes")
+    if allow_partial:
+        logger.info("Partial results mode enabled - will continue even if some tasks failed")
+    else:
+        logger.info("Strict mode - will fail if any tasks are missing")
+
     try:
         # Load and validate configuration
         output_config = load_configuration(config, logger)
 
         # Load all result files from Stage B
-        results, result_type = load_all_results(num_tasks, logger)
+        results, result_type = load_all_results(num_tasks, logger, allow_partial=allow_partial)
 
         # Wrap output generation in telemetry context
         with ExecutionTelemetry() as output_telemetry:
