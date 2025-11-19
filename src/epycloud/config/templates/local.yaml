@@ -1,6 +1,0 @@
-# Local development environment
-# Note: dir_prefix still applies, but paths are ./local/bucket/{dir_prefix}/
-
-logging:
-  level: DEBUG
-  storage_verbose: true

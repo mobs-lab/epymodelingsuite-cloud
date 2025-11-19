@@ -40,7 +40,7 @@ class ConfigLoader:
 
     def __init__(
         self,
-        environment: str = "dev",
+        environment: str = "default",
         profile: str | None = None,
         config_path: Path | None = None,
     ):
@@ -50,7 +50,7 @@ class ConfigLoader:
         Parameters
         ----------
         environment : str, optional
-            Environment name (dev, prod, local), by default "dev".
+            Environment name (default, or custom), by default "default".
         profile : str or None, optional
             Profile name (flu, covid, rsv, etc.). If None, uses active profile
             from active_profile file, by default None.

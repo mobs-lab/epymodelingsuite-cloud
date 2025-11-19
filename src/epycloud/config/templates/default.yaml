@@ -1,0 +1,20 @@
+# Default environment configuration
+
+# Google Cloud overrides - commented out to use base config values
+# google_cloud:
+#   batch:
+#     max_parallelism: 50
+#
+#     stage_a:
+#       cpu_milli: 1000
+#       memory_mib: 2048
+#
+#     stage_b:
+#       cpu_milli: 1000
+#       memory_mib: 4096
+#       max_run_duration: 7200
+
+# Logging overrides for better debugging
+logging:
+  level: DEBUG
+  storage_verbose: true
