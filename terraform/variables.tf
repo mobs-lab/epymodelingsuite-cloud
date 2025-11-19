@@ -96,19 +96,19 @@ variable "task_count_per_node" {
 # Batch machine configuration - Stage C (Output)
 variable "stage_c_cpu_milli" {
   type        = number
-  default     = 2000
+  default     = 4000
   description = "CPU allocation for Stage C in milli-cores (1000 = 1 vCPU)"
 }
 
 variable "stage_c_memory_mib" {
   type        = number
-  default     = 8192
+  default     = 15360
   description = "Memory allocation for Stage C in MiB"
 }
 
 variable "stage_c_machine_type" {
   type        = string
-  default     = ""
+  default     = "c4d-standard-4"
   description = "Machine type for Stage C (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
 }
 
