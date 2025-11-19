@@ -61,9 +61,9 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         description="Build with Cloud Build (async by default)",
     )
     cloud_parser.add_argument(
-        "--no-cache",
+        "--cache",
         action="store_true",
-        help="Disable build cache",
+        help="Enable build cache (cache disabled by default)",
     )
     cloud_parser.add_argument(
         "--tag",
@@ -274,7 +274,7 @@ def _handle_cloud(ctx: dict[str, Any]) -> int:
         image_path=image_path,
         modeling_suite_repo=modeling_suite_repo,
         modeling_suite_ref=modeling_suite_ref,
-        no_cache=args.no_cache,
+        no_cache=not args.cache,  # Inverted: --cache flag enables cache, default is no cache
         wait=args.wait,
         verbose=verbose,
         dry_run=dry_run,
@@ -634,7 +634,21 @@ def _build_cloud(
         info("Repository: not configured")
 
     if no_cache:
-        warning("Cache disabled (--no-cache)")
+        info("Cache: disabled (default)")
+    else:
+        info("Cache: enabled (--cache)")
+
+    # Build substitutions string
+    no_cache_str = "true" if no_cache else "false"
+    substitutions = (
+        f"_REGION={region},"
+        f"_REPO_NAME={repo_name},"
+        f"_IMAGE_NAME={image_name},"
+        f"_IMAGE_TAG={image_tag},"
+        f"_GITHUB_MODELING_SUITE_REPO={modeling_suite_repo},"
+        f"_GITHUB_MODELING_SUITE_REF={modeling_suite_ref},"
+        f"_NO_CACHE={no_cache_str}"
+    )
 
     # Build gcloud command with absolute context path
     cmd = [
@@ -644,7 +658,7 @@ def _build_cloud(
         f"--project={project_id}",
         f"--region={region}",
         f"--config={context_path / 'cloudbuild.yaml'}",
-        f"--substitutions=_REGION={region},_REPO_NAME={repo_name},_IMAGE_NAME={image_name},_IMAGE_TAG={image_tag},_GITHUB_MODELING_SUITE_REPO={modeling_suite_repo},_GITHUB_MODELING_SUITE_REF={modeling_suite_ref}",
+        f"--substitutions={substitutions}",
         str(context_path),
     ]
 

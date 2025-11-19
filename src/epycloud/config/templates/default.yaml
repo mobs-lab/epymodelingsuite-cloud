@@ -1,0 +1,25 @@
+# Default environment configuration
+#
+# Location: ~/.config/epymodelingsuite-cloud/environments/default.yaml
+#
+# This file provides environment-specific overrides to the base config.yaml.
+# Values here take precedence over config.yaml but are overridden by profile settings.
+
+# Google Cloud overrides - commented out to use base config values
+# google_cloud:
+#   batch:
+#     max_parallelism: 50
+#
+#     stage_a:
+#       cpu_milli: 1000
+#       memory_mib: 2048
+#
+#     stage_b:
+#       cpu_milli: 1000
+#       memory_mib: 4096
+#       max_run_duration: 7200
+
+# Logging overrides for better debugging
+logging:
+  level: DEBUG
+  storage_verbose: true

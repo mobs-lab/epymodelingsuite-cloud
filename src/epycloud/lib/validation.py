@@ -451,3 +451,119 @@ def validate_machine_type(machine_type: str, project_id: str, region: str) -> st
         raise ValidationError(
             "gcloud CLI not found. Please install Google Cloud SDK to validate machine types."
         )
+
+
+def get_machine_type_specs(machine_type: str, project_id: str, region: str) -> tuple[int, int]:
+    """Query machine type specifications and return CPU and memory.
+
+    Uses gcloud CLI to describe a machine type and extract its vCPU count and
+    memory allocation. Automatically converts to milliCPU and MiB for use in
+    Google Cloud Batch job configurations.
+
+    Parameters
+    ----------
+    machine_type : str
+        Machine type to query (e.g., "n2-standard-4", "c2-standard-8").
+        Must be a valid machine type in the region.
+    project_id : str
+        Google Cloud project ID.
+    region : str
+        Google Cloud region (e.g., "us-central1").
+        The function will query zone {region}-a.
+
+    Returns
+    -------
+    tuple[int, int]
+        Tuple of (cpu_milli, memory_mib):
+        - cpu_milli: vCPU count converted to milliCPU (vCPUs * 1000)
+        - memory_mib: Memory in MiB (converted from MB)
+
+    Raises
+    ------
+    ValidationError
+        If machine type query fails, JSON parsing fails, or response
+        doesn't contain expected fields.
+
+    Examples
+    --------
+    >>> get_machine_type_specs("n2-standard-4", "my-project", "us-central1")
+    (4000, 16384)
+    >>> get_machine_type_specs("c2-standard-8", "my-project", "us-central1")
+    (8000, 32768)
+
+    Notes
+    -----
+    This function queries the first zone in the region ({region}-a).
+    Machine type specs are consistent across zones within a region.
+    """
+    import json
+
+    # Query machine type specs from gcloud
+    zone = f"{region}-a"
+    try:
+        result = subprocess.run(
+            [
+                "gcloud",
+                "compute",
+                "machine-types",
+                "describe",
+                machine_type,
+                f"--project={project_id}",
+                f"--zone={zone}",
+                "--format=json",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            raise ValidationError(
+                f"Failed to query machine type '{machine_type}' specs: "
+                f"gcloud command failed. Error: {result.stderr.strip()}"
+            )
+
+        # Parse JSON response
+        try:
+            specs = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            raise ValidationError(
+                f"Failed to parse machine type specs for '{machine_type}': "
+                f"Invalid JSON response. Error: {e}"
+            )
+
+        # Extract vCPU count and memory
+        if "guestCpus" not in specs:
+            raise ValidationError(
+                f"Machine type specs for '{machine_type}' missing 'guestCpus' field. "
+                f"Response: {result.stdout[:200]}"
+            )
+        if "memoryMb" not in specs:
+            raise ValidationError(
+                f"Machine type specs for '{machine_type}' missing 'memoryMb' field. "
+                f"Response: {result.stdout[:200]}"
+            )
+
+        guest_cpus = specs["guestCpus"]
+        memory_mb = specs["memoryMb"]
+
+        # Convert to milliCPU and MiB
+        # milliCPU = vCPUs * 1000 (e.g., 4 vCPUs = 4000 milliCPU)
+        cpu_milli = int(guest_cpus * 1000)
+
+        # Memory: MB to MiB conversion (1 MB = 0.9537 MiB)
+        # For practical purposes in GCP, we treat them as equivalent
+        memory_mib = int(memory_mb)
+
+        return cpu_milli, memory_mib
+
+    except subprocess.TimeoutExpired:
+        raise ValidationError(
+            f"Timeout while querying machine type '{machine_type}' specs. "
+            "Check your network connection and gcloud configuration."
+        )
+    except FileNotFoundError:
+        raise ValidationError(
+            "gcloud CLI not found. Please install Google Cloud SDK to query machine type specs."
+        )

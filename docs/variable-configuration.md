@@ -279,6 +279,46 @@ epycloud build cloud
 
 **Path separator:** Use double underscore `__` to separate nested paths (e.g., `GOOGLE_CLOUD__PROJECT_ID` → `google_cloud.project_id`)
 
+## Runtime Environment Variables
+
+These environment variables are used by the pipeline scripts during job execution and are not part of the configuration system.
+
+### Stage C (Output) Variables
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `NUM_TASKS` | Number of Stage B result files to load | 1 | `52` |
+| `ALLOW_PARTIAL_RESULTS` | Allow generating outputs with partial results when some tasks fail | `true` | `false`, `0`, `no` |
+
+**ALLOW_PARTIAL_RESULTS Usage:**
+
+By default (`true`), Stage C continues with partial results if some Stage B tasks are missing or failed. This allows output generation even when a small number of tasks fail.
+
+Setting `ALLOW_PARTIAL_RESULTS=false` enables strict mode where Stage C fails if any tasks are missing:
+
+```bash
+# Local execution with strict mode (fail if any tasks missing)
+ALLOW_PARTIAL_RESULTS=false epycloud run job --local --stage output --exp-id my-exp --run-id <run_id> --num-tasks 52
+
+# Cloud execution (set in terraform/workflow.yaml or batch job environment)
+```
+
+**When to use partial results (default):**
+- A small percentage of tasks failed (e.g., 2 out of 52 tasks)
+- The failed tasks are not critical to your analysis
+- You want to examine partial results while debugging task failures
+
+**When to use strict mode (ALLOW_PARTIAL_RESULTS=false):**
+- You need complete coverage for publication/production
+- Failed tasks represent critical scenarios or parameters
+- Many tasks failed (indicates systemic issue requiring investigation)
+
+**Output behavior with partial results:**
+- Stage C logs warnings about missing/failed tasks
+- Generates outputs using only successfully completed tasks
+- Telemetry summary shows completion rate (e.g., "50/52 tasks")
+- Users should verify data coverage is adequate for their needs
+
 ## Migration from .env Files
 
 If you have existing `.env` files, migrate to the unified config system:

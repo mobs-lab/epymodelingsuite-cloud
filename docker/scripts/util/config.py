@@ -53,18 +53,30 @@ def resolve_configs(
     """
     exp_config_dir = Path(config_dir) / exp_id / "config"
 
-    # If direct path doesn't exist and exp_id doesn't contain a path separator,
-    # search in subdirectories
-    if not exp_config_dir.exists() and "/" not in exp_id:
+    # If direct path doesn't exist, search for the experiment in the directory tree
+    if not exp_config_dir.exists():
         _logger.debug(f"Direct path not found: {exp_config_dir}, searching in subdirectories...")
         base_dir = Path(config_dir)
 
-        # Search for exp_id in subdirectories (e.g., test/test-flu-projection-small)
-        found_paths = list(base_dir.glob(f"*/{exp_id}/config"))
+        # Extract the actual experiment name (last component if path contains /)
+        # e.g., "test/test-flu-projection-2025-01" -> "test-flu-projection-2025-01"
+        exp_name = exp_id.split("/")[-1] if "/" in exp_id else exp_id
+
+        # Search for exp_name in the directory tree
+        # Try both top-level and subdirectory patterns
+        found_paths = []
+
+        # Check if it exists directly at top level
+        top_level_path = base_dir / exp_name / "config"
+        if top_level_path.exists():
+            found_paths.append(top_level_path)
+
+        # Also search in subdirectories
+        found_paths.extend(base_dir.glob(f"*/{exp_name}/config"))
 
         if not found_paths:
             raise FileNotFoundError(
-                f"Config directory not found for exp_id '{exp_id}': {exp_config_dir}"
+                f"Config directory not found for exp_id '{exp_id}' (searched for '{exp_name}'): {exp_config_dir}"
             )
 
         if len(found_paths) > 1:

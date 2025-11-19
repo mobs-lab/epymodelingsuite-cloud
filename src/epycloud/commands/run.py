@@ -35,7 +35,7 @@ from epycloud.lib.command_helpers import (
 )
 from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, success, warning
-from epycloud.lib.validation import sanitize_label_value, validate_machine_type
+from epycloud.lib.validation import get_machine_type_specs, sanitize_label_value, validate_machine_type
 from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
 
 
@@ -101,8 +101,24 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     workflow_parser.add_argument(
+        "--stage-a-machine-type",
+        help="Override Stage A machine type (auto-sets CPU/memory to machine max)",
+    )
+
+    workflow_parser.add_argument(
         "--stage-b-machine-type",
-        help="Override Stage B machine type (e.g., n2-standard-4, c2-standard-8)",
+        help="Override Stage B machine type (auto-sets CPU/memory to machine max)",
+    )
+
+    workflow_parser.add_argument(
+        "--stage-c-machine-type",
+        help="Override Stage C machine type (auto-sets CPU/memory to machine max)",
+    )
+
+    workflow_parser.add_argument(
+        "--task-count-per-node",
+        type=int,
+        help="Max tasks per VM node (1 = dedicated VM per task, default: from config)",
     )
 
     workflow_parser.add_argument(
@@ -157,6 +173,17 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--num-tasks",
         type=int,
         help="Number of tasks (required for stage C)",
+    )
+
+    job_parser.add_argument(
+        "--machine-type",
+        help="Override machine type for this job (auto-sets CPU/memory to machine max)",
+    )
+
+    job_parser.add_argument(
+        "--task-count-per-node",
+        type=int,
+        help="Max tasks per VM node (1 = dedicated VM per task, default: from config)",
     )
 
     job_parser.add_argument(
@@ -250,7 +277,10 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
     local = args.local
     skip_output = args.skip_output
     max_parallelism = args.max_parallelism
+    task_count_per_node = getattr(args, "task_count_per_node", None)
+    stage_a_machine_type_override = getattr(args, "stage_a_machine_type", None)
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
+    stage_c_machine_type_override = getattr(args, "stage_c_machine_type", None)
     wait = args.wait
     auto_confirm = args.yes
     project_directory = getattr(args, "project_directory", None)
@@ -281,7 +311,10 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             skip_output=skip_output,
             max_parallelism=max_parallelism,
+            task_count_per_node=task_count_per_node,
+            stage_a_machine_type_override=stage_a_machine_type_override,
             stage_b_machine_type_override=stage_b_machine_type_override,
+            stage_c_machine_type_override=stage_c_machine_type_override,
             wait=wait,
             auto_confirm=auto_confirm,
             verbose=verbose,
@@ -333,6 +366,8 @@ def _handle_job(ctx: dict[str, Any]) -> int:
     local = args.local
     wait = args.wait
     auto_confirm = args.yes
+    machine_type_override = getattr(args, "machine_type", None)
+    task_count_per_node = getattr(args, "task_count_per_node", None)
     project_directory = getattr(args, "project_directory", None)
 
     # Validate requirements
@@ -373,6 +408,8 @@ def _handle_job(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            machine_type_override=machine_type_override,
+            task_count_per_node=task_count_per_node,
             wait=wait,
             auto_confirm=auto_confirm,
             verbose=verbose,
@@ -387,7 +424,10 @@ def _run_workflow_cloud(
     run_id: str | None,
     skip_output: bool,
     max_parallelism: int | None,
+    task_count_per_node: int | None,
+    stage_a_machine_type_override: str | None,
     stage_b_machine_type_override: str | None,
+    stage_c_machine_type_override: str | None,
     wait: bool,
     auto_confirm: bool,
     verbose: bool,
@@ -409,8 +449,14 @@ def _run_workflow_cloud(
         Skip stage C
     max_parallelism : int | None
         Max parallel tasks
+    task_count_per_node : int | None
+        Max tasks per VM node (1 = dedicated VM per task)
+    stage_a_machine_type_override : str | None
+        Override Stage A machine type (auto-sets CPU/memory to machine max)
     stage_b_machine_type_override : str | None
-        Override Stage B machine type (e.g., n2-standard-4)
+        Override Stage B machine type (auto-sets CPU/memory to machine max)
+    stage_c_machine_type_override : str | None
+        Override Stage C machine type (auto-sets CPU/memory to machine max)
     wait : bool
         Wait for completion
     auto_confirm : bool
@@ -439,6 +485,9 @@ def _run_workflow_cloud(
     if not max_parallelism:
         max_parallelism = pipeline.get("max_parallelism", 100)
 
+    if not task_count_per_node:
+        task_count_per_node = batch_config.get("task_count_per_node", 1)
+
     # Validate required config
     if not project_id:
         error("google_cloud.project_id not configured")
@@ -453,18 +502,63 @@ def _run_workflow_cloud(
     # Build Docker image URI
     image_uri = get_image_uri(config)
 
-    # Get Stage B machine type
-    stage_b_config = batch_config.get("stage_b", {})
-    stage_b_machine_type_default = stage_b_config.get("machine_type", "")
-    # Use override if provided, otherwise fall back to config default
-    stage_b_machine_type = stage_b_machine_type_override or stage_b_machine_type_default
+    # Process machine type overrides for all stages
+    # Stage A
+    stage_a_config = batch_config.get("stage_a", {})
+    stage_a_machine_type = stage_a_machine_type_override or stage_a_config.get("machine_type", "")
+    stage_a_cpu_milli = stage_a_config.get("cpu_milli", 2000)
+    stage_a_memory_mib = stage_a_config.get("memory_mib", 8192)
 
-    # Validate machine type override if provided
+    if stage_a_machine_type_override:
+        info(f"Validating Stage A machine type '{stage_a_machine_type_override}'...")
+        try:
+            validate_machine_type(stage_a_machine_type_override, project_id, region)
+            success(f"Stage A machine type '{stage_a_machine_type_override}' is valid")
+            info(f"Querying machine type specs...")
+            stage_a_cpu_milli, stage_a_memory_mib = get_machine_type_specs(
+                stage_a_machine_type_override, project_id, region
+            )
+            info(f"Stage A: CPU={stage_a_cpu_milli} milliCPU, Memory={stage_a_memory_mib} MiB")
+        except ValidationError as e:
+            error(str(e))
+            return 1
+
+    # Stage B
+    stage_b_config = batch_config.get("stage_b", {})
+    stage_b_machine_type = stage_b_machine_type_override or stage_b_config.get("machine_type", "")
+    stage_b_cpu_milli = stage_b_config.get("cpu_milli", 2000)
+    stage_b_memory_mib = stage_b_config.get("memory_mib", 8192)
+
     if stage_b_machine_type_override:
-        info(f"Validating machine type '{stage_b_machine_type_override}'...")
+        info(f"Validating Stage B machine type '{stage_b_machine_type_override}'...")
         try:
             validate_machine_type(stage_b_machine_type_override, project_id, region)
-            success(f"Machine type '{stage_b_machine_type_override}' is valid")
+            success(f"Stage B machine type '{stage_b_machine_type_override}' is valid")
+            info(f"Querying machine type specs...")
+            stage_b_cpu_milli, stage_b_memory_mib = get_machine_type_specs(
+                stage_b_machine_type_override, project_id, region
+            )
+            info(f"Stage B: CPU={stage_b_cpu_milli} milliCPU, Memory={stage_b_memory_mib} MiB")
+        except ValidationError as e:
+            error(str(e))
+            return 1
+
+    # Stage C
+    stage_c_config = batch_config.get("stage_c", {})
+    stage_c_machine_type = stage_c_machine_type_override or stage_c_config.get("machine_type", "")
+    stage_c_cpu_milli = stage_c_config.get("cpu_milli", 2000)
+    stage_c_memory_mib = stage_c_config.get("memory_mib", 8192)
+
+    if stage_c_machine_type_override:
+        info(f"Validating Stage C machine type '{stage_c_machine_type_override}'...")
+        try:
+            validate_machine_type(stage_c_machine_type_override, project_id, region)
+            success(f"Stage C machine type '{stage_c_machine_type_override}' is valid")
+            info(f"Querying machine type specs...")
+            stage_c_cpu_milli, stage_c_memory_mib = get_machine_type_specs(
+                stage_c_machine_type_override, project_id, region
+            )
+            info(f"Stage C: CPU={stage_c_cpu_milli} milliCPU, Memory={stage_c_memory_mib} MiB")
         except ValidationError as e:
             error(str(e))
             return 1
@@ -489,8 +583,12 @@ def _run_workflow_cloud(
         "forecast_repo": github_forecast_repo,
         "pat_configured": bool(github["personal_access_token"]),
         "max_parallelism": max_parallelism,
+        "stage_a_machine_type": stage_a_machine_type,
+        "stage_a_machine_type_override": stage_a_machine_type_override,
         "stage_b_machine_type": stage_b_machine_type,
         "stage_b_machine_type_override": stage_b_machine_type_override,
+        "stage_c_machine_type": stage_c_machine_type,
+        "stage_c_machine_type_override": stage_c_machine_type_override,
         "skip_output": skip_output,
         "image_uri": image_uri,
     }
@@ -518,8 +616,23 @@ def _run_workflow_cloud(
     if max_parallelism:
         workflow_arg["maxParallelism"] = max_parallelism
 
+    if task_count_per_node:
+        workflow_arg["taskCountPerNode"] = task_count_per_node
+
+    if stage_a_machine_type_override:
+        workflow_arg["stageAMachineType"] = stage_a_machine_type_override
+        workflow_arg["stageACpuMilli"] = stage_a_cpu_milli
+        workflow_arg["stageAMemoryMib"] = stage_a_memory_mib
+
     if stage_b_machine_type_override:
         workflow_arg["stageBMachineType"] = stage_b_machine_type_override
+        workflow_arg["stageBCpuMilli"] = stage_b_cpu_milli
+        workflow_arg["stageBMemoryMib"] = stage_b_memory_mib
+
+    if stage_c_machine_type_override:
+        workflow_arg["stageCMachineType"] = stage_c_machine_type_override
+        workflow_arg["stageCCpuMilli"] = stage_c_cpu_milli
+        workflow_arg["stageCMemoryMib"] = stage_c_memory_mib
 
     if skip_output:
         workflow_arg["runOutputStage"] = False
@@ -711,14 +824,14 @@ def _run_workflow_local(
     success("Stage A completed successfully")
 
     # Detect number of tasks from builder artifacts
-    bucket_path = project_directory / "local" / "bucket" / exp_id / run_id / "builder-artifacts"
+    bucket_path = project_directory / "local" / "bucket" / dir_prefix.rstrip("/") / exp_id / run_id / "builder-artifacts"
 
     if not dry_run:
         if not bucket_path.exists():
             error(f"Builder artifacts not found: {bucket_path}")
             return 1
 
-        input_files = list(bucket_path.glob("input_*.pkl"))
+        input_files = list(bucket_path.glob("input_*.pkl*"))
         num_tasks = len(input_files)
 
         if num_tasks == 0:
@@ -787,7 +900,7 @@ def _run_workflow_local(
     info("=" * 60)
     success("Workflow completed successfully!")
     info("=" * 60)
-    info(f"Results in: ./local/bucket/{exp_id}/{run_id}/")
+    info(f"Results in: ./local/bucket/{dir_prefix}{exp_id}/{run_id}/")
 
     return 0
 
@@ -800,6 +913,8 @@ def _run_job_cloud(
     run_id: str | None,
     task_index: int,
     num_tasks: int | None,
+    machine_type_override: str | None,
+    task_count_per_node: int | None,
     wait: bool,
     auto_confirm: bool,
     verbose: bool,
@@ -823,6 +938,10 @@ def _run_job_cloud(
         Task index for stage B
     num_tasks : int | None
         Number of tasks for stage C
+    machine_type_override : str | None
+        Override machine type for this job (auto-sets CPU/memory to machine max)
+    task_count_per_node : int | None
+        Max tasks per VM node (1 = dedicated VM per task)
     wait : bool
         Wait for completion
     auto_confirm : bool
@@ -858,6 +977,24 @@ def _run_job_cloud(
     memory_mib = stage_config.get("memory_mib", 8192)
     machine_type = stage_config.get("machine_type", "")
     max_run_duration = stage_config.get("max_run_duration", 3600)
+
+    # Apply machine type override if provided
+    if machine_type_override:
+        info(f"Validating machine type '{machine_type_override}'...")
+        try:
+            validate_machine_type(machine_type_override, project_id, region)
+            success(f"Machine type '{machine_type_override}' is valid")
+            info(f"Querying machine type specs...")
+            cpu_milli, memory_mib = get_machine_type_specs(machine_type_override, project_id, region)
+            machine_type = machine_type_override
+            info(f"Stage {stage}: CPU={cpu_milli} milliCPU, Memory={memory_mib} MiB")
+        except ValidationError as e:
+            error(str(e))
+            return 1
+
+    # Set default for task_count_per_node if not provided
+    if not task_count_per_node:
+        task_count_per_node = batch_config.get("task_count_per_node", 1)
 
     # Validate
     if not project_id or not bucket_name:
@@ -914,10 +1051,12 @@ def _run_job_cloud(
         bucket_name=bucket_name,
         dir_prefix=dir_prefix,
         github_forecast_repo=github_forecast_repo,
+        project_id=project_id,
         cpu_milli=cpu_milli,
         memory_mib=memory_mib,
         machine_type=machine_type,
         max_run_duration=max_run_duration,
+        task_count_per_node=task_count_per_node,
         batch_sa_email=batch_sa_email,
     )
 
@@ -1143,7 +1282,7 @@ def _run_job_local(
 
     if result == 0:
         success(f"Stage {stage} completed successfully")
-        info(f"Results in: ./local/bucket/{exp_id}/{run_id}/")
+        info(f"Results in: ./local/bucket/{dir_prefix}{exp_id}/{run_id}/")
     else:
         error(f"Stage {stage} failed")
 
@@ -1216,10 +1355,12 @@ def _build_batch_job_config(
     bucket_name: str,
     dir_prefix: str,
     github_forecast_repo: str,
+    project_id: str,
     cpu_milli: int,
     memory_mib: int,
     machine_type: str,
     max_run_duration: int,
+    task_count_per_node: int,
     batch_sa_email: str,
 ) -> dict[str, Any]:
     """Build Cloud Batch job configuration.
@@ -1244,6 +1385,8 @@ def _build_batch_job_config(
         Directory prefix
     github_forecast_repo : str
         GitHub forecast repo
+    project_id : str
+        Google Cloud project ID
     cpu_milli : int
         CPU in milli-cores
     memory_mib : int
@@ -1286,8 +1429,11 @@ def _build_batch_job_config(
     else:  # C
         env_vars["NUM_TASKS"] = str(num_tasks)
         env_vars["GITHUB_FORECAST_REPO"] = github_forecast_repo
-        entrypoint = "python3"
-        commands = ["-u", "/scripts/main_output.py"]
+        env_vars["GCLOUD_PROJECT_ID"] = project_id
+        env_vars["GITHUB_PAT_SECRET"] = "github-pat"
+        env_vars["FORECAST_REPO_DIR"] = "/data/forecast/"
+        entrypoint = "/bin/bash"
+        commands = ["/scripts/run_output.sh"]
 
     # Build task spec
     task_spec = {
@@ -1331,7 +1477,7 @@ def _build_batch_job_config(
             "run_id": run_id_label,
             "managed-by": "manual",
         },
-        "taskGroups": [{"taskCount": 1, "taskSpec": task_spec}],
+        "taskGroups": [{"taskCount": 1, "taskSpec": task_spec, "taskCountPerNode": task_count_per_node}],
         "logsPolicy": {"destination": "CLOUD_LOGGING"},
         "allocationPolicy": allocation_policy,
     }

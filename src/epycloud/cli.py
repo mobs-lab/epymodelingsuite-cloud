@@ -33,15 +33,15 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", "-v", action="version", version=f"epycloud {__version__}")
 
     # Get available environments from config directory
-    available_envs = list_environments() or ["dev", "prod", "local"]
+    available_envs = list_environments() or ["default"]
 
     parser.add_argument(
         "--env",
         "-e",
         metavar="ENV",
         choices=available_envs,
-        default="dev",
-        help=f"Environment: {', '.join(available_envs)} (default: dev)",
+        default="default",
+        help=f"Environment: {', '.join(available_envs)} (default: default)",
     )
     parser.add_argument("--profile", help="Override active profile (flu, covid, rsv, etc.)")
     parser.add_argument("--config", "-c", type=Path, help="Config file path (default: auto-detect)")

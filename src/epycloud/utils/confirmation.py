@@ -103,9 +103,16 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
             lines.append(f"  Run ID: {run_id}")
             if "max_parallelism" in info:
                 lines.append(f"  Max parallelism: {info['max_parallelism']}")
+            # Show machine type overrides for all stages
+            if "stage_a_machine_type" in info and info["stage_a_machine_type"]:
+                override_marker = " (override)" if info.get("stage_a_machine_type_override") else ""
+                lines.append(f"  Stage A machine type: {info['stage_a_machine_type']}{override_marker}")
             if "stage_b_machine_type" in info and info["stage_b_machine_type"]:
                 override_marker = " (override)" if info.get("stage_b_machine_type_override") else ""
                 lines.append(f"  Stage B machine type: {info['stage_b_machine_type']}{override_marker}")
+            if "stage_c_machine_type" in info and info["stage_c_machine_type"]:
+                override_marker = " (override)" if info.get("stage_c_machine_type_override") else ""
+                lines.append(f"  Stage C machine type: {info['stage_c_machine_type']}{override_marker}")
             if "skip_output" in info:
                 output_status = "disabled" if info["skip_output"] else "enabled"
                 lines.append(f"  Stage C (output): {output_status}")

@@ -1,7 +1,13 @@
 # Influenza forecasting profile
+#
+# Location: ~/.config/epymodelingsuite-cloud/profiles/flu.yaml
+#
+# This file provides profile-specific settings for influenza forecasting.
+# Values here take highest precedence, overriding both config.yaml and environment files.
+
 profile:
   name: flu
-  description: Influenza forecasting models
+  description: Influenza 2025-2026 season forecasting
   version: "1.0"
 
 # Flu-specific forecast repository
@@ -9,10 +15,11 @@ github:
   forecast_repo: mobs-lab/flu-forecast-epydemix
 
 # Flu-specific resource requirements
-google_cloud:
-  batch:
-    stage_b:
-      cpu_milli: 2000
-      memory_mib: 8192
-    max_parallelism: 100
+# google_cloud:
+#   batch:
+#     stage_b:
+#       cpu_milli: 2000
+#       memory_mib: 7168
+#       machine_type: c4d-standard-2
+#     max_parallelism: 100
 

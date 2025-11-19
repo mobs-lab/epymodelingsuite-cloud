@@ -87,11 +87,13 @@ def _detect_content_type(path: str) -> str:
 
     Notes
     -----
-    For compressed files (.gz), detects the underlying type before compression.
+    For gzipped files (.gz), returns 'application/gzip' since the actual bytes
+    are compressed regardless of the underlying file type.
     Falls back to 'application/octet-stream' for unknown extensions.
     """
-    # Strip .gz suffix to detect underlying content type
-    clean_path = path[:-3] if path.endswith(".gz") else path
+    # Check for gzip compression first
+    if path.endswith(".gz"):
+        return "application/gzip"
 
     # Map extensions to content types
     extension_map = {
@@ -107,7 +109,7 @@ def _detect_content_type(path: str) -> str:
 
     # Find matching extension
     for ext, content_type in extension_map.items():
-        if clean_path.endswith(ext):
+        if path.endswith(ext):
             return content_type
 
     # Default fallback
