@@ -35,11 +35,21 @@ uv tool install .
 # Verify installation
 epycloud --version
 
+# Option 2: Use init command
 # Initialize configuration
 epycloud config init
 
 # Edit configuration
 epycloud config edit
+
+# Option 2: Copy config files to ~/.config/epymodelingsuite-cloud/
+mkdir -p ~/.config/epymodelingsuite-cloud/{environments,profiles}
+cp config.yaml ~/.config/epymodelingsuite-cloud/
+cp env_default.yaml ~/.config/epymodelingsuite-cloud/environments/
+cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/
+
+# Add your GitHub Personal Access Token
+epycloud config edit-secrets
 
 # You're ready!
 epycloud --help
