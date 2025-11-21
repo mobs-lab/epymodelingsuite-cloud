@@ -330,12 +330,14 @@ def _stream_logs(
                     # Color code severity
                     severity_display = format_severity(severity)
 
-                    # Display message
+                    # Display message (sanitize newlines for single-line output)
                     if text_payload:
-                        print(f"[{time_str}] {severity_display}: {text_payload}")
+                        sanitized = text_payload.replace("\n", " ").replace("\r", " ")
+                        print(f"[{time_str}] {severity_display}: {sanitized}")
                     elif json_payload:
                         message = json_payload.get("message", json.dumps(json_payload))
-                        print(f"[{time_str}] {severity_display}: {message}")
+                        sanitized = message.replace("\n", " ").replace("\r", " ")
+                        print(f"[{time_str}] {severity_display}: {sanitized}")
 
                     # Update last timestamp
                     if timestamp:
@@ -408,6 +410,9 @@ def _display_logs(logs: list[dict[str, Any]]) -> None:
             message = json_payload.get("message", json.dumps(json_payload))
         else:
             message = ""
+
+        # Sanitize message: replace newlines with spaces for single-line output
+        message = message.replace("\n", " ").replace("\r", " ")
 
         # Display log entry on single line
         print(f"[{time_str}] {severity_display}{context_str} {message}")

@@ -392,11 +392,12 @@ def _display_status(
 
     # Display active workflows
     if workflows:
+        print()  # Blank line before section
         # Section header with color
         if supports_color():
-            print("\n\033[36m[Active workflows]\033[0m")
+            print("\033[36m[Active workflows]\033[0m")
         else:
-            print("\n[Active workflows]")
+            print("[Active workflows]")
 
         print("-" * 120)
         print(f"{'EXECUTION ID':<40} {'EXP_ID':<40} {'START TIME':<37}")
@@ -497,9 +498,13 @@ def _display_status(
     # Summary
     total_active = len(workflows) + len(jobs)
     if total_active == 0:
+        print()  # Blank line before
         if supports_color():
-            print("\n\033[90mAll pipelines idle\033[0m\n")
+            print("\033[90mAll pipelines idle\033[0m")
         else:
-            print("\nAll pipelines idle\n")
+            print("All pipelines idle")
+        print()  # Blank line after
     else:
-        print(f"\nTotal: {len(workflows)} workflow(s), {len(jobs)} batch job(s)\n")
+        print()  # Blank line before
+        print(f"Total: {len(workflows)} workflow(s), {len(jobs)} batch job(s)")
+        print()  # Blank line after

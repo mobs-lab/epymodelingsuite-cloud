@@ -26,8 +26,8 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Navigate to repository
-# git clone
-cd /path/to/epymodelingsuite-cloud
+# git clone https://github.com/mobs-lab/epymodelingsuite-cloud
+cd epymodelingsuite-cloud
 
 # Install epycloud as isolated CLI tool
 uv tool install .
@@ -35,11 +35,21 @@ uv tool install .
 # Verify installation
 epycloud --version
 
+# Option 1: Use init command
 # Initialize configuration
 epycloud config init
 
 # Edit configuration
 epycloud config edit
+
+# Option 2: Copy config files to ~/.config/epymodelingsuite-cloud/
+mkdir -p ~/.config/epymodelingsuite-cloud/{environments,profiles}
+cp config.yaml ~/.config/epymodelingsuite-cloud/
+cp env_default.yaml ~/.config/epymodelingsuite-cloud/environments/
+cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/
+
+# Add your GitHub Personal Access Token
+epycloud config edit-secrets
 
 # You're ready!
 epycloud --help
@@ -76,7 +86,8 @@ This installs `epycloud` as a globally available command without affecting your 
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install epycloud from source
-cd /path/to/epymodelingsuite-cloud
+# git clone https://github.com/mobs-lab/epymodelingsuite-cloud
+cd epymodelingsuite-cloud
 uv tool install .
 
 # Update after pulling code changes
@@ -94,7 +105,8 @@ The tool is installed in `~/.local/bin/epycloud`.
 For development and contributing to epycloud:
 
 ```bash
-cd /path/to/epymodelingsuite-cloud
+# git clone https://github.com/mobs-lab/epymodelingsuite-cloud
+cd epymodelingsuite-cloud
 
 # Install dependencies in development mode
 uv sync
@@ -119,11 +131,18 @@ uv tool install git+https://github.com/mobs-lab/epymodelingsuite-cloud.git
 After installation, initialize the configuration system:
 
 ```bash
-# Initialize config directory and files
+# Option 1: Use init command
+# Initialize configuration
 epycloud config init
 
-# Edit base configuration
+# Edit configuration
 epycloud config edit
+
+# Option 2: Copy config files to ~/.config/epymodelingsuite-cloud/
+mkdir -p ~/.config/epymodelingsuite-cloud/{environments,profiles}
+cp config.yaml ~/.config/epymodelingsuite-cloud/
+cp env_default.yaml ~/.config/epymodelingsuite-cloud/environments/
+cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/
 
 # Add secrets (GitHub PAT, etc.)
 epycloud config edit-secrets

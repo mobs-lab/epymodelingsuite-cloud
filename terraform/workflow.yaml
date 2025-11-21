@@ -148,7 +148,16 @@ main:
                   policy:
                     machineType: $${machineTypeA}
                   %{~ endif ~}
+              %{~ else ~}
+              instances:
+                - policy: {}
               %{~ endif ~}
+              labels:
+                component: epymodelingsuite
+                project: epymodelingsuite-cloud
+                environment: production
+                stage: builder
+                managed-by: workflows
           query:
             jobId: $${"epy-" + string(int(sys.now())) + "-stage-a"}
         result: jobA
@@ -259,7 +268,16 @@ main:
                   policy:
                     machineType: $${machineTypeB}
                   %{~ endif ~}
+              %{~ else ~}
+              instances:
+                - policy: {}
               %{~ endif ~}
+              labels:
+                component: epymodelingsuite
+                project: epymodelingsuite-cloud
+                environment: production
+                stage: runner
+                managed-by: workflows
           query:
             jobId: $${"epy-" + string(int(sys.now())) + "-stage-b"}
         result: jobB
@@ -348,7 +366,16 @@ main:
                             policy:
                               machineType: $${machineTypeC}
                             %{~ endif ~}
+                        %{~ else ~}
+                        instances:
+                          - policy: {}
                         %{~ endif ~}
+                        labels:
+                          component: epymodelingsuite
+                          project: epymodelingsuite-cloud
+                          environment: production
+                          stage: output
+                          managed-by: workflows
                     query:
                       jobId: $${"epy-" + string(int(sys.now())) + "-stage-c"}
                   result: jobC

@@ -1030,7 +1030,9 @@ def _stream_logs(project_id: str, execution_id: str, region: str, verbose: bool)
                     # Color code severity
                     severity_display = format_severity(severity)
 
-                    print(f"[{time_str}] {severity_display}: {text_payload}")
+                    # Sanitize message: replace newlines with spaces for single-line output
+                    sanitized = text_payload.replace("\n", " ").replace("\r", " ")
+                    print(f"[{time_str}] {severity_display}: {sanitized}")
 
                     # Update last timestamp
                     if timestamp:
