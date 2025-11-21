@@ -199,8 +199,10 @@ def handle_init(ctx: dict) -> int:
         active_profile_file.write_text("flu\n")
         success("Set default profile to 'flu'")
 
-    success(f"\nConfiguration initialized at {config_dir}")
-    info("\nNext steps:")
+    print()  # Blank line before
+    success(f"Configuration initialized at {config_dir}")
+    print()  # Blank line before
+    info("Next steps:")
     info("  1. Edit config.yaml with your GCP project settings")
     info("  2. Add your GitHub token to secrets.yaml")
     info("  3. Review environment configs in environments/")
@@ -248,13 +250,15 @@ def handle_show(ctx: dict) -> int:
         else:
             print(f"Profile: {ctx['profile'] or '(none)'}")
 
-        print("\nConfiguration:")
+        print()  # Blank line before
+        print("Configuration:")
         print_dict(config)
 
         # Show sources
         sources = config.get("_meta", {}).get("config_sources", [])
         if sources:
-            print("\nLoaded from:")
+            print()  # Blank line before
+            print("Loaded from:")
             for source in sources:
                 print(f"  - {source}")
 

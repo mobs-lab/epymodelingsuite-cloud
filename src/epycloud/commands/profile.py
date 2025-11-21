@@ -154,10 +154,11 @@ def handle_list(ctx: dict) -> int:
         else:
             info(f"  {profile_name} - {description}")
 
+    print()  # Blank line before
     if active_profile:
-        info(f"\nActive: {active_profile} (*)")
+        info(f"Active: {active_profile} (*)")
     else:
-        warning("\nNo active profile set")
+        warning("No active profile set")
         info("Activate a profile with: epycloud profile use <name>")
 
     return 0
