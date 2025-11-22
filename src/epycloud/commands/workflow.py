@@ -800,7 +800,11 @@ def _display_execution_list(executions: list[dict[str, Any]], region: str) -> No
     region : str
         GCP region
     """
+    from epycloud.lib.output import section_header
+
     print()
+    section_header("Workflow executions")
+    print("-" * 120)
     print(f"{'EXECUTION ID':<40} {'STATUS':<12} {'START TIME':<20} {'EXP_ID':<40}")
     print("-" * 120)
 
