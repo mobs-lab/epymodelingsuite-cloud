@@ -623,6 +623,23 @@ def _build_cloud(
     int
         Exit code
     """
+    # Validate required files exist before attempting build
+    cloudbuild_yaml = context_path / "cloudbuild.yaml"
+    missing_files = []
+
+    if not cloudbuild_yaml.exists():
+        missing_files.append(f"cloudbuild.yaml (expected at: {cloudbuild_yaml})")
+
+    if not dockerfile_path.exists():
+        missing_files.append(f"Dockerfile (expected at: {dockerfile_path})")
+
+    if missing_files:
+        for file in missing_files:
+            error(f"Required file not found: {file}")
+        error("You must run this command from the epymodelingsuite-cloud repository")
+        info(f"Current directory: {Path.cwd()}")
+        return 1
+
     info(f"Building with Cloud Build (async: {not wait})...")
     info(f"Image: {image_path}")
     info(f"Dockerfile: {dockerfile_path}")
@@ -746,6 +763,13 @@ def _build_local(
     int
         Exit code
     """
+    # Validate required files exist before attempting build
+    if not dockerfile_path.exists():
+        error(f"Required file not found: Dockerfile (expected at: {dockerfile_path})")
+        error("You must run this command from the epymodelingsuite-cloud repository")
+        info(f"Current directory: {Path.cwd()}")
+        return 1
+
     # Check Docker availability
     if not dry_run and not check_docker_available():
         error("Docker is not installed or not in PATH")
@@ -862,6 +886,13 @@ def _build_dev(
     int
         Exit code
     """
+    # Validate required files exist before attempting build
+    if not dockerfile_path.exists():
+        error(f"Required file not found: Dockerfile (expected at: {dockerfile_path})")
+        error("You must run this command from the epymodelingsuite-cloud repository")
+        info(f"Current directory: {Path.cwd()}")
+        return 1
+
     # Check Docker availability
     if not dry_run and not check_docker_available():
         error("Docker is not installed or not in PATH")
