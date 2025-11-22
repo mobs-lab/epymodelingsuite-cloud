@@ -521,16 +521,21 @@ def _display_build_status(builds: list[dict], limit: int) -> None:
     limit : int
         Limit used for query (for display message)
     """
+    from epycloud.lib.output import supports_color
+
     if not builds:
         info("No builds found")
         return
 
     print()
-    info("Recent Cloud Builds")
-    print("=" * 100)
-    print()
+    # Section header with color
+    if supports_color():
+        print("\033[36m[Recent Cloud Builds]\033[0m")
+    else:
+        print("[Recent Cloud Builds]")
 
     # Header
+    print("-" * 100)
     print(f"{'BUILD ID':<38} {'STATUS':<12} {'START TIME':<25} {'DURATION':<15}")
     print("-" * 100)
 
