@@ -388,16 +388,12 @@ def _display_status(
     exp_id_filter : str | None
         Optional experiment ID filter for display
     """
-    from epycloud.lib.output import supports_color
+    from epycloud.lib.output import section_header, supports_color
 
     # Display active workflows
     if workflows:
         print()  # Blank line before section
-        # Section header with color
-        if supports_color():
-            print("\033[36m[Active workflows]\033[0m")
-        else:
-            print("[Active workflows]")
+        section_header("Active workflows")
 
         print("-" * 120)
         print(f"{'EXECUTION ID':<40} {'EXP_ID':<40} {'START TIME':<37}")
@@ -436,11 +432,7 @@ def _display_status(
 
     # Display active batch jobs
     if jobs:
-        # Section header with color
-        if supports_color():
-            print("\033[36m[Active batch jobs]\033[0m")
-        else:
-            print("[Active batch jobs]")
+        section_header("Active batch jobs")
 
         print("-" * 120)
         print(f"{'JOB NAME':<40} {'EXP_ID':<40} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")

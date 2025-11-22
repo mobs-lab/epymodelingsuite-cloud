@@ -842,13 +842,13 @@ def _display_execution_details(execution: dict[str, Any]) -> None:
     execution : dict[str, Any]
         Execution object
     """
+    from epycloud.lib.output import section_header
+
     name = execution.get("name", "")
     execution_id = name.split("/")[-1] if name else "unknown"
 
     print()
-    print("=" * 80)
-    print(f"WORKFLOW EXECUTION: {execution_id}")
-    print("=" * 80)
+    section_header(f"Workflow execution: {execution_id}")
     print()
 
     # Basic info
@@ -913,8 +913,6 @@ def _display_execution_details(execution: dict[str, Any]) -> None:
                 step_name = step.get("step", "unknown")
                 print(f"  - {step_name}")
 
-    print()
-    print("=" * 80)
     print()
 
 

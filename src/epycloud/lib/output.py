@@ -184,6 +184,29 @@ def subheader(message: str) -> None:
     print(f"\n{text}")
 
 
+def section_header(title: str) -> None:
+    """
+    Print section header in cyan with bracket style.
+
+    This follows the consistent style used across status, workflow, and build commands.
+    The header is displayed as [Title] in cyan color (if supported).
+
+    Parameters
+    ----------
+    title : str
+        Section title to display.
+
+    Examples
+    --------
+    >>> section_header("Recent Cloud Builds")
+    [Recent Cloud Builds]  # In cyan if color is supported
+    """
+    if supports_color():
+        print(f"\033[36m[{title}]\033[0m")
+    else:
+        print(f"[{title}]")
+
+
 def dim(message: str) -> None:
     """
     Print dimmed message with indentation.
