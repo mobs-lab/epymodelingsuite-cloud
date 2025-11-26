@@ -45,8 +45,16 @@ main:
           # Job parameters
           - batchSaEmail: $${input.batchSaEmail}
           - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
+          - runOutputStage: ${run_output_stage}
 
-          # Batch machine configuration
+          # Network configuration
+          - networkSelfLink: "${network_self_link}"
+          - subnetName: "${subnet_name}"
+          - subnetSelfLink: "${subnet_self_link}"
+
+    # Stage resource configuration (split to stay under 50 variable limit)
+    - initialize_stage_resources:
+        assign:
           # Stage A - allow runtime override of machine type and resources
           - machineTypeAOverride: $${default(map.get(input, "stageAMachineType"), "")}
           - cpuMilliAOverride: $${default(map.get(input, "stageACpuMilli"), 0)}
@@ -74,12 +82,6 @@ main:
           # Task count per node - allow runtime override
           - taskCountPerNodeOverride: $${default(map.get(input, "taskCountPerNode"), 0)}
           - taskCountPerNode: $${if(taskCountPerNodeOverride > 0, taskCountPerNodeOverride, ${task_count_per_node})}
-          - runOutputStage: ${run_output_stage}
-
-          # Network configuration
-          - networkSelfLink: "${network_self_link}"
-          - subnetName: "${subnet_name}"
-          - subnetSelfLink: "${subnet_self_link}"
 
     # ========== STAGE A: Generate Input Files ==========
     - create_stageA_job:
