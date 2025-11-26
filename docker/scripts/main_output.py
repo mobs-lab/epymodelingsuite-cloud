@@ -8,6 +8,7 @@ dispatch_output_generator, and saves CSV.gz files to storage.
 import logging
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import dill
@@ -18,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from epymodelingsuite.dispatcher import dispatch_output_generator
 from epymodelingsuite.telemetry import ExecutionTelemetry, create_workflow_telemetry
 from util import storage
-from util.config import resolve_configs
+from util.config import resolve_output_config
 from util.error_handling import handle_stage_error
 from util.logger import setup_logger
 
@@ -171,16 +172,23 @@ def load_configuration(config: dict, logger: logging.Logger):
     Exception
         If config file cannot be loaded or validated
     """
-    # Resolve config files for this experiment
-    logger.info(f"Resolving config files for exp_id: {config['exp_id']}")
-    config_files = resolve_configs(config["exp_id"])
+    # Check for specific output config file from environment
+    output_config_file = os.getenv("OUTPUT_CONFIG_FILE", "")
+    if output_config_file:
+        logger.info(f"Using specified output config file: {output_config_file}")
+    else:
+        logger.info("Using auto-detected output config")
 
-    # Load output configuration
-    output_config_path = config_files["output"]
-
-    if not output_config_path:
+    # Resolve output config file
+    logger.info(f"Resolving output config for exp_id: {config['exp_id']}")
+    try:
+        output_config_path = resolve_output_config(
+            config["exp_id"],
+            output_config_file or None,
+        )
+    except FileNotFoundError as e:
         exp_config_dir = Path("/data/forecast/experiments") / config["exp_id"] / "config"
-        logger.error("No output config found")
+        logger.error(f"No output config found: {e}")
         logger.error(f"Searched in: {exp_config_dir}")
         logger.error("Looking for YAML files with 'outputs' key")
         logger.error(
@@ -251,8 +259,8 @@ def generate_outputs(
     return output_dict
 
 
-def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
-    """Save output files to storage.
+def save_output_files(output_dict: dict, logger: logging.Logger, timestamp: str) -> None:
+    """Save output files to storage in a timestamped subdirectory.
 
     Parameters
     ----------
@@ -260,6 +268,8 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
         Dictionary mapping output keys to lists of OutputObject instances
     logger : logging.Logger
         Logger instance for output
+    timestamp : str
+        Timestamp string for output subdirectory (format: YYYYMMDD-HHMMSS)
 
     Raises
     ------
@@ -268,7 +278,7 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
     """
     from epymodelingsuite.schema.output import TabularOutputTypeEnum, FigureOutputTypeEnum
 
-    logger.info("Saving output files to storage")
+    logger.info(f"Saving output files to storage (outputs/{timestamp}/)")
 
     # Flatten output_dict to get all OutputObjects
     all_outputs = [obj for objects in output_dict.values() for obj in objects]
@@ -294,7 +304,8 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
             )
 
         if is_byte_output:
-            output_path = storage.get_path("outputs", output_obj.name)
+            # Save to timestamped subdirectory: outputs/{timestamp}/{filename}
+            output_path = storage.get_path("outputs", timestamp, output_obj.name)
             logger.debug(f"Saving: {output_path}")
 
             # CSVBytes are already gzipped by pandas to_csv(compression="gzip")
@@ -309,7 +320,7 @@ def save_output_files(output_dict: dict, logger: logging.Logger) -> None:
             logger.debug(f"Skipping in-memory output: {output_obj.name} ({output_obj.output_type})")
             files_skipped += 1
 
-    logger.info(f"Successfully saved {files_saved} output files to storage (skipped {files_skipped} in-memory objects)")
+    logger.info(f"Successfully saved {files_saved} output files to outputs/{timestamp}/ (skipped {files_skipped} in-memory objects)")
 
 
 def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
@@ -402,11 +413,14 @@ def main() -> None:
         If "false", raise error if any tasks fail
     EXECUTION_MODE : str
         Storage mode: "cloud" (GCS) or "local" (filesystem)
+    OUTPUT_CONFIG_FILE : str (optional)
+        Specific output config filename (e.g., "output_projection.yaml")
+        If not set, uses auto-detection (output.yaml/output.yml first, then scan)
 
     Outputs
     -------
     Saves to storage:
-        - outputs/*.csv.gz : Formatted output files (quantiles, trajectories, etc.)
+        - outputs/{timestamp}/*.csv.gz : Formatted output files (quantiles, trajectories, etc.)
         - summaries/json/output_summary.json : Output stage telemetry
         - summaries/json/workflow_summary.json : Aggregated workflow telemetry
 
@@ -448,6 +462,10 @@ def main() -> None:
     else:
         logger.info("Strict mode - will fail if any tasks are missing")
 
+    # Generate timestamp for output subdirectory (prevents overwriting on re-runs)
+    output_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    logger.info(f"Output timestamp: {output_timestamp}")
+
     try:
         # Load and validate configuration
         output_config = load_configuration(config, logger)
@@ -460,8 +478,8 @@ def main() -> None:
             # Generate output files using dispatcher
             output_dict = generate_outputs(results, result_type, output_config, logger)
 
-            # Save output files to storage
-            save_output_files(output_dict, logger)
+            # Save output files to storage in timestamped subdirectory
+            save_output_files(output_dict, logger, output_timestamp)
 
             # Save output telemetry summary
             storage.save_telemetry_summary(output_telemetry, "output_summary")

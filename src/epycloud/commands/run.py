@@ -143,6 +143,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Docker Compose project directory (default: auto-detected)",
     )
 
+    workflow_parser.add_argument(
+        "--output-config",
+        help="Output config filename for Stage C (e.g., output_projection.yaml). Uses auto-detection if not specified.",
+    )
+
     # ========== run job ==========
     job_parser = run_subparsers.add_parser(
         "job",
@@ -212,6 +217,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     job_parser.add_argument(
         "--project-directory",
         help="Docker Compose project directory (default: auto-detected)",
+    )
+
+    job_parser.add_argument(
+        "--output-config",
+        help="Output config filename for Stage C (e.g., output_projection.yaml). Uses auto-detection if not specified.",
     )
 
 
@@ -287,6 +297,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
     stage_c_machine_type_override = getattr(args, "stage_c_machine_type", None)
     forecast_repo_ref_override = getattr(args, "forecast_repo_ref", None)
+    output_config = getattr(args, "output_config", None)
     wait = args.wait
     auto_confirm = args.yes
     project_directory = getattr(args, "project_directory", None)
@@ -304,6 +315,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
             exp_id=exp_id,
             run_id=run_id,
             skip_output=skip_output,
+            output_config=output_config,
             auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
@@ -316,6 +328,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
             exp_id=exp_id,
             run_id=run_id,
             skip_output=skip_output,
+            output_config=output_config,
             max_parallelism=max_parallelism,
             task_count_per_node=task_count_per_node,
             stage_a_machine_type_override=stage_a_machine_type_override,
@@ -376,6 +389,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
     machine_type_override = getattr(args, "machine_type", None)
     task_count_per_node = getattr(args, "task_count_per_node", None)
     project_directory = getattr(args, "project_directory", None)
+    output_config = getattr(args, "output_config", None)
 
     # Validate requirements
     if stage in ["B", "C"] and not run_id:
@@ -401,6 +415,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            output_config=output_config,
             auto_confirm=auto_confirm,
             verbose=verbose,
             dry_run=dry_run,
@@ -415,6 +430,7 @@ def _handle_job(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            output_config=output_config,
             machine_type_override=machine_type_override,
             task_count_per_node=task_count_per_node,
             wait=wait,
@@ -430,6 +446,7 @@ def _run_workflow_cloud(
     exp_id: str,
     run_id: str | None,
     skip_output: bool,
+    output_config: str | None,
     max_parallelism: int | None,
     task_count_per_node: int | None,
     stage_a_machine_type_override: str | None,
@@ -455,6 +472,8 @@ def _run_workflow_cloud(
         Optional run ID (auto-generated in workflow if not provided)
     skip_output : bool
         Skip stage C
+    output_config : str | None
+        Output config filename for Stage C (e.g., "output_projection.yaml")
     max_parallelism : int | None
         Max parallel tasks
     task_count_per_node : int | None
@@ -656,6 +675,9 @@ def _run_workflow_cloud(
     if skip_output:
         workflow_arg["runOutputStage"] = False
 
+    if output_config:
+        workflow_arg["outputConfigFile"] = output_config
+
     # Get auth token
     try:
         access_token = get_gcloud_access_token(verbose=verbose)
@@ -752,6 +774,7 @@ def _run_workflow_local(
     exp_id: str,
     run_id: str | None,
     skip_output: bool,
+    output_config: str | None,
     auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
@@ -771,6 +794,8 @@ def _run_workflow_local(
         Optional run ID
     skip_output : bool
         Skip stage C
+    output_config : str | None
+        Output config filename for Stage C (e.g., "output_projection.yaml")
     auto_confirm : bool
         Auto-confirm without prompting
     verbose : bool
@@ -901,6 +926,7 @@ def _run_workflow_local(
                 "EXP_ID": exp_id,
                 "RUN_ID": run_id,
                 "NUM_TASKS": str(num_tasks),
+                "OUTPUT_CONFIG_FILE": output_config or "",
             },
             dry_run=dry_run,
         )
@@ -932,6 +958,7 @@ def _run_job_cloud(
     run_id: str | None,
     task_index: int,
     num_tasks: int | None,
+    output_config: str | None,
     machine_type_override: str | None,
     task_count_per_node: int | None,
     wait: bool,
@@ -957,6 +984,8 @@ def _run_job_cloud(
         Task index for stage B
     num_tasks : int | None
         Number of tasks for stage C
+    output_config : str | None
+        Output config filename for Stage C (e.g., "output_projection.yaml")
     machine_type_override : str | None
         Override machine type for this job (auto-sets CPU/memory to machine max)
     task_count_per_node : int | None
@@ -1066,6 +1095,7 @@ def _run_job_cloud(
         run_id=run_id,
         task_index=task_index,
         num_tasks=num_tasks,
+        output_config=output_config,
         image_uri=image_uri,
         bucket_name=bucket_name,
         dir_prefix=dir_prefix,
@@ -1185,6 +1215,7 @@ def _run_job_local(
     run_id: str | None,
     task_index: int,
     num_tasks: int | None,
+    output_config: str | None,
     auto_confirm: bool,
     verbose: bool,
     dry_run: bool,
@@ -1208,6 +1239,8 @@ def _run_job_local(
         Task index for stage B
     num_tasks : int | None
         Number of tasks for stage C
+    output_config : str | None
+        Output config filename for Stage C (e.g., "output_projection.yaml")
     auto_confirm : bool
         Auto-confirm without prompting
     verbose : bool
@@ -1287,6 +1320,7 @@ def _run_job_local(
             "EXP_ID": exp_id,
             "RUN_ID": run_id,
             "NUM_TASKS": str(num_tasks),
+            "OUTPUT_CONFIG_FILE": output_config or "",
         }
 
     # Merge base config env vars with runtime vars (runtime vars take precedence)
@@ -1370,6 +1404,7 @@ def _build_batch_job_config(
     run_id: str,
     task_index: int,
     num_tasks: int | None,
+    output_config: str | None,
     image_uri: str,
     bucket_name: str,
     dir_prefix: str,
@@ -1396,6 +1431,8 @@ def _build_batch_job_config(
         Task index for stage B
     num_tasks : int | None
         Number of tasks for stage C
+    output_config : str | None
+        Output config filename for Stage C (e.g., "output_projection.yaml")
     image_uri : str
         Docker image URI
     bucket_name : str
@@ -1451,6 +1488,7 @@ def _build_batch_job_config(
         env_vars["GCLOUD_PROJECT_ID"] = project_id
         env_vars["GITHUB_PAT_SECRET"] = "github-pat"
         env_vars["FORECAST_REPO_DIR"] = "/data/forecast/"
+        env_vars["OUTPUT_CONFIG_FILE"] = output_config or ""
         entrypoint = "/bin/bash"
         commands = ["/scripts/run_output.sh"]
 
