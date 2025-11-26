@@ -283,6 +283,23 @@ epycloud build cloud
 
 These environment variables are used by the pipeline scripts during job execution and are not part of the configuration system.
 
+### Stage A/C (Builder/Output) Variables
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FORECAST_REPO_REF` | Branch/tag/commit to checkout after cloning the forecast repo | (default branch) | `202547`, `test` |
+
+**FORECAST_REPO_REF Usage:**
+
+When `FORECAST_REPO_REF` is set, the builder and output scripts will checkout the specified ref after cloning the forecast repository:
+
+```bash
+# Via CLI
+epycloud run workflow --exp-id my-exp --forecast-repo-ref test-202546
+
+# Via config file (github.forecast_repo_ref)
+```
+
 ### Stage C (Output) Variables
 
 | Variable | Description | Default | Example |
@@ -334,6 +351,7 @@ If you have existing `.env` files, migrate to the unified config system:
 | `IMAGE_NAME` | `docker.image_name` |
 | `IMAGE_TAG` | `docker.image_tag` |
 | `GITHUB_FORECAST_REPO` | `github.forecast_repo` |
+| `FORECAST_REPO_REF` | `github.forecast_repo_ref` |
 | `GITHUB_MODELING_SUITE_REPO` | `github.modeling_suite_repo` |
 | `GITHUB_MODELING_SUITE_REF` | `github.modeling_suite_ref` |
 | `DIR_PREFIX` | `storage.dir_prefix` |
