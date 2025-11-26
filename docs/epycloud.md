@@ -328,6 +328,7 @@ Options:
   --skip-output         Skip stage C (output generation)
   --max-parallelism N   Max parallel tasks
   --wait                Wait for completion and stream logs
+  --output-config FILE  Output config filename for Stage C (e.g., output2.yaml)
 
 Examples:
   # Submit workflow to cloud (dev environment)
@@ -341,6 +342,9 @@ Examples:
 
   # Submit and wait for completion
   epycloud run workflow --exp-id flu-2024 --wait
+
+  # Use specific output config for Stage C
+  epycloud run workflow --exp-id flu-2024 --output-config output2.yaml
 ```
 
 #### run job
@@ -363,6 +367,7 @@ Options:
   --num-tasks N         Number of tasks (required for stage C)
   --local               Run locally with docker compose
   --wait                Wait for completion and stream logs
+  --output-config FILE  Output config filename for Stage C (e.g., output2.yaml)
 
 Examples:
   # Run builder stage locally
@@ -373,6 +378,9 @@ Examples:
 
   # Run output generation (stage C)
   epycloud run job --stage C --exp-id flu --run-id 20251106-123456 --num-tasks 100
+
+  # Run output with specific config (allows re-running with different output settings)
+  epycloud run job --stage C --exp-id flu --run-id 20251106-123456 --num-tasks 100 --output-config output2.yaml
 ```
 
 ### 2. build - Build Docker Images
