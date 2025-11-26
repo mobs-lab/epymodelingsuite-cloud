@@ -90,7 +90,9 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
                     f"  epymodelingsuite repo: {info['modeling_suite_repo']}@{info['modeling_suite_ref']}"
                 )
             if "forecast_repo" in info:
-                lines.append(f"  Forecast repo: {info['forecast_repo']}")
+                forecast_ref = info.get("forecast_repo_ref", "")
+                ref_display = f"@{forecast_ref}" if forecast_ref else ""
+                lines.append(f"  Forecast repo: {info['forecast_repo']}{ref_display}")
             if "pat_configured" in info:
                 pat_status = "✓ configured" if info["pat_configured"] else "✗ not configured"
                 lines.append(f"  GitHub PAT: {pat_status}")

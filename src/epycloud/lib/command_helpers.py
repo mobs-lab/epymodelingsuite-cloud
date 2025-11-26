@@ -418,18 +418,20 @@ def get_github_config(config: dict[str, Any]) -> dict[str, Any]:
     Returns
     -------
     dict
-        Dict with keys: forecast_repo, modeling_suite_repo,
+        Dict with keys: forecast_repo, forecast_repo_ref, modeling_suite_repo,
                        modeling_suite_ref, personal_access_token
 
     Examples
     --------
     >>> github = get_github_config(config)
     >>> forecast_repo = github["forecast_repo"]
+    >>> forecast_repo_ref = github["forecast_repo_ref"]
     >>> modeling_suite_repo = github["modeling_suite_repo"]
     """
     github = config.get("github", {})
     return {
         "forecast_repo": github.get("forecast_repo", ""),
+        "forecast_repo_ref": github.get("forecast_repo_ref", ""),
         "modeling_suite_repo": github.get("modeling_suite_repo", ""),
         "modeling_suite_ref": github.get("modeling_suite_ref", "main"),
         "personal_access_token": github.get("personal_access_token", ""),

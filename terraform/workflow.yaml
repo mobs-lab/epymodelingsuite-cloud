@@ -11,6 +11,7 @@ main:
           - location: $${sys.get_env("GOOGLE_CLOUD_LOCATION")}
           - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}:${image_tag}"}
           - githubForecastRepo: $${default(map.get(input, "githubForecastRepo"), "")}
+          - forecastRepoRef: $${default(map.get(input, "forecastRepoRef"), "")}
 
           # Generate unique run ID with datetime prefix from execution ID
           - executionId: $${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
@@ -113,6 +114,7 @@ main:
                       EXP_ID: $${expId}
                       RUN_ID: $${runId}
                       GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                      FORECAST_REPO_REF: $${forecastRepoRef}
                       GCLOUD_PROJECT_ID: $${project}
                       GITHUB_PAT_SECRET: "github-pat"
                       FORECAST_REPO_DIR: "/data/forecast/"
@@ -331,6 +333,7 @@ main:
                                 RUN_ID: $${runId}
                                 NUM_TASKS: $${string(N)}
                                 GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                                FORECAST_REPO_REF: $${forecastRepoRef}
                                 GCLOUD_PROJECT_ID: $${project}
                                 GITHUB_PAT_SECRET: "github-pat"
                                 FORECAST_REPO_DIR: "/data/forecast/"

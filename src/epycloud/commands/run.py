@@ -122,6 +122,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     workflow_parser.add_argument(
+        "--forecast-repo-ref",
+        help="Override forecast repo branch/tag/commit (default: from config)",
+    )
+
+    workflow_parser.add_argument(
         "--wait",
         action="store_true",
         help="Wait for completion and stream logs",
@@ -281,6 +286,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
     stage_a_machine_type_override = getattr(args, "stage_a_machine_type", None)
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
     stage_c_machine_type_override = getattr(args, "stage_c_machine_type", None)
+    forecast_repo_ref_override = getattr(args, "forecast_repo_ref", None)
     wait = args.wait
     auto_confirm = args.yes
     project_directory = getattr(args, "project_directory", None)
@@ -315,6 +321,7 @@ def _handle_workflow(ctx: dict[str, Any]) -> int:
             stage_a_machine_type_override=stage_a_machine_type_override,
             stage_b_machine_type_override=stage_b_machine_type_override,
             stage_c_machine_type_override=stage_c_machine_type_override,
+            forecast_repo_ref_override=forecast_repo_ref_override,
             wait=wait,
             auto_confirm=auto_confirm,
             verbose=verbose,
@@ -428,6 +435,7 @@ def _run_workflow_cloud(
     stage_a_machine_type_override: str | None,
     stage_b_machine_type_override: str | None,
     stage_c_machine_type_override: str | None,
+    forecast_repo_ref_override: str | None,
     wait: bool,
     auto_confirm: bool,
     verbose: bool,
@@ -457,6 +465,8 @@ def _run_workflow_cloud(
         Override Stage B machine type (auto-sets CPU/memory to machine max)
     stage_c_machine_type_override : str | None
         Override Stage C machine type (auto-sets CPU/memory to machine max)
+    forecast_repo_ref_override : str | None
+        Override forecast repo branch/tag/commit
     wait : bool
         Wait for completion
     auto_confirm : bool
@@ -480,7 +490,12 @@ def _run_workflow_cloud(
     dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
     github = get_github_config(config)
     github_forecast_repo = github["forecast_repo"]
+    github_forecast_repo_ref = github["forecast_repo_ref"]
     batch_config = get_batch_config(config)
+
+    # Apply forecast repo ref override
+    if forecast_repo_ref_override:
+        github_forecast_repo_ref = forecast_repo_ref_override
 
     if not max_parallelism:
         max_parallelism = pipeline.get("max_parallelism", 100)
@@ -581,6 +596,7 @@ def _run_workflow_cloud(
         "modeling_suite_repo": github["modeling_suite_repo"],
         "modeling_suite_ref": github["modeling_suite_ref"],
         "forecast_repo": github_forecast_repo,
+        "forecast_repo_ref": github_forecast_repo_ref,
         "pat_configured": bool(github["personal_access_token"]),
         "max_parallelism": max_parallelism,
         "stage_a_machine_type": stage_a_machine_type,
@@ -633,6 +649,9 @@ def _run_workflow_cloud(
         workflow_arg["stageCMachineType"] = stage_c_machine_type_override
         workflow_arg["stageCCpuMilli"] = stage_c_cpu_milli
         workflow_arg["stageCMemoryMib"] = stage_c_memory_mib
+
+    if github_forecast_repo_ref:
+        workflow_arg["forecastRepoRef"] = github_forecast_repo_ref
 
     if skip_output:
         workflow_arg["runOutputStage"] = False
