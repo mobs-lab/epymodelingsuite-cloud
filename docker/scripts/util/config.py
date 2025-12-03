@@ -109,6 +109,14 @@ def resolve_configs(
     # Identify each YAML file by parsing its structure
     unidentified_files = []
 
+    # Track multiple files of same type for better error handling
+    config_candidates = {
+        "basemodel": [],
+        "sampling": [],
+        "calibration": [],
+        "output": [],
+    }
+
     for yaml_file in yaml_files:
         try:
             config_type = identify_config_type(str(yaml_file))
@@ -122,14 +130,42 @@ def resolve_configs(
             unidentified_files.append((yaml_file.name, "Unknown config structure"))
             continue
 
-        # Check for duplicates
-        if configs[config_type] is not None:
-            raise ValueError(
-                f"Multiple {config_type} config files found in {exp_config_dir}: "
-                f"{Path(configs[config_type]).name} and {yaml_file.name}"
-            )
+        # Collect all candidates for each type
+        config_candidates[config_type].append(yaml_file)
 
-        configs[config_type] = str(yaml_file)
+    # Process candidates with prioritization
+    for config_type, candidates in config_candidates.items():
+        if len(candidates) == 0:
+            continue
+        elif len(candidates) == 1:
+            configs[config_type] = str(candidates[0])
+        else:
+            # Multiple files of same type found
+            # For output configs, prioritize output.yaml/output.yml
+            if config_type == "output":
+                prioritized = None
+                for candidate in candidates:
+                    if candidate.name in ["output.yaml", "output.yml"]:
+                        prioritized = candidate
+                        break
+
+                if prioritized:
+                    configs[config_type] = str(prioritized)
+                    _logger.info(
+                        f"Multiple output configs found, using prioritized: {prioritized.name}"
+                    )
+                else:
+                    # No prioritized name found, raise error
+                    raise ValueError(
+                        f"Multiple output config files found with no output.yaml/output.yml: "
+                        f"{[c.name for c in candidates]}"
+                    )
+            else:
+                # For other config types, raise error on duplicates
+                raise ValueError(
+                    f"Multiple {config_type} config files found in {exp_config_dir}: "
+                    f"{[c.name for c in candidates]}"
+                )
 
     # Log unidentified files as warnings (not errors)
     if unidentified_files:
