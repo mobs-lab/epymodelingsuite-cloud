@@ -625,6 +625,7 @@ def _run_workflow_cloud(
         "stage_c_machine_type": stage_c_machine_type,
         "stage_c_machine_type_override": stage_c_machine_type_override,
         "skip_output": skip_output,
+        "output_config": output_config,
         "image_uri": image_uri,
     }
 
@@ -833,6 +834,7 @@ def _run_workflow_local(
         "profile": ctx.get("profile", ""),
         "storage_path": storage_path,
         "skip_output": skip_output,
+        "output_config": output_config,
         "image_name": image_name,
         "image_tag": image_tag,
     }
@@ -1079,6 +1081,7 @@ def _run_job_cloud(
         confirmation_info["task_index"] = task_index
     elif stage == "C":
         confirmation_info["num_tasks"] = num_tasks
+        confirmation_info["output_config"] = output_config
 
     # Show confirmation and prompt
     confirmation_message = format_confirmation(confirmation_info, mode="cloud")
@@ -1287,6 +1290,7 @@ def _run_job_local(
         confirmation_info["task_index"] = task_index
     elif stage == "C":
         confirmation_info["num_tasks"] = num_tasks
+        confirmation_info["output_config"] = output_config
 
     # Show confirmation and prompt
     confirmation_message = format_confirmation(confirmation_info, mode="local")

@@ -118,6 +118,8 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
             if "skip_output" in info:
                 output_status = "disabled" if info["skip_output"] else "enabled"
                 lines.append(f"  Stage C (output): {output_status}")
+            if "output_config" in info and info["output_config"]:
+                lines.append(f"  Output config: {info['output_config']}")
             if "storage_path" in info:
                 lines.append(f"  Storage path: {info['storage_path']}")
         else:  # job
@@ -131,6 +133,8 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
                 lines.append(f"  Task index: {info['task_index']}")
             if "num_tasks" in info and stage == "C":
                 lines.append(f"  Num tasks: {info['num_tasks']}")
+            if "output_config" in info and info["output_config"] and stage == "C":
+                lines.append(f"  Output config: {info['output_config']}")
         lines.append("")
 
         # [Resources] (job only)
@@ -174,6 +178,8 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
             if "skip_output" in info:
                 output_status = "disabled" if info["skip_output"] else "enabled"
                 lines.append(f"  Stage C (output): {output_status}")
+            if "output_config" in info and info["output_config"]:
+                lines.append(f"  Output config: {info['output_config']}")
         else:  # job
             stage = info.get("stage", "")
             stage_name = {"A": "Builder", "B": "Runner", "C": "Output"}.get(stage, stage)
@@ -185,6 +191,8 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
                 lines.append(f"  Task index: {info['task_index']}")
             if "num_tasks" in info and stage == "C":
                 lines.append(f"  Num tasks: {info['num_tasks']}")
+            if "output_config" in info and info["output_config"] and stage == "C":
+                lines.append(f"  Output config: {info['output_config']}")
         lines.append("")
 
         # [Docker Image]
