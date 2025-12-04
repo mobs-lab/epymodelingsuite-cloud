@@ -13,8 +13,8 @@ from epycloud.commands import profile
 class TestProfileListCommand:
     """Test profile list command."""
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
-    @patch("epycloud.commands.profile.get_config_dir")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_config_dir")
     def test_profile_list_shows_profiles(
         self, mock_config_dir, mock_active_file, tmp_path
     ):
@@ -48,8 +48,8 @@ class TestProfileListCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
-    @patch("epycloud.commands.profile.get_config_dir")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_config_dir")
     def test_profile_list_marks_active(
         self, mock_config_dir, mock_active_file, tmp_path
     ):
@@ -81,7 +81,7 @@ class TestProfileListCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.profile.get_config_dir")
+    @patch("epycloud.commands.profile.handlers.get_config_dir")
     def test_profile_list_no_profiles_directory(self, mock_config_dir, tmp_path):
         """Test error when profiles directory doesn't exist."""
         config_dir = tmp_path / ".config" / "epymodelingsuite-cloud"
@@ -102,8 +102,8 @@ class TestProfileListCommand:
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
-    @patch("epycloud.commands.profile.get_config_dir")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_config_dir")
     def test_profile_list_empty(self, mock_config_dir, mock_active_file, tmp_path):
         """Test listing when no profiles exist."""
         config_dir = tmp_path / ".config" / "epymodelingsuite-cloud"
@@ -131,8 +131,8 @@ class TestProfileListCommand:
 class TestProfileUseCommand:
     """Test profile use command."""
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_use_activates(
         self, mock_get_profile, mock_active_file, tmp_path
     ):
@@ -162,12 +162,15 @@ class TestProfileUseCommand:
         assert exit_code == 0
         assert active_file.read_text().strip() == "flu"
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_use_not_found(self, mock_get_profile):
         """Test error when profile doesn't exist."""
         mock_file = Mock()
         mock_file.exists.return_value = False
         mock_get_profile.return_value = mock_file
+
+        args = Mock(profile_subcommand="use")
+        args.name = "nonexistent"
 
         ctx = {
             "config": None,
@@ -176,7 +179,7 @@ class TestProfileUseCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="use", name="nonexistent"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
@@ -187,7 +190,7 @@ class TestProfileUseCommand:
 class TestProfileCurrentCommand:
     """Test profile current command."""
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
     def test_profile_current_shows_active(self, mock_active_file, tmp_path):
         """Test showing current active profile."""
         active_file = tmp_path / "active_profile"
@@ -208,7 +211,7 @@ class TestProfileCurrentCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
     def test_profile_current_no_active(self, mock_active_file):
         """Test when no profile is active."""
         mock_file = Mock()
@@ -233,7 +236,7 @@ class TestProfileCurrentCommand:
 class TestProfileCreateCommand:
     """Test profile create command."""
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_create_basic(self, mock_get_profile, tmp_path):
         """Test creating profile with basic template."""
         profile_file = tmp_path / "profiles" / "rsv.yaml"
@@ -265,7 +268,7 @@ class TestProfileCreateCommand:
         assert profile_data["description"] == "RSV modeling"
         assert profile_data["github"]["forecast_repo"] == "mobs-lab/rsv-forecast"
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_create_full(self, mock_get_profile, tmp_path):
         """Test creating profile with full template."""
         profile_file = tmp_path / "profiles" / "rsv.yaml"
@@ -295,7 +298,7 @@ class TestProfileCreateCommand:
         assert "google_cloud" in profile_data
         assert "batch" in profile_data["google_cloud"]
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_create_already_exists(self, mock_get_profile, tmp_path):
         """Test error when profile already exists."""
         profile_file = tmp_path / "flu.yaml"
@@ -322,7 +325,7 @@ class TestProfileCreateCommand:
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_create_default_values(self, mock_get_profile, tmp_path):
         """Test creating profile with default values."""
         profile_file = tmp_path / "profiles" / "mymodel.yaml"
@@ -356,8 +359,8 @@ class TestProfileCreateCommand:
 class TestProfileEditCommand:
     """Test profile edit command."""
 
-    @patch("epycloud.commands.profile.subprocess.run")
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.subprocess.run")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_profile_edit_opens_editor(self, mock_get_profile, mock_subprocess):
         """Test editing profile in editor."""
@@ -366,6 +369,9 @@ class TestProfileEditCommand:
         mock_get_profile.return_value = mock_file
         mock_subprocess.return_value = Mock(returncode=0)
 
+        args = Mock(profile_subcommand="edit")
+        args.name = "flu"
+
         ctx = {
             "config": None,
             "environment": "dev",
@@ -373,7 +379,7 @@ class TestProfileEditCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="edit", name="flu"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
@@ -383,12 +389,15 @@ class TestProfileEditCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert call_args[0] == "vim"
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_edit_not_found(self, mock_get_profile):
         """Test error when profile doesn't exist."""
         mock_file = Mock()
         mock_file.exists.return_value = False
         mock_get_profile.return_value = mock_file
+
+        args = Mock(profile_subcommand="edit")
+        args.name = "nonexistent"
 
         ctx = {
             "config": None,
@@ -397,15 +406,15 @@ class TestProfileEditCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="edit", name="nonexistent"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.profile.subprocess.run")
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.subprocess.run")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     @patch.dict(os.environ, {"EDITOR": "nonexistent"})
     def test_profile_edit_editor_not_found(self, mock_get_profile, mock_subprocess):
         """Test error when editor is not found."""
@@ -414,6 +423,9 @@ class TestProfileEditCommand:
         mock_get_profile.return_value = mock_file
         mock_subprocess.side_effect = FileNotFoundError()
 
+        args = Mock(profile_subcommand="edit")
+        args.name = "flu"
+
         ctx = {
             "config": None,
             "environment": "dev",
@@ -421,15 +433,15 @@ class TestProfileEditCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="edit", name="flu"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.profile.subprocess.run")
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.subprocess.run")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_profile_edit_editor_fails(self, mock_get_profile, mock_subprocess):
         """Test error when editor process fails."""
@@ -440,6 +452,9 @@ class TestProfileEditCommand:
         mock_get_profile.return_value = mock_file
         mock_subprocess.side_effect = sp.CalledProcessError(1, "vim")
 
+        args = Mock(profile_subcommand="edit")
+        args.name = "flu"
+
         ctx = {
             "config": None,
             "environment": "dev",
@@ -447,7 +462,7 @@ class TestProfileEditCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="edit", name="flu"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
@@ -458,7 +473,7 @@ class TestProfileEditCommand:
 class TestProfileShowCommand:
     """Test profile show command."""
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_show_contents(self, mock_get_profile, tmp_path):
         """Test showing profile YAML contents."""
         profile_file = tmp_path / "flu.yaml"
@@ -470,6 +485,9 @@ class TestProfileShowCommand:
         profile_file.write_text(yaml.dump(profile_data))
         mock_get_profile.return_value = profile_file
 
+        args = Mock(profile_subcommand="show")
+        args.name = "flu"
+
         ctx = {
             "config": None,
             "environment": "dev",
@@ -477,19 +495,22 @@ class TestProfileShowCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="show", name="flu"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_show_not_found(self, mock_get_profile):
         """Test error when profile doesn't exist."""
         mock_file = Mock()
         mock_file.exists.return_value = False
         mock_get_profile.return_value = mock_file
+
+        args = Mock(profile_subcommand="show")
+        args.name = "nonexistent"
 
         ctx = {
             "config": None,
@@ -498,7 +519,7 @@ class TestProfileShowCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="show", name="nonexistent"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
@@ -509,8 +530,8 @@ class TestProfileShowCommand:
 class TestProfileDeleteCommand:
     """Test profile delete command."""
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_delete_success(
         self, mock_get_profile, mock_active_file, tmp_path
     ):
@@ -523,6 +544,9 @@ class TestProfileDeleteCommand:
         active_file.write_text("flu\n")  # Different profile is active
         mock_active_file.return_value = active_file
 
+        args = Mock(profile_subcommand="delete")
+        args.name = "covid"
+
         ctx = {
             "config": None,
             "environment": "dev",
@@ -530,7 +554,7 @@ class TestProfileDeleteCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="delete", name="covid"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)
@@ -538,8 +562,8 @@ class TestProfileDeleteCommand:
         assert exit_code == 0
         assert not profile_file.exists()
 
-    @patch("epycloud.commands.profile.get_active_profile_file")
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_delete_active_rejected(
         self, mock_get_profile, mock_active_file, tmp_path
     ):
@@ -571,12 +595,15 @@ class TestProfileDeleteCommand:
         # File should still exist
         assert profile_file.exists()
 
-    @patch("epycloud.commands.profile.get_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
     def test_profile_delete_not_found(self, mock_get_profile):
         """Test error when profile doesn't exist."""
         mock_file = Mock()
         mock_file.exists.return_value = False
         mock_get_profile.return_value = mock_file
+
+        args = Mock(profile_subcommand="delete")
+        args.name = "nonexistent"
 
         ctx = {
             "config": None,
@@ -585,7 +612,7 @@ class TestProfileDeleteCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(profile_subcommand="delete", name="nonexistent"),
+            "args": args,
         }
 
         exit_code = profile.handle(ctx)

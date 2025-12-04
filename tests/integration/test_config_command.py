@@ -13,9 +13,9 @@ from epycloud.commands import config_cmd
 class TestConfigInitCommand:
     """Test config init command."""
 
-    @patch("epycloud.commands.config_cmd.get_config_dir")
-    @patch("epycloud.commands.config_cmd.shutil.copy")
-    @patch("epycloud.commands.config_cmd.os.chmod")
+    @patch("epycloud.commands.config_cmd.operations.get_config_dir")
+    @patch("epycloud.commands.config_cmd.operations.shutil.copy")
+    @patch("epycloud.commands.config_cmd.operations.os.chmod")
     def test_config_init_creates_directory(
         self, mock_chmod, mock_copy, mock_config_dir, tmp_path
     ):
@@ -45,9 +45,9 @@ class TestConfigInitCommand:
         # Verify permissions set on secrets file
         assert mock_chmod.called
 
-    @patch("epycloud.commands.config_cmd.get_config_dir")
-    @patch("epycloud.commands.config_cmd.shutil.copy")
-    @patch("epycloud.commands.config_cmd.os.chmod")
+    @patch("epycloud.commands.config_cmd.operations.get_config_dir")
+    @patch("epycloud.commands.config_cmd.operations.shutil.copy")
+    @patch("epycloud.commands.config_cmd.operations.os.chmod")
     def test_config_init_skips_existing_files(
         self, mock_chmod, mock_copy, mock_config_dir, tmp_path
     ):
@@ -76,9 +76,9 @@ class TestConfigInitCommand:
         # config.yaml should not be copied since it exists
         # Only other templates should be copied
 
-    @patch("epycloud.commands.config_cmd.get_config_dir")
-    @patch("epycloud.commands.config_cmd.shutil.copy")
-    @patch("epycloud.commands.config_cmd.os.chmod")
+    @patch("epycloud.commands.config_cmd.operations.get_config_dir")
+    @patch("epycloud.commands.config_cmd.operations.shutil.copy")
+    @patch("epycloud.commands.config_cmd.operations.os.chmod")
     def test_config_init_sets_default_profile(
         self, mock_chmod, mock_copy, mock_config_dir, tmp_path
     ):
@@ -107,7 +107,7 @@ class TestConfigInitCommand:
 class TestConfigShowCommand:
     """Test config show command."""
 
-    @patch("epycloud.commands.config_cmd.require_config")
+    @patch("epycloud.lib.command_helpers.require_config")
     def test_config_show_displays_config(self, mock_require_config, mock_config):
         """Test that show displays current configuration."""
         mock_require_config.return_value = mock_config
@@ -126,8 +126,8 @@ class TestConfigShowCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.config_cmd.require_config")
-    @patch("epycloud.commands.config_cmd.yaml.dump")
+    @patch("epycloud.lib.command_helpers.require_config")
+    @patch("epycloud.commands.config_cmd.handlers.yaml.dump")
     def test_config_show_raw_yaml(self, mock_dump, mock_require_config, mock_config):
         """Test that show --raw outputs raw YAML."""
         mock_require_config.return_value = mock_config
@@ -147,7 +147,7 @@ class TestConfigShowCommand:
         assert exit_code == 0
         assert mock_dump.called
 
-    @patch("epycloud.commands.config_cmd.require_config")
+    @patch("epycloud.lib.command_helpers.require_config")
     def test_config_show_with_metadata(self, mock_require_config, mock_config):
         """Test that show displays profile metadata."""
         config_with_meta = dict(mock_config)
@@ -175,7 +175,7 @@ class TestConfigShowCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.config_cmd.require_config")
+    @patch("epycloud.lib.command_helpers.require_config")
     def test_config_show_missing_config(self, mock_require_config):
         """Test error when config cannot be loaded."""
         from epycloud.exceptions import ConfigError
@@ -200,8 +200,8 @@ class TestConfigShowCommand:
 class TestConfigEditCommand:
     """Test config edit command."""
 
-    @patch("epycloud.commands.config_cmd.subprocess.run")
-    @patch("epycloud.commands.config_cmd.get_config_file")
+    @patch("epycloud.commands.config_cmd.operations.subprocess.run")
+    @patch("epycloud.commands.config_cmd.operations.get_config_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_opens_editor(self, mock_get_file, mock_subprocess):
         """Test that edit opens config file in editor."""
@@ -227,8 +227,8 @@ class TestConfigEditCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert call_args[0] == "vim"
 
-    @patch("epycloud.commands.config_cmd.subprocess.run")
-    @patch("epycloud.commands.config_cmd.get_environment_file")
+    @patch("epycloud.commands.config_cmd.operations.subprocess.run")
+    @patch("epycloud.commands.config_cmd.operations.get_environment_file")
     @patch.dict(os.environ, {"EDITOR": "nano"})
     def test_config_edit_env_file(self, mock_get_env_file, mock_subprocess):
         """Test editing environment-specific config."""
@@ -252,7 +252,7 @@ class TestConfigEditCommand:
         assert exit_code == 0
         mock_get_env_file.assert_called_once_with("prod")
 
-    @patch("epycloud.commands.config_cmd.get_config_file")
+    @patch("epycloud.commands.config_cmd.operations.get_config_file")
     def test_config_edit_file_not_found(self, mock_get_file):
         """Test error when config file doesn't exist."""
         mock_file = Mock()
@@ -273,8 +273,8 @@ class TestConfigEditCommand:
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.config_cmd.subprocess.run")
-    @patch("epycloud.commands.config_cmd.get_config_file")
+    @patch("epycloud.commands.config_cmd.operations.subprocess.run")
+    @patch("epycloud.commands.config_cmd.operations.get_config_file")
     @patch.dict(os.environ, {"EDITOR": "nonexistent-editor"})
     def test_config_edit_editor_not_found(self, mock_get_file, mock_subprocess):
         """Test error when editor is not found."""
@@ -297,8 +297,8 @@ class TestConfigEditCommand:
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.config_cmd.subprocess.run")
-    @patch("epycloud.commands.config_cmd.get_config_file")
+    @patch("epycloud.commands.config_cmd.operations.subprocess.run")
+    @patch("epycloud.commands.config_cmd.operations.get_config_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_editor_fails(self, mock_get_file, mock_subprocess):
         """Test error when editor process fails."""
@@ -327,9 +327,9 @@ class TestConfigEditCommand:
 class TestConfigEditSecretsCommand:
     """Test config edit-secrets command."""
 
-    @patch("epycloud.commands.config_cmd.subprocess.run")
-    @patch("epycloud.commands.config_cmd.os.chmod")
-    @patch("epycloud.commands.config_cmd.get_secrets_file")
+    @patch("epycloud.commands.config_cmd.operations.subprocess.run")
+    @patch("epycloud.commands.config_cmd.operations.os.chmod")
+    @patch("epycloud.commands.config_cmd.operations.get_secrets_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_secrets_opens_editor(
         self, mock_get_file, mock_chmod, mock_subprocess, tmp_path
@@ -357,9 +357,9 @@ class TestConfigEditSecretsCommand:
         assert exit_code == 0
         mock_subprocess.assert_called_once()
 
-    @patch("epycloud.commands.config_cmd.subprocess.run")
-    @patch("epycloud.commands.config_cmd.os.chmod")
-    @patch("epycloud.commands.config_cmd.get_secrets_file")
+    @patch("epycloud.commands.config_cmd.operations.subprocess.run")
+    @patch("epycloud.commands.config_cmd.operations.os.chmod")
+    @patch("epycloud.commands.config_cmd.operations.get_secrets_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_secrets_creates_file_if_missing(
         self, mock_get_file, mock_chmod, mock_subprocess, tmp_path
@@ -386,9 +386,9 @@ class TestConfigEditSecretsCommand:
         # Verify chmod was called to set permissions to 0600
         mock_chmod.assert_called()
 
-    @patch("epycloud.commands.config_cmd.subprocess.run")
-    @patch("epycloud.commands.config_cmd.os.chmod")
-    @patch("epycloud.commands.config_cmd.get_secrets_file")
+    @patch("epycloud.commands.config_cmd.operations.subprocess.run")
+    @patch("epycloud.commands.config_cmd.operations.os.chmod")
+    @patch("epycloud.commands.config_cmd.operations.get_secrets_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_secrets_fixes_permissions(
         self, mock_get_file, mock_chmod, mock_subprocess, tmp_path
@@ -421,8 +421,8 @@ class TestConfigEditSecretsCommand:
 class TestConfigValidateCommand:
     """Test config validate command."""
 
-    @patch("epycloud.commands.config_cmd.ConfigLoader")
-    @patch("epycloud.commands.config_cmd.get_config_value")
+    @patch("epycloud.config.loader.ConfigLoader")
+    @patch("epycloud.commands.config_cmd.handlers.get_config_value")
     def test_config_validate_success(self, mock_get_value, mock_loader):
         """Test successful validation."""
         mock_config = {
@@ -462,36 +462,27 @@ class TestConfigValidateCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.config_cmd.ConfigLoader")
-    @patch("epycloud.commands.config_cmd.get_config_value")
-    def test_config_validate_missing_fields(self, mock_get_value, mock_loader):
+    def test_config_validate_missing_fields(self, tmp_path, monkeypatch):
         """Test validation fails for missing required fields."""
-        mock_config = {
-            "google_cloud": {
-                "project_id": "your-project-id",  # Placeholder value
-                "region": "us-central1",
-                "bucket_name": "my-bucket",
-            },
-            "github": {"personal_access_token": ""},
-        }
-        mock_loader_instance = Mock()
-        mock_loader_instance.load.return_value = mock_config
-        mock_loader.return_value = mock_loader_instance
+        # Create temp config directory
+        config_dir = tmp_path / "epymodelingsuite-cloud"
+        config_dir.mkdir(parents=True)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
 
-        def get_value_side_effect(config, key):
-            parts = key.split(".")
-            val = config
-            for part in parts:
-                val = val.get(part, None)
-                if val is None:
-                    return None
-            return val
-
-        mock_get_value.side_effect = get_value_side_effect
+        # Write config with placeholder values
+        config_file = config_dir / "config.yaml"
+        config_file.write_text("""
+google_cloud:
+  project_id: your-project-id  # Placeholder value
+  region: us-central1
+  bucket_name: my-bucket
+github:
+  personal_access_token: ""
+""")
 
         ctx = {
             "config": None,
-            "environment": "dev",
+            "environment": None,  # Use default (no environment)
             "profile": None,
             "verbose": False,
             "quiet": False,
@@ -504,39 +495,38 @@ class TestConfigValidateCommand:
         # Should fail due to placeholder value
         assert exit_code == 1
 
-    @patch("epycloud.commands.config_cmd.ConfigLoader")
-    @patch("epycloud.commands.config_cmd.get_config_value")
-    def test_config_validate_with_warnings(self, mock_get_value, mock_loader):
+    def test_config_validate_with_warnings(self, tmp_path, monkeypatch):
         """Test validation succeeds with warnings."""
-        mock_config = {
-            "google_cloud": {
-                "project_id": "my-project",
-                "region": "us-central1",
-                "bucket_name": "my-bucket",
-            },
-            "github": {
-                "personal_access_token": "ghp_xxxxxxxxxxxxxxxxxxxx"
-            },  # Placeholder token
-        }
-        mock_loader_instance = Mock()
-        mock_loader_instance.load.return_value = mock_config
-        mock_loader.return_value = mock_loader_instance
+        # Create temp config directory
+        config_dir = tmp_path / "epymodelingsuite-cloud"
+        config_dir.mkdir(parents=True)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
 
-        def get_value_side_effect(config, key):
-            parts = key.split(".")
-            val = config
-            for part in parts:
-                val = val.get(part, None)
-                if val is None:
-                    return None
-            return val
-
-        mock_get_value.side_effect = get_value_side_effect
+        # Write config with valid values but placeholder GitHub token
+        config_file = config_dir / "config.yaml"
+        config_file.write_text("""
+storage:
+  dir_prefix: pipeline/test/
+google_cloud:
+  project_id: my-project
+  region: us-central1
+  bucket_name: my-bucket
+docker:
+  registry: us-central1-docker.pkg.dev
+  repo_name: epymodelingsuite-repo
+  image_name: epymodelingsuite
+  image_tag: latest
+github:
+  personal_access_token: ghp_xxxxxxxxxxxxxxxxxxxx  # Placeholder token
+  forecast_repo: org/repo
+  modeling_suite_repo: org/suite
+  modeling_suite_ref: main
+""")
 
         ctx = {
             "config": None,
-            "environment": "dev",
-            "profile": None,
+            "environment": "test",  # Provide environment for templating
+            "profile": "test",  # Provide profile for templating
             "verbose": False,
             "quiet": False,
             "dry_run": False,
@@ -548,14 +538,16 @@ class TestConfigValidateCommand:
         # Should succeed but with warning about GitHub token
         assert exit_code == 0
 
-    @patch("epycloud.commands.config_cmd.ConfigLoader")
-    def test_config_validate_load_error(self, mock_loader):
+    def test_config_validate_load_error(self, tmp_path, monkeypatch):
         """Test validation fails when config cannot be loaded."""
-        mock_loader.side_effect = Exception("Failed to load config")
+        # Create temp directory WITHOUT config file
+        config_dir = tmp_path / "epymodelingsuite-cloud"
+        config_dir.mkdir(parents=True)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
 
         ctx = {
             "config": None,
-            "environment": "dev",
+            "environment": None,
             "profile": None,
             "verbose": False,
             "quiet": False,
@@ -565,13 +557,14 @@ class TestConfigValidateCommand:
 
         exit_code = config_cmd.handle(ctx)
 
+        # Should fail due to missing config file
         assert exit_code == 1
 
 
 class TestConfigPathCommand:
     """Test config path command."""
 
-    @patch("epycloud.commands.config_cmd.get_config_dir")
+    @patch("epycloud.commands.config_cmd.operations.get_config_dir")
     def test_config_path_displays_directory(self, mock_get_dir):
         """Test that path displays config directory."""
         mock_get_dir.return_value = Path("/home/user/.config/epymodelingsuite-cloud")
@@ -606,7 +599,7 @@ class TestConfigGetCommand:
             "args": Mock(config_subcommand="get", key="google_cloud.project_id"),
         }
 
-        with patch("epycloud.commands.config_cmd.get_config_value") as mock_get:
+        with patch("epycloud.commands.config_cmd.handlers.get_config_value") as mock_get:
             mock_get.return_value = "test-project"
             exit_code = config_cmd.handle(ctx)
 
@@ -625,7 +618,7 @@ class TestConfigGetCommand:
             "args": Mock(config_subcommand="get", key="nonexistent.key"),
         }
 
-        with patch("epycloud.commands.config_cmd.get_config_value") as mock_get:
+        with patch("epycloud.commands.config_cmd.handlers.get_config_value") as mock_get:
             mock_get.return_value = None
             exit_code = config_cmd.handle(ctx)
 
@@ -643,7 +636,7 @@ class TestConfigGetCommand:
             "args": Mock(config_subcommand="get", key="docker"),
         }
 
-        with patch("epycloud.commands.config_cmd.get_config_value") as mock_get:
+        with patch("epycloud.commands.config_cmd.handlers.get_config_value") as mock_get:
             mock_get.return_value = mock_config["docker"]
             exit_code = config_cmd.handle(ctx)
 
@@ -653,8 +646,8 @@ class TestConfigGetCommand:
 class TestConfigSetCommand:
     """Test config set command."""
 
-    @patch("epycloud.commands.config_cmd.get_config_file")
-    @patch("epycloud.commands.config_cmd.set_config_value")
+    @patch("epycloud.commands.config_cmd.operations.get_config_file")
+    @patch("epycloud.commands.config_cmd.handlers.set_config_value")
     def test_config_set_value(self, mock_set_value, mock_get_file, tmp_path):
         """Test setting config value."""
         config_file = tmp_path / "config.yaml"
@@ -678,16 +671,20 @@ class TestConfigSetCommand:
         assert exit_code == 0
         mock_set_value.assert_called_once()
 
-    @patch("epycloud.commands.config_cmd.get_config_file")
-    def test_config_set_file_not_found(self, mock_get_file):
+    def test_config_set_file_not_found(self, tmp_path, monkeypatch):
         """Test error when config file doesn't exist."""
-        mock_file = Mock()
-        mock_file.exists.return_value = False
-        mock_get_file.return_value = mock_file
+        # Create temp directory WITHOUT config file
+        config_dir = tmp_path / "epymodelingsuite-cloud"
+        config_dir.mkdir(parents=True)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+        # Verify no config.yaml exists
+        config_file = config_dir / "config.yaml"
+        assert not config_file.exists(), "Config file should not exist for this test"
 
         ctx = {
             "config": None,
-            "environment": "dev",
+            "environment": None,
             "profile": None,
             "verbose": False,
             "quiet": False,
@@ -697,10 +694,11 @@ class TestConfigSetCommand:
 
         exit_code = config_cmd.handle(ctx)
 
+        # Should fail due to missing config file
         assert exit_code == 1
 
-    @patch("epycloud.commands.config_cmd.get_config_file")
-    @patch("epycloud.commands.config_cmd.set_config_value")
+    @patch("epycloud.commands.config_cmd.operations.get_config_file")
+    @patch("epycloud.commands.config_cmd.handlers.set_config_value")
     def test_config_set_creates_nested_key(self, mock_set_value, mock_get_file, tmp_path):
         """Test setting a new nested key."""
         config_file = tmp_path / "config.yaml"
@@ -728,7 +726,7 @@ class TestConfigSetCommand:
 class TestConfigListEnvsCommand:
     """Test config list-envs command."""
 
-    @patch("epycloud.commands.config_cmd.list_environments")
+    @patch("epycloud.commands.config_cmd.handlers.list_environments")
     def test_config_list_envs_shows_available(self, mock_list_envs):
         """Test listing available environments."""
         mock_list_envs.return_value = ["dev", "prod", "local"]
@@ -747,7 +745,7 @@ class TestConfigListEnvsCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.config_cmd.list_environments")
+    @patch("epycloud.commands.config_cmd.handlers.list_environments")
     def test_config_list_envs_marks_current(self, mock_list_envs):
         """Test that current environment is marked."""
         mock_list_envs.return_value = ["dev", "prod", "local"]
@@ -766,7 +764,7 @@ class TestConfigListEnvsCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.config_cmd.list_environments")
+    @patch("epycloud.commands.config_cmd.handlers.list_environments")
     def test_config_list_envs_empty(self, mock_list_envs):
         """Test handling empty environment list."""
         mock_list_envs.return_value = []

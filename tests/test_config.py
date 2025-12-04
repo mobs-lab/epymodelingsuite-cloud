@@ -93,8 +93,8 @@ model:
         with pytest.raises(FileNotFoundError, match="No YAML files found"):
             config.resolve_configs("test-exp", config_dir=str(temp_local_path / "experiments"))
 
-    def test_resolve_configs_duplicate_types(self, temp_local_path):
-        """Test resolve_configs raises ValueError for duplicate config types."""
+    def test_resolve_configs_duplicate_basemodel_types(self, temp_local_path):
+        """Test resolve_configs raises ValueError for duplicate basemodel config types."""
         # Create config directory
         config_dir = temp_local_path / "experiments" / "test-exp" / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +105,70 @@ model:
 
         with patch("util.config.identify_config_type", return_value="basemodel"):
             with pytest.raises(ValueError, match="Multiple basemodel config files found"):
+                config.resolve_configs("test-exp", config_dir=str(temp_local_path / "experiments"))
+
+    def test_resolve_configs_multiple_output_with_prioritized(self, temp_local_path, caplog):
+        """Test resolve_configs prioritizes output.yaml when multiple output configs exist."""
+        import logging
+
+        # Create config directory
+        config_dir = temp_local_path / "experiments" / "test-exp" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create multiple output configs including output.yaml
+        (config_dir / "output.yaml").write_text("outputs: {}")
+        (config_dir / "output_calibration.yaml").write_text("outputs: {}")
+        (config_dir / "output_projection.yaml").write_text("outputs: {}")
+
+        with caplog.at_level(logging.INFO):
+            with patch("util.config.identify_config_type", return_value="output"):
+                configs = config.resolve_configs(
+                    "test-exp", config_dir=str(temp_local_path / "experiments")
+                )
+
+        # Should prioritize output.yaml
+        assert configs["output"] is not None
+        assert configs["output"].endswith("output.yaml")
+        assert "Multiple output configs found, using prioritized: output.yaml" in caplog.text
+
+    def test_resolve_configs_multiple_output_with_yml_extension(self, temp_local_path, caplog):
+        """Test resolve_configs prioritizes output.yml when multiple output configs exist."""
+        import logging
+
+        # Create config directory
+        config_dir = temp_local_path / "experiments" / "test-exp" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create multiple output configs including output.yml
+        (config_dir / "output.yml").write_text("outputs: {}")
+        (config_dir / "output_calibration.yaml").write_text("outputs: {}")
+
+        with caplog.at_level(logging.INFO):
+            with patch("util.config.identify_config_type", return_value="output"):
+                configs = config.resolve_configs(
+                    "test-exp", config_dir=str(temp_local_path / "experiments")
+                )
+
+        # Should prioritize output.yml
+        assert configs["output"] is not None
+        assert configs["output"].endswith("output.yml")
+        assert "Multiple output configs found, using prioritized: output.yml" in caplog.text
+
+    def test_resolve_configs_multiple_output_without_prioritized(self, temp_local_path):
+        """Test resolve_configs raises error when multiple output configs exist without output.yaml/yml."""
+        # Create config directory
+        config_dir = temp_local_path / "experiments" / "test-exp" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create multiple output configs WITHOUT output.yaml/output.yml
+        (config_dir / "output_calibration.yaml").write_text("outputs: {}")
+        (config_dir / "output_projection.yaml").write_text("outputs: {}")
+
+        with patch("util.config.identify_config_type", return_value="output"):
+            with pytest.raises(
+                ValueError,
+                match="Multiple output config files found with no output.yaml/output.yml",
+            ):
                 config.resolve_configs("test-exp", config_dir=str(temp_local_path / "experiments"))
 
     def test_resolve_configs_handles_unidentified_files(self, temp_local_path, caplog):

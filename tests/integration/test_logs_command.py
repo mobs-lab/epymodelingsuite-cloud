@@ -12,7 +12,7 @@ from epycloud.commands import logs
 class TestLogsCommand:
     """Test logs command main handler."""
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_fetch_by_exp_id(self, mock_subprocess, mock_config):
         """Test fetching logs by experiment ID."""
         mock_subprocess.return_value = Mock(
@@ -58,7 +58,7 @@ class TestLogsCommand:
         filter_arg = cmd[3]
         assert 'labels.exp_id="test-exp"' in filter_arg
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_fetch_by_stage(self, mock_subprocess, mock_config):
         """Test filtering logs by stage."""
         mock_subprocess.return_value = Mock(
@@ -93,7 +93,7 @@ class TestLogsCommand:
         filter_arg = cmd[3]
         assert 'labels.stage="B"' in filter_arg
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_fetch_by_run_id(self, mock_subprocess, mock_config):
         """Test filtering logs by run_id."""
         mock_subprocess.return_value = Mock(
@@ -128,7 +128,7 @@ class TestLogsCommand:
         filter_arg = cmd[3]
         assert 'labels.run_id="20251116-100000-abc123"' in filter_arg
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_fetch_with_task_index(self, mock_subprocess, mock_config):
         """Test filtering logs by task index."""
         mock_subprocess.return_value = Mock(
@@ -163,7 +163,7 @@ class TestLogsCommand:
         filter_arg = cmd[3]
         assert 'labels.batch.task_index="5"' in filter_arg
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_tail_limit(self, mock_subprocess, mock_config):
         """Test limiting log entries with tail parameter."""
         mock_subprocess.return_value = Mock(
@@ -197,7 +197,7 @@ class TestLogsCommand:
         cmd = mock_subprocess.call_args[0][0]
         assert "--limit=500" in cmd
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_tail_unlimited(self, mock_subprocess, mock_config):
         """Test tail=0 for unlimited logs."""
         mock_subprocess.return_value = Mock(
@@ -232,7 +232,7 @@ class TestLogsCommand:
         # Should not have --limit flag
         assert not any("--limit" in str(arg) for arg in cmd)
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_empty_result(self, mock_subprocess, mock_config):
         """Test handling when no logs found."""
         mock_subprocess.return_value = Mock(
@@ -264,7 +264,7 @@ class TestLogsCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_gcloud_error(self, mock_subprocess, mock_config):
         """Test handling gcloud command failure."""
         mock_subprocess.side_effect = CalledProcessError(
@@ -296,7 +296,7 @@ class TestLogsCommand:
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_with_severity_filter(self, mock_subprocess, mock_config):
         """Test filtering logs by severity level."""
         mock_subprocess.return_value = Mock(
@@ -434,37 +434,37 @@ class TestLogsNormalizeStage:
 
     def test_normalize_stage_builder_to_a(self):
         """Test builder -> A conversion."""
-        result = logs._normalize_stage_name("builder")
+        result = logs.handlers.normalize_stage_name("builder")
         assert result == "A"
 
     def test_normalize_stage_runner_to_b(self):
         """Test runner -> B conversion."""
-        result = logs._normalize_stage_name("runner")
+        result = logs.handlers.normalize_stage_name("runner")
         assert result == "B"
 
     def test_normalize_stage_output_to_c(self):
         """Test output -> C conversion."""
-        result = logs._normalize_stage_name("output")
+        result = logs.handlers.normalize_stage_name("output")
         assert result == "C"
 
     def test_normalize_stage_a_unchanged(self):
         """Test A stays as A."""
-        result = logs._normalize_stage_name("A")
+        result = logs.handlers.normalize_stage_name("A")
         assert result == "A"
 
     def test_normalize_stage_b_unchanged(self):
         """Test B stays as B."""
-        result = logs._normalize_stage_name("B")
+        result = logs.handlers.normalize_stage_name("B")
         assert result == "B"
 
     def test_normalize_stage_c_unchanged(self):
         """Test C stays as C."""
-        result = logs._normalize_stage_name("C")
+        result = logs.handlers.normalize_stage_name("C")
         assert result == "C"
 
     def test_normalize_stage_lowercase(self):
         """Test lowercase a -> A."""
-        result = logs._normalize_stage_name("a")
+        result = logs.handlers.normalize_stage_name("a")
         assert result == "A"
 
 
@@ -473,7 +473,7 @@ class TestLogsParseSinceTime:
 
     def test_parse_since_time_hours(self):
         """Test parsing hours."""
-        result = logs._parse_since_time("1h")
+        result = logs.handlers.parse_since_time("1h")
         assert result is not None
         # Result is a datetime object
         from datetime import datetime
@@ -482,17 +482,17 @@ class TestLogsParseSinceTime:
 
     def test_parse_since_time_minutes(self):
         """Test parsing minutes."""
-        result = logs._parse_since_time("30m")
+        result = logs.handlers.parse_since_time("30m")
         assert result is not None
 
     def test_parse_since_time_days(self):
         """Test parsing days."""
-        result = logs._parse_since_time("7d")
+        result = logs.handlers.parse_since_time("7d")
         assert result is not None
 
     def test_parse_since_time_invalid(self):
         """Test invalid since time."""
-        result = logs._parse_since_time("invalid")
+        result = logs.handlers.parse_since_time("invalid")
         # Should return None for invalid format
         assert result is None
 
@@ -500,8 +500,8 @@ class TestLogsParseSinceTime:
 class TestLogsFollowMode:
     """Test logs follow mode."""
 
-    @patch("epycloud.commands.logs.time.sleep")
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.streaming.time.sleep")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_follow_mode_stops_on_keyboard_interrupt(
         self, mock_subprocess, mock_sleep, mock_config
     ):
@@ -537,8 +537,8 @@ class TestLogsFollowMode:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.logs.time.sleep")
-    @patch("epycloud.commands.logs.subprocess.run")
+    @patch("epycloud.commands.logs.streaming.time.sleep")
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_follow_mode_streams_new_logs(
         self, mock_subprocess, mock_sleep, mock_config
     ):
@@ -609,7 +609,7 @@ class TestLogsDisplayFormat:
             }
         ]
         # Should not raise an error
-        logs._display_logs(test_logs)
+        logs.display.display_logs(test_logs)
 
     def test_display_logs_with_json_payload(self):
         """Test displaying logs with JSON payload."""
@@ -622,11 +622,11 @@ class TestLogsDisplayFormat:
             }
         ]
         # Should not raise an error
-        logs._display_logs(test_logs)
+        logs.display.display_logs(test_logs)
 
     def test_display_logs_empty_list(self):
         """Test displaying empty log list."""
-        logs._display_logs([])
+        logs.display.display_logs([])
 
     def test_display_logs_missing_fields(self):
         """Test displaying logs with missing fields."""
@@ -637,4 +637,4 @@ class TestLogsDisplayFormat:
             }
         ]
         # Should handle gracefully
-        logs._display_logs(test_logs)
+        logs.display.display_logs(test_logs)

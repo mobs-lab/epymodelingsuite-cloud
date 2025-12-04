@@ -1,28 +1,26 @@
 """Integration tests for terraform command."""
 
+from argparse import Namespace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 from epycloud.commands import terraform
+from epycloud.exceptions import ConfigError
 
 
 class TestTerraformInitCommand:
     """Test terraform init command."""
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
     def test_terraform_init_success(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test successful terraform initialization."""
         # Setup terraform directory
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
         mock_subprocess.return_value = Mock(returncode=0)
 
         ctx = {
@@ -32,7 +30,7 @@ class TestTerraformInitCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(terraform_subcommand="init"),
+            "args": Namespace(terraform_subcommand="init", terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
@@ -43,15 +41,12 @@ class TestTerraformInitCommand:
         assert call_args[0][0] == ["terraform", "init"]
         assert call_args[1]["cwd"] == terraform_dir
 
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
     def test_terraform_init_directory_not_found(
-        self, mock_require_config, mock_root, mock_config, tmp_path
+        self, mock_config, tmp_path
     ):
         """Test error when terraform directory doesn't exist."""
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
-        # Don't create terraform directory
+        # Provide path to non-existent directory
+        non_existent_dir = tmp_path / "nonexistent"
 
         ctx = {
             "config": mock_config,
@@ -60,23 +55,19 @@ class TestTerraformInitCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(terraform_subcommand="init"),
+            "args": Namespace(terraform_subcommand="init", terraform_dir=str(non_existent_dir)),
         }
 
         exit_code = terraform.handle(ctx)
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
     def test_terraform_init_dry_run(
-        self, mock_require_config, mock_root, mock_config, tmp_path
+        self, mock_config, tmp_path
     ):
         """Test terraform init dry run mode."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
 
         ctx = {
             "config": mock_config,
@@ -85,26 +76,23 @@ class TestTerraformInitCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": True,
-            "args": Mock(terraform_subcommand="init"),
+            "args": Namespace(terraform_subcommand="init", terraform_dir=str(terraform_dir)),
         }
 
-        with patch("epycloud.commands.terraform.subprocess.run") as mock_subprocess:
+        with patch("epycloud.commands.terraform.operations.subprocess.run") as mock_subprocess:
             exit_code = terraform.handle(ctx)
 
             # Dry run should not call subprocess
             assert exit_code == 0
+            assert not mock_subprocess.called
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
     def test_terraform_init_command_not_found(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test error when terraform command is not found."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
         mock_subprocess.side_effect = FileNotFoundError()
 
         ctx = {
@@ -114,24 +102,20 @@ class TestTerraformInitCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(terraform_subcommand="init"),
+            "args": Namespace(terraform_subcommand="init", terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
     def test_terraform_init_failure(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test terraform init failure."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
         mock_subprocess.return_value = Mock(returncode=1)
 
         ctx = {
@@ -141,7 +125,7 @@ class TestTerraformInitCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(terraform_subcommand="init"),
+            "args": Namespace(terraform_subcommand="init", terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
@@ -152,17 +136,15 @@ class TestTerraformInitCommand:
 class TestTerraformPlanCommand:
     """Test terraform plan command."""
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    # Removed unnecessary patch
     def test_terraform_plan_success(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test successful terraform plan."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_subprocess.return_value = Mock(returncode=0)
 
         ctx = {
@@ -172,7 +154,7 @@ class TestTerraformPlanCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(terraform_subcommand="plan", target=None),
+            "args": Namespace(terraform_subcommand="plan", target=None, terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
@@ -181,17 +163,15 @@ class TestTerraformPlanCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert call_args == ["terraform", "plan"]
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    # Removed unnecessary patch
     def test_terraform_plan_with_target(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test terraform plan with target resource."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_subprocess.return_value = Mock(returncode=0)
 
         ctx = {
@@ -201,9 +181,10 @@ class TestTerraformPlanCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="plan",
                 target="google_storage_bucket.data_bucket",
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -214,16 +195,14 @@ class TestTerraformPlanCommand:
         assert "-target" in call_args
         assert "google_storage_bucket.data_bucket" in call_args
 
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    # Removed unnecessary patch
     def test_terraform_plan_dry_run(
-        self, mock_require_config, mock_root, mock_config, tmp_path
+        self, mock_config, tmp_path
     ):
         """Test terraform plan dry run mode."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
 
         ctx = {
             "config": mock_config,
@@ -232,7 +211,7 @@ class TestTerraformPlanCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": True,
-            "args": Mock(terraform_subcommand="plan", target=None),
+            "args": Namespace(terraform_subcommand="plan", target=None, terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
@@ -243,17 +222,15 @@ class TestTerraformPlanCommand:
 class TestTerraformApplyCommand:
     """Test terraform apply command."""
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    # Removed unnecessary patch
     def test_terraform_apply_with_auto_approve(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test terraform apply with auto-approve flag."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_subprocess.return_value = Mock(returncode=0)
 
         ctx = {
@@ -263,10 +240,11 @@ class TestTerraformApplyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="apply",
                 auto_approve=True,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -276,14 +254,10 @@ class TestTerraformApplyCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert "-auto-approve" in call_args
 
-    @patch("epycloud.commands.terraform.ask_confirmation")
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.handlers.ask_confirmation")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
     def test_terraform_apply_prod_requires_confirmation(
         self,
-        mock_require_config,
-        mock_root,
         mock_subprocess,
         mock_confirm,
         mock_config,
@@ -292,8 +266,6 @@ class TestTerraformApplyCommand:
         """Test terraform apply in production requires confirmation."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
         mock_subprocess.return_value = Mock(returncode=0)
         mock_confirm.return_value = True
 
@@ -304,10 +276,11 @@ class TestTerraformApplyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="apply",
                 auto_approve=False,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -316,17 +289,15 @@ class TestTerraformApplyCommand:
         assert exit_code == 0
         mock_confirm.assert_called_once()
 
-    @patch("epycloud.commands.terraform.ask_confirmation")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.handlers.ask_confirmation")
+    # Removed unnecessary patch
     def test_terraform_apply_prod_cancelled(
-        self, mock_require_config, mock_root, mock_confirm, mock_config, tmp_path
+        self, mock_confirm, mock_config, tmp_path
     ):
         """Test terraform apply cancelled in production."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_confirm.return_value = False
 
         ctx = {
@@ -336,10 +307,11 @@ class TestTerraformApplyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="apply",
                 auto_approve=False,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -348,16 +320,14 @@ class TestTerraformApplyCommand:
         assert exit_code == 0
         mock_confirm.assert_called_once()
 
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    # Removed unnecessary patch
     def test_terraform_apply_dry_run(
-        self, mock_require_config, mock_root, mock_config, tmp_path
+        self, mock_config, tmp_path
     ):
         """Test terraform apply dry run mode."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
 
         ctx = {
             "config": mock_config,
@@ -366,10 +336,11 @@ class TestTerraformApplyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": True,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="apply",
                 auto_approve=False,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -381,15 +352,11 @@ class TestTerraformApplyCommand:
 class TestTerraformDestroyCommand:
     """Test terraform destroy command."""
 
-    @patch("epycloud.commands.terraform.ask_confirmation")
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.handlers.ask_confirmation")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    # Removed unnecessary patch
     def test_terraform_destroy_with_confirmation(
-        self,
-        mock_require_config,
-        mock_root,
-        mock_subprocess,
+        self, mock_subprocess,
         mock_confirm,
         mock_config,
         tmp_path,
@@ -397,8 +364,7 @@ class TestTerraformDestroyCommand:
         """Test terraform destroy with confirmation."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_subprocess.return_value = Mock(returncode=0)
         mock_confirm.return_value = True
 
@@ -409,10 +375,11 @@ class TestTerraformDestroyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="destroy",
                 auto_approve=False,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -421,17 +388,15 @@ class TestTerraformDestroyCommand:
         assert exit_code == 0
         mock_confirm.assert_called_once()
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    # Removed unnecessary patch
     def test_terraform_destroy_with_auto_approve(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test terraform destroy with auto-approve flag."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_subprocess.return_value = Mock(returncode=0)
 
         ctx = {
@@ -441,10 +406,11 @@ class TestTerraformDestroyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="destroy",
                 auto_approve=True,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -454,17 +420,15 @@ class TestTerraformDestroyCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert "-auto-approve" in call_args
 
-    @patch("epycloud.commands.terraform.ask_confirmation")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.handlers.ask_confirmation")
+    # Removed unnecessary patch
     def test_terraform_destroy_cancelled(
-        self, mock_require_config, mock_root, mock_confirm, mock_config, tmp_path
+        self, mock_confirm, mock_config, tmp_path
     ):
         """Test terraform destroy cancelled by user."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_confirm.return_value = False
 
         ctx = {
@@ -474,10 +438,11 @@ class TestTerraformDestroyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="destroy",
                 auto_approve=False,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -486,16 +451,14 @@ class TestTerraformDestroyCommand:
         assert exit_code == 0
         mock_confirm.assert_called_once()
 
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    # Removed unnecessary patch
     def test_terraform_destroy_dry_run(
-        self, mock_require_config, mock_root, mock_config, tmp_path
+        self, mock_config, tmp_path
     ):
         """Test terraform destroy dry run mode."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
 
         ctx = {
             "config": mock_config,
@@ -504,10 +467,11 @@ class TestTerraformDestroyCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": True,
-            "args": Mock(
+            "args": Namespace(
                 terraform_subcommand="destroy",
                 auto_approve=False,
                 target=None,
+                terraform_dir=str(terraform_dir),
             ),
         }
 
@@ -519,21 +483,16 @@ class TestTerraformDestroyCommand:
 class TestTerraformOutputCommand:
     """Test terraform output command."""
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    # Removed unnecessary patch
     def test_terraform_output_success(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test successful terraform output."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_subprocess.return_value = Mock(returncode=0)
-
-        args = Mock(terraform_subcommand="output")
-        args.name = None
 
         ctx = {
             "config": mock_config,
@@ -542,28 +501,23 @@ class TestTerraformOutputCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": args,
+            "args": Namespace(terraform_subcommand="output", name=None, terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.terraform.subprocess.run")
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    # Removed unnecessary patch
     def test_terraform_output_specific_name(
-        self, mock_require_config, mock_root, mock_subprocess, mock_config, tmp_path
+        self, mock_subprocess, mock_config, tmp_path
     ):
         """Test terraform output with specific output name."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
+        # Removed mock_root usage
         mock_subprocess.return_value = Mock(returncode=0)
-
-        args = Mock(terraform_subcommand="output")
-        args.name = "bucket_name"
 
         ctx = {
             "config": mock_config,
@@ -572,7 +526,7 @@ class TestTerraformOutputCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": args,
+            "args": Namespace(terraform_subcommand="output", name="bucket_name", terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
@@ -581,19 +535,14 @@ class TestTerraformOutputCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert "bucket_name" in call_args
 
-    @patch("epycloud.commands.terraform.get_project_root")
-    @patch("epycloud.commands.terraform.require_config")
+    # Removed unnecessary patch
     def test_terraform_output_dry_run(
-        self, mock_require_config, mock_root, mock_config, tmp_path
+        self, mock_config, tmp_path
     ):
         """Test terraform output dry run mode."""
         terraform_dir = tmp_path / "terraform"
         terraform_dir.mkdir()
-        mock_root.return_value = tmp_path
-        mock_require_config.return_value = mock_config
-
-        args = Mock(terraform_subcommand="output")
-        args.name = None
+        # Removed mock_root usage
 
         ctx = {
             "config": mock_config,
@@ -602,7 +551,7 @@ class TestTerraformOutputCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": True,
-            "args": args,
+            "args": Namespace(terraform_subcommand="output", name=None, terraform_dir=str(terraform_dir)),
         }
 
         exit_code = terraform.handle(ctx)
@@ -615,7 +564,7 @@ class TestTerraformEnvVars:
 
     def test_get_terraform_env_vars_basic(self, mock_config):
         """Test constructing basic TF_VAR environment variables."""
-        env_vars = terraform._get_terraform_env_vars(mock_config)
+        env_vars = terraform.operations.get_terraform_env_vars(mock_config)
 
         assert env_vars["TF_VAR_project_id"] == "test-project"
         assert env_vars["TF_VAR_region"] == "us-central1"
@@ -663,7 +612,7 @@ class TestTerraformEnvVars:
             },
         }
 
-        env_vars = terraform._get_terraform_env_vars(config)
+        env_vars = terraform.operations.get_terraform_env_vars(config)
 
         # Check batch config
         assert env_vars["TF_VAR_task_count_per_node"] == "1"
@@ -700,7 +649,7 @@ class TestTerraformEnvVars:
             "github": {},
         }
 
-        env_vars = terraform._get_terraform_env_vars(config)
+        env_vars = terraform.operations.get_terraform_env_vars(config)
 
         assert env_vars["TF_VAR_project_id"] == "test-project"
         assert "TF_VAR_region" not in env_vars
@@ -710,10 +659,8 @@ class TestTerraformEnvVars:
 class TestTerraformNoSubcommand:
     """Test terraform command without subcommand."""
 
-    @patch("epycloud.commands.terraform.require_config")
-    def test_terraform_no_subcommand_prints_help(self, mock_require_config, mock_config):
+    def test_terraform_no_subcommand_prints_help(self, mock_config):
         """Test that no subcommand prints help."""
-        mock_require_config.return_value = mock_config
         mock_parser = Mock()
 
         ctx = {
@@ -723,7 +670,7 @@ class TestTerraformNoSubcommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(terraform_subcommand=None, _terraform_parser=mock_parser),
+            "args": Namespace(terraform_subcommand=None, _terraform_parser=mock_parser),
         }
 
         exit_code = terraform.handle(ctx)
@@ -731,11 +678,8 @@ class TestTerraformNoSubcommand:
         assert exit_code == 1
         mock_parser.print_help.assert_called_once()
 
-    @patch("epycloud.commands.terraform.require_config")
-    def test_terraform_unknown_subcommand(self, mock_require_config, mock_config):
+    def test_terraform_unknown_subcommand(self, mock_config):
         """Test error for unknown subcommand."""
-        mock_require_config.return_value = mock_config
-
         ctx = {
             "config": mock_config,
             "environment": "dev",
@@ -743,7 +687,7 @@ class TestTerraformNoSubcommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(terraform_subcommand="unknown"),
+            "args": Namespace(terraform_subcommand="unknown"),
         }
 
         exit_code = terraform.handle(ctx)
@@ -752,21 +696,16 @@ class TestTerraformNoSubcommand:
 
     def test_terraform_missing_config(self):
         """Test error when config is missing."""
-        from epycloud.exceptions import ConfigError
+        ctx = {
+            "config": None,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(terraform_subcommand="init"),
+        }
 
-        with patch("epycloud.commands.terraform.require_config") as mock_require:
-            mock_require.side_effect = ConfigError("Config not found")
+        exit_code = terraform.handle(ctx)
 
-            ctx = {
-                "config": None,
-                "environment": "dev",
-                "profile": None,
-                "verbose": False,
-                "quiet": False,
-                "dry_run": False,
-                "args": Mock(terraform_subcommand="init"),
-            }
-
-            exit_code = terraform.handle(ctx)
-
-            assert exit_code == 2
+        assert exit_code == 2

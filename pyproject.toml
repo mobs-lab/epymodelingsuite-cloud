@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "epycloud"
-version = "0.2.5"
+version = "0.3.1"
 description = "CLI for epymodelingsuite cloud pipeline management"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,6 +34,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.1.0",
+    "epymodelingsuite @ git+ssh://git@github.com/mobs-lab/epymodelingsuite.git@dev",
 ]
 
 [project.scripts]

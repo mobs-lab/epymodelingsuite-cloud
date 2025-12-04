@@ -1,101 +1,16 @@
-"""Configuration management commands.
+"""Handlers for config subcommands."""
 
-Available subcommands:
-    epycloud config init          Initialize config directory
-    epycloud config show          Show current configuration
-    epycloud config edit          Edit base config in $EDITOR
-    epycloud config edit-secrets  Edit secrets.yaml in $EDITOR
-    epycloud config validate      Validate configuration
-    epycloud config path          Show config directory path
-    epycloud config get           Get config value
-    epycloud config set           Set config value
-    epycloud config list-envs     List available environments
-"""
-
-import os
-import shutil
-import subprocess
 import sys
-from pathlib import Path
-from typing import Any
 
 import yaml
 
 from epycloud.config.loader import ConfigLoader, get_config_value, set_config_value
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import require_config
-from epycloud.lib.formatters import CapitalizedHelpFormatter, create_subparsers
 from epycloud.lib.output import error, info, print_dict, success, warning
-from epycloud.lib.paths import (
-    get_config_dir,
-    get_config_file,
-    get_environment_file,
-    get_secrets_file,
-    list_environments,
-)
+from epycloud.lib.paths import get_config_dir, get_config_file, list_environments
 
-
-def register_parser(subparsers: Any) -> None:
-    """Register config command parser.
-
-    Parameters
-    ----------
-    subparsers : Any
-        Subparsers from main argument parser
-    """
-    parser = subparsers.add_parser(
-        "config",
-        help="Configuration management",
-        description="Manage configuration files and settings for epycloud CLI.",
-        epilog="""Examples:
-  epycloud config show
-  epycloud config edit
-  epycloud config get google_cloud.project_id
-  epycloud config set google_cloud.project_id my-project
-""",
-        formatter_class=CapitalizedHelpFormatter,
-    )
-    # Store parser for help printing
-    parser.set_defaults(_config_parser=parser)
-
-    # Create subcommands with consistent formatting
-    config_subparsers = create_subparsers(parser, "config_subcommand")
-
-    # config init
-    config_subparsers.add_parser("init", help="Initialize config directory")
-
-    # config show
-    show_parser = config_subparsers.add_parser("show", help="Show current configuration")
-    show_parser.add_argument("--raw", action="store_true", help="Show raw YAML")
-
-    # config edit
-    edit_parser = config_subparsers.add_parser("edit", help="Edit base config in $EDITOR")
-    edit_parser.add_argument(
-        "--env", dest="edit_env", help="Edit environment config (dev, prod, local)"
-    )
-
-    # config edit-secrets
-    config_subparsers.add_parser("edit-secrets", help="Edit secrets.yaml in $EDITOR")
-
-    # config validate
-    config_subparsers.add_parser("validate", help="Validate configuration")
-
-    # config path
-    config_subparsers.add_parser("path", help="Show config directory path")
-
-    # config get
-    get_parser = config_subparsers.add_parser("get", help="Get config value")
-    get_parser.add_argument(
-        "key", help="Config key in dot notation (e.g., google_cloud.project_id)"
-    )
-
-    # config set
-    set_parser = config_subparsers.add_parser("set", help="Set config value")
-    set_parser.add_argument("key", help="Config key in dot notation")
-    set_parser.add_argument("value", help="Value to set")
-
-    # config list-envs
-    config_subparsers.add_parser("list-envs", help="List available environments")
+from .operations import edit_config_file, edit_secrets_file, initialize_config_dir
 
 
 def handle(ctx: dict) -> int:
@@ -158,57 +73,7 @@ def handle_init(ctx: dict) -> int:
     int
         Exit code
     """
-    config_dir = get_config_dir()
-    template_dir = Path(__file__).parent.parent / "config" / "templates"
-
-    info(f"Initializing config directory: {config_dir}")
-
-    # Create directories
-    config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "environments").mkdir(exist_ok=True)
-    (config_dir / "profiles").mkdir(exist_ok=True)
-
-    # Copy templates
-    templates = [
-        ("config.yaml", config_dir / "config.yaml"),
-        ("dev.yaml", config_dir / "environments" / "dev.yaml"),
-        ("prod.yaml", config_dir / "environments" / "prod.yaml"),
-        ("local.yaml", config_dir / "environments" / "local.yaml"),
-        ("flu.yaml", config_dir / "profiles" / "flu.yaml"),
-        ("secrets.yaml", config_dir / "secrets.yaml"),
-    ]
-
-    for template_name, dest_path in templates:
-        template_path = template_dir / template_name
-
-        if dest_path.exists():
-            warning(f"Skipping {dest_path.name} (already exists)")
-            continue
-
-        shutil.copy(template_path, dest_path)
-        success(f"Created {dest_path.name}")
-
-        # Set secrets file permissions
-        if dest_path.name == "secrets.yaml":
-            os.chmod(dest_path, 0o600)
-            info("  Set permissions to 0600")
-
-    # Set default profile
-    active_profile_file = config_dir / "active_profile"
-    if not active_profile_file.exists():
-        active_profile_file.write_text("flu\n")
-        success("Set default profile to 'flu'")
-
-    print()  # Blank line before
-    success(f"Configuration initialized at {config_dir}")
-    print()  # Blank line before
-    info("Next steps:")
-    info("  1. Edit config.yaml with your GCP project settings")
-    info("  2. Add your GitHub token to secrets.yaml")
-    info("  3. Review environment configs in environments/")
-    info("  4. Run 'epycloud config validate' to check configuration")
-
-    return 0
+    return initialize_config_dir()
 
 
 def handle_show(ctx: dict) -> int:
@@ -279,35 +144,8 @@ def handle_edit(ctx: dict) -> int:
         Exit code
     """
     args = ctx["args"]
-    editor = os.environ.get("EDITOR", "vim")
-
-    # Determine which file to edit
-    # Check if --env flag was explicitly provided to the edit subcommand
-    if hasattr(args, "edit_env") and args.edit_env:
-        file_path = get_environment_file(args.edit_env)
-        if not file_path.exists():
-            error(f"Environment config not found: {file_path}")
-            return 1
-    else:
-        # Default: edit base config.yaml
-        file_path = get_config_file()
-        if not file_path.exists():
-            error(f"Config file not found: {file_path}")
-            info("Run 'epycloud config init' first")
-            return 1
-
-    # Open in editor
-    try:
-        subprocess.run([editor, str(file_path)], check=True)
-        success(f"Edited {file_path}")
-        return 0
-    except subprocess.CalledProcessError as e:
-        error(f"Editor failed: {e}")
-        return 1
-    except FileNotFoundError:
-        error(f"Editor not found: {editor}")
-        info("Set EDITOR environment variable or use 'epycloud config show'")
-        return 1
+    env = getattr(args, "edit_env", None) if hasattr(args, "edit_env") else None
+    return edit_config_file(env=env)
 
 
 def handle_edit_secrets(ctx: dict) -> int:
@@ -323,39 +161,7 @@ def handle_edit_secrets(ctx: dict) -> int:
     int
         Exit code
     """
-    editor = os.environ.get("EDITOR", "vim")
-    file_path = get_secrets_file()
-
-    # Create secrets file with secure permissions if it doesn't exist
-    if not file_path.exists():
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text(
-            '# Secrets configuration\n# Store sensitive credentials here\n\ngithub:\n  personal_access_token: ""\n'
-        )
-        os.chmod(file_path, 0o600)
-        info(f"Created {file_path} with secure permissions (0600)")
-
-    # Open in editor
-    try:
-        subprocess.run([editor, str(file_path)], check=True)
-        success(f"Edited {file_path}")
-
-        # Verify permissions after editing
-        current_perms = file_path.stat().st_mode & 0o777
-        if current_perms != 0o600:
-            warning(f"Secrets file has insecure permissions: {oct(current_perms)}")
-            info("Setting permissions to 0600...")
-            os.chmod(file_path, 0o600)
-            success("Permissions fixed")
-
-        return 0
-    except subprocess.CalledProcessError as e:
-        error(f"Editor failed: {e}")
-        return 1
-    except FileNotFoundError:
-        error(f"Editor not found: {editor}")
-        info("Set EDITOR environment variable")
-        return 1
+    return edit_secrets_file()
 
 
 def handle_validate(ctx: dict) -> int:
@@ -510,8 +316,7 @@ def handle_set(ctx: dict) -> int:
 
 
 def handle_list_envs(ctx: dict) -> int:
-    """
-    List available environments.
+    """List available environments.
 
     Parameters
     ----------

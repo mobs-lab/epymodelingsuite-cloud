@@ -1,220 +1,16 @@
-"""Validate command for validating experiment configuration."""
+"""Validate operations and utilities."""
 
-import argparse
-import json
-import os
 import tempfile
 from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
 import requests
-import yaml
 
-from epycloud.exceptions import ConfigError, ValidationError
-from epycloud.lib.command_helpers import get_github_config, handle_dry_run, require_config
 from epycloud.lib.output import error, info, success, warning
-from epycloud.lib.validation import validate_exp_id, validate_github_token, validate_local_path
 
 
-def register_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the validate command parser.
-
-    Parameters
-    ----------
-    subparsers : argparse._SubParsersAction
-        Subparser action from main parser
-    """
-    parser = subparsers.add_parser(
-        "validate",
-        help="Validate experiment configuration",
-        description="Validate experiment configuration using epymodelingsuite. "
-        "Can validate from GitHub repository or local path.",
-    )
-
-    # Either exp-id (remote) or path (local) is required
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        "--exp-id",
-        help="Experiment ID to validate from GitHub repository",
-    )
-    group.add_argument(
-        "--path",
-        type=Path,
-        help="Path to local config directory (e.g., ./local/forecast/experiments/test-sim/config)",
-    )
-
-    parser.add_argument(
-        "--format",
-        choices=["text", "json", "yaml"],
-        default="text",
-        help="Output format: text|json|yaml (default: text)",
-    )
-
-    parser.add_argument(
-        "--github-token",
-        help="GitHub PAT for remote validation (or use from config/secrets/env)",
-    )
-
-
-def handle(ctx: dict[str, Any]) -> int:
-    """Handle validate command.
-
-    Parameters
-    ----------
-    ctx : dict[str, Any]
-        Command context
-
-    Returns
-    -------
-    int
-        Exit code (0=passed, 1=failed, 2=config error)
-    """
-    args = ctx["args"]
-    verbose = ctx["verbose"]
-
-    try:
-        config = require_config(ctx)
-    except ConfigError as e:
-        error(str(e))
-        return 2
-
-    output_format = args.format
-
-    # Validate inputs
-    try:
-        if args.exp_id:
-            exp_id = validate_exp_id(args.exp_id)
-        else:
-            exp_id = None
-
-        if args.path:
-            local_path = validate_local_path(args.path, must_exist=True, must_be_dir=True)
-        else:
-            local_path = None
-
-        if args.github_token:
-            github_token = validate_github_token(args.github_token)
-        else:
-            github_token = None
-    except ValidationError as e:
-        error(str(e))
-        return 1
-
-    # Determine validation mode
-    if local_path:
-        info(f"Validating local config: {local_path}")
-        print()
-
-        if handle_dry_run(ctx, f"Validate local config at {local_path}"):
-            return 0
-
-        # Perform local validation
-        try:
-            result = _validate_directory(
-                config_dir=local_path,
-                verbose=verbose,
-            )
-
-            # Output results
-            if output_format == "json":
-                print(json.dumps(result, indent=2))
-            elif output_format == "yaml":
-                print(yaml.dump(result, default_flow_style=False))
-            else:
-                _display_validation_results(result)
-
-            # Return appropriate exit code
-            if result.get("error"):
-                return 1
-
-            failed = sum(1 for cs in result.get("config_sets", []) if cs["status"] == "fail")
-            return 1 if failed > 0 else 0
-
-        except Exception as e:
-            error(f"Validation failed: {e}")
-            if verbose:
-                import traceback
-
-                traceback.print_exc()
-            return 2
-
-    else:
-        # Remote (GitHub) validation
-        # Get GitHub configuration
-        github = get_github_config(config)
-        forecast_repo = github["forecast_repo"]
-
-        if not forecast_repo:
-            error("github.forecast_repo not configured")
-            info("Set it in your profile or base config")
-            return 2
-
-        # Get GitHub token from multiple sources
-        if not github_token:
-            # Try secrets config
-            secrets = config.get("secrets", {})
-            github_token = secrets.get("github", {}).get("personal_access_token")
-
-        if not github_token:
-            # Try environment variable
-            github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT")
-
-        if handle_dry_run(
-            ctx,
-            f"Validate experiment '{exp_id}' from {forecast_repo}",
-            {"repository": forecast_repo, "has_token": bool(github_token)},
-        ):
-            if not github_token:
-                warning("GitHub token not found (required for actual validation)")
-            return 0
-
-        if not github_token:
-            error("GitHub token not found")
-            info("Provide via:")
-            info("  --github-token TOKEN")
-            info("  export GITHUB_TOKEN=github_pat_xxxxx (or ghp_xxxxx for classic)")
-            info("  config secrets.yaml: github.personal_access_token")
-            return 2
-
-        info(f"Validating experiment: {exp_id}")
-        info(f"Forecast repository: {forecast_repo}")
-        print()
-
-        # Perform remote validation
-        try:
-            result = _validate_remote(
-                exp_id=exp_id,
-                forecast_repo=forecast_repo,
-                github_token=github_token,
-                verbose=verbose,
-            )
-
-            # Output results
-            if output_format == "json":
-                print(json.dumps(result, indent=2))
-            elif output_format == "yaml":
-                print(yaml.dump(result, default_flow_style=False))
-            else:
-                _display_validation_results(result)
-
-            # Return appropriate exit code
-            if result.get("error"):
-                return 1
-
-            failed = sum(1 for cs in result.get("config_sets", []) if cs["status"] == "fail")
-            return 1 if failed > 0 else 0
-
-        except Exception as e:
-            error(f"Validation failed: {e}")
-            if verbose:
-                import traceback
-
-                traceback.print_exc()
-            return 2
-
-
-def _validate_directory(
+def validate_directory(
     config_dir: Path,
     verbose: bool,
 ) -> dict[str, Any]:
@@ -301,7 +97,7 @@ def _validate_directory(
     if len(output_configs) > 1 and verbose:
         warning(f"Multiple output configs found, using: {output_path.name}")
 
-    success, error_msg = _validate_config_set(
+    success_val, error_msg = validate_config_set(
         basemodel_path=basemodel_path,
         modelset_path=modelset_path,
         output_path=output_path,
@@ -311,7 +107,7 @@ def _validate_directory(
     set_result = {
         "basemodel": basemodel_path.name,
         "modelset": modelset_path.name,
-        "status": "pass" if success else "fail",
+        "status": "pass" if success_val else "fail",
     }
 
     if output_path is not None:
@@ -325,7 +121,7 @@ def _validate_directory(
     return results
 
 
-def _validate_config_set(
+def validate_config_set(
     basemodel_path: Path,
     modelset_path: Path,
     output_path: Path | None,
@@ -394,7 +190,7 @@ def _validate_config_set(
         return False, str(e)
 
 
-def _validate_remote(
+def validate_remote(
     exp_id: str,
     forecast_repo: str,
     github_token: str,
@@ -421,7 +217,7 @@ def _validate_remote(
     # Fetch config files from GitHub
     info("Fetching config files from GitHub...")
     try:
-        config_files = _fetch_config_files(
+        config_files = fetch_config_files(
             forecast_repo=forecast_repo,
             exp_id=exp_id,
             github_token=github_token,
@@ -444,7 +240,7 @@ def _validate_remote(
                 (tmppath / filename).write_text(content)
 
             # Validate the temporary directory
-            result = _validate_directory(
+            result = validate_directory(
                 config_dir=tmppath,
                 verbose=verbose,
             )
@@ -462,7 +258,7 @@ def _validate_remote(
         }
 
 
-def _fetch_config_files(
+def fetch_config_files(
     forecast_repo: str,
     exp_id: str,
     github_token: str,
@@ -533,7 +329,7 @@ def _fetch_config_files(
         file_path = f"experiments/{exp_id}/config/{filename}"
 
         try:
-            content = _fetch_github_file(
+            content = fetch_github_file(
                 repo=forecast_repo,
                 path=file_path,
                 token=github_token,
@@ -551,7 +347,7 @@ def _fetch_config_files(
     return config_files
 
 
-def _fetch_github_file(
+def fetch_github_file(
     repo: str,
     path: str,
     token: str,
@@ -611,7 +407,7 @@ def _fetch_github_file(
             raise Exception(f"GitHub API error {status_code}")
 
 
-def _display_validation_results(result: dict[str, Any]) -> None:
+def display_validation_results(result: dict[str, Any]) -> None:
     """Display validation results in text format.
 
     Parameters
