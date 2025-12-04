@@ -462,13 +462,20 @@ def main() -> None:
     else:
         logger.info("Strict mode - will fail if any tasks are missing")
 
-    # Generate timestamp for output subdirectory (prevents overwriting on re-runs)
-    output_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    logger.info(f"Output timestamp: {output_timestamp}")
+    # Generate base timestamp for output subdirectory
+    base_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     try:
         # Load and validate configuration
         output_config = load_configuration(config, logger)
+
+        # Build output subdirectory name with optional meta.id suffix
+        if output_config.output.meta and output_config.output.meta.id:
+            output_subdir = f"{base_timestamp}_{output_config.output.meta.id}"
+            logger.info(f"Output subdirectory: {output_subdir} (with meta.id)")
+        else:
+            output_subdir = base_timestamp
+            logger.info(f"Output subdirectory: {output_subdir}")
 
         # Load all result files from Stage B
         results, result_type = load_all_results(num_tasks, logger, allow_partial=allow_partial)
@@ -478,8 +485,8 @@ def main() -> None:
             # Generate output files using dispatcher
             output_dict = generate_outputs(results, result_type, output_config, logger)
 
-            # Save output files to storage in timestamped subdirectory
-            save_output_files(output_dict, logger, output_timestamp)
+            # Save output files to storage in subdirectory
+            save_output_files(output_dict, logger, output_subdir)
 
             # Save output telemetry summary
             storage.save_telemetry_summary(output_telemetry, "output_summary")
