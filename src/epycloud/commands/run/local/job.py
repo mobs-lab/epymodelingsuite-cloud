@@ -65,7 +65,10 @@ def run_job_local(
     # Get config values
     docker = get_docker_config(config)
     image_name = docker["image_name"]
-    image_tag = docker["image_tag"]
+    # For local runs, default to 'local' tag (matches docker-compose.yml)
+    image_tag = docker.get("image_tag") or "local"
+    if image_tag == "latest":
+        image_tag = "local"
     pipeline = config.get("pipeline", {})
     dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
 
