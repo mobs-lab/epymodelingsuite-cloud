@@ -237,7 +237,8 @@ def handle_dev(ctx: dict[str, Any]) -> int:
     # Get config
     docker_config = get_docker_config(config)
     image_name = docker_config["image_name"]
-    image_tag = args.tag or "latest"
+    # Default to "local" for dev builds (matches docker-compose.yml)
+    image_tag = args.tag or "local"
     image_path = f"{image_name}:{image_tag}"
     github = get_github_config(config)
     modeling_suite_repo = github["modeling_suite_repo"]
