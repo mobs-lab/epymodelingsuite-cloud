@@ -96,9 +96,9 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         description="Build local development image (no push by default)",
     )
     dev_parser.add_argument(
-        "--no-cache",
+        "--cache",
         action="store_true",
-        help="Disable build cache",
+        help="Enable build cache (cache disabled by default)",
     )
     dev_parser.add_argument(
         "--tag",

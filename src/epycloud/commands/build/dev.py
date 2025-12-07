@@ -77,9 +77,9 @@ def build_dev(
         info("Repository: not configured")
 
     if no_cache:
-        warning("Cache disabled (--no-cache)")
+        info("Cache: disabled (default)")
     else:
-        info("Cache: enabled")
+        info("Cache: enabled (--cache)")
 
     if push:
         warning("Will push to registry (--push)")

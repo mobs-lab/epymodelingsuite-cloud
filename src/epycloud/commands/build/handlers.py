@@ -272,7 +272,7 @@ def handle_dev(ctx: dict[str, Any]) -> int:
         modeling_suite_repo=modeling_suite_repo,
         modeling_suite_ref=modeling_suite_ref,
         github_pat=github_pat,
-        no_cache=args.no_cache,
+        no_cache=not args.cache,  # Inverted: --cache flag enables cache, default is no cache
         push=args.push,
         verbose=verbose,
         dry_run=dry_run,
