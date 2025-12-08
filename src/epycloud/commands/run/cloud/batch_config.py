@@ -89,8 +89,12 @@ def build_batch_job_config(
         commands = ["/scripts/run_builder.sh"]
     elif stage == "B":
         env_vars["TASK_INDEX"] = str(task_index)
-        entrypoint = "python3"
-        commands = ["-u", "/scripts/main_runner.py"]
+        env_vars["GITHUB_FORECAST_REPO"] = github_forecast_repo
+        env_vars["GCLOUD_PROJECT_ID"] = project_id
+        env_vars["GITHUB_PAT_SECRET"] = "github-pat"
+        env_vars["FORECAST_REPO_DIR"] = "/data/forecast/"
+        entrypoint = "/bin/bash"
+        commands = ["/scripts/run_runner.sh"]
     else:  # C
         env_vars["NUM_TASKS"] = str(num_tasks)
         env_vars["GITHUB_FORECAST_REPO"] = github_forecast_repo
