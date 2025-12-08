@@ -42,3 +42,4 @@ runner-artifacts/
 local/
 
 .claude/
+.coverage
