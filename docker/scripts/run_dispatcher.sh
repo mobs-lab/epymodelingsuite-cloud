@@ -17,7 +17,7 @@ case "$STAGE" in
         exec /scripts/run_builder.sh "$@"
         ;;
     runner|B)
-        exec python3 -u /scripts/main_runner.py "$@"
+        exec /scripts/run_runner.sh "$@"
         ;;
     output|C)
         exec /scripts/run_output.sh "$@"
