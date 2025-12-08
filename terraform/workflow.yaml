@@ -229,10 +229,9 @@ main:
                   runnables:
                     - container:
                         imageUri: $${repoUri}
-                        entrypoint: "python3"
+                        entrypoint: "/bin/bash"
                         commands:
-                          - "-u"
-                          - "/scripts/main_runner.py"
+                          - "/scripts/run_runner.sh"
                   environment:
                     variables:
                       EXECUTION_MODE: "cloud"
@@ -240,6 +239,11 @@ main:
                       DIR_PREFIX: $${dirPrefix}
                       EXP_ID: $${expId}
                       RUN_ID: $${runId}
+                      GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                      FORECAST_REPO_REF: $${forecastRepoRef}
+                      GCLOUD_PROJECT_ID: $${project}
+                      GITHUB_PAT_SECRET: "github-pat"
+                      FORECAST_REPO_DIR: "/data/forecast/"
                   computeResource:
                     cpuMilli: $${cpuMilliB}
                     memoryMib: $${memoryMibB}
