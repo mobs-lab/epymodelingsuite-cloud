@@ -11,6 +11,8 @@ main:
           - location: $${sys.get_env("GOOGLE_CLOUD_LOCATION")}
           - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}:${image_tag}"}
           - githubForecastRepo: $${default(map.get(input, "githubForecastRepo"), "")}
+          - forecastRepoRef: $${default(map.get(input, "forecastRepoRef"), "")}
+          - outputConfigFile: $${default(map.get(input, "outputConfigFile"), "")}
 
           # Generate unique run ID with datetime prefix from execution ID
           - executionId: $${sys.get_env("GOOGLE_CLOUD_WORKFLOW_EXECUTION_ID")}
@@ -43,8 +45,16 @@ main:
           # Job parameters
           - batchSaEmail: $${input.batchSaEmail}
           - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
+          - runOutputStage: ${run_output_stage}
 
-          # Batch machine configuration
+          # Network configuration
+          - networkSelfLink: "${network_self_link}"
+          - subnetName: "${subnet_name}"
+          - subnetSelfLink: "${subnet_self_link}"
+
+    # Stage resource configuration (split to stay under 50 variable limit)
+    - initialize_stage_resources:
+        assign:
           # Stage A - allow runtime override of machine type and resources
           - machineTypeAOverride: $${default(map.get(input, "stageAMachineType"), "")}
           - cpuMilliAOverride: $${default(map.get(input, "stageACpuMilli"), 0)}
@@ -72,12 +82,6 @@ main:
           # Task count per node - allow runtime override
           - taskCountPerNodeOverride: $${default(map.get(input, "taskCountPerNode"), 0)}
           - taskCountPerNode: $${if(taskCountPerNodeOverride > 0, taskCountPerNodeOverride, ${task_count_per_node})}
-          - runOutputStage: ${run_output_stage}
-
-          # Network configuration
-          - networkSelfLink: "${network_self_link}"
-          - subnetName: "${subnet_name}"
-          - subnetSelfLink: "${subnet_self_link}"
 
     # ========== STAGE A: Generate Input Files ==========
     - create_stageA_job:
@@ -113,6 +117,7 @@ main:
                       EXP_ID: $${expId}
                       RUN_ID: $${runId}
                       GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                      FORECAST_REPO_REF: $${forecastRepoRef}
                       GCLOUD_PROJECT_ID: $${project}
                       GITHUB_PAT_SECRET: "github-pat"
                       FORECAST_REPO_DIR: "/data/forecast/"
@@ -224,10 +229,9 @@ main:
                   runnables:
                     - container:
                         imageUri: $${repoUri}
-                        entrypoint: "python3"
+                        entrypoint: "/bin/bash"
                         commands:
-                          - "-u"
-                          - "/scripts/main_runner.py"
+                          - "/scripts/run_runner.sh"
                   environment:
                     variables:
                       EXECUTION_MODE: "cloud"
@@ -235,6 +239,11 @@ main:
                       DIR_PREFIX: $${dirPrefix}
                       EXP_ID: $${expId}
                       RUN_ID: $${runId}
+                      GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                      FORECAST_REPO_REF: $${forecastRepoRef}
+                      GCLOUD_PROJECT_ID: $${project}
+                      GITHUB_PAT_SECRET: "github-pat"
+                      FORECAST_REPO_DIR: "/data/forecast/"
                   computeResource:
                     cpuMilli: $${cpuMilliB}
                     memoryMib: $${memoryMibB}
@@ -331,9 +340,11 @@ main:
                                 RUN_ID: $${runId}
                                 NUM_TASKS: $${string(N)}
                                 GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                                FORECAST_REPO_REF: $${forecastRepoRef}
                                 GCLOUD_PROJECT_ID: $${project}
                                 GITHUB_PAT_SECRET: "github-pat"
                                 FORECAST_REPO_DIR: "/data/forecast/"
+                                OUTPUT_CONFIG_FILE: $${outputConfigFile}
                             computeResource:
                               cpuMilli: $${cpuMilliC}
                               memoryMib: $${memoryMibC}

@@ -12,8 +12,8 @@ from epycloud.commands import build
 class TestBuildCloudCommand:
     """Test build cloud command."""
 
-    @patch("epycloud.commands.build.get_project_root")
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.lib.command_helpers.get_project_root")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_cloud_success(self, mock_subprocess, mock_root, mock_config):
         """Test successful cloud build submission."""
         mock_root.return_value = Path("/test/project")
@@ -45,8 +45,8 @@ class TestBuildCloudCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.build.get_project_root")
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.lib.command_helpers.get_project_root")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_cloud_with_wait(self, mock_subprocess, mock_root, mock_config):
         """Test cloud build with wait flag."""
         mock_root.return_value = Path("/test/project")
@@ -77,7 +77,7 @@ class TestBuildCloudCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.build.get_project_root")
+    @patch("epycloud.lib.command_helpers.get_project_root")
     def test_build_cloud_dry_run(self, mock_root, mock_config):
         """Test cloud build dry run mode."""
         mock_root.return_value = Path("/test/project")
@@ -99,7 +99,7 @@ class TestBuildCloudCommand:
             ),
         }
 
-        with patch("epycloud.commands.build.subprocess.run") as mock_subprocess:
+        with patch("epycloud.commands.build.cloud.subprocess.run") as mock_subprocess:
             exit_code = build.handle(ctx)
 
             # Dry run should still succeed but not run subprocess
@@ -163,9 +163,9 @@ class TestBuildCloudCommand:
 class TestBuildLocalCommand:
     """Test build local command."""
 
-    @patch("epycloud.commands.build.get_github_pat")
-    @patch("epycloud.commands.build.get_project_root")
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.commands.build.handlers.get_github_pat")
+    @patch("epycloud.lib.command_helpers.get_project_root")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_local_success(
         self, mock_subprocess, mock_root, mock_pat, mock_config
     ):
@@ -200,8 +200,8 @@ class TestBuildLocalCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.build.get_github_pat")
-    @patch("epycloud.commands.build.get_project_root")
+    @patch("epycloud.commands.build.handlers.get_github_pat")
+    @patch("epycloud.lib.command_helpers.get_project_root")
     def test_build_local_missing_github_pat(self, mock_root, mock_pat, mock_config):
         """Test error when GitHub PAT is missing."""
         mock_root.return_value = Path("/test/project")
@@ -228,8 +228,8 @@ class TestBuildLocalCommand:
 
         assert exit_code == 2
 
-    @patch("epycloud.commands.build.get_github_pat")
-    @patch("epycloud.commands.build.get_project_root")
+    @patch("epycloud.commands.build.handlers.get_github_pat")
+    @patch("epycloud.lib.command_helpers.get_project_root")
     def test_build_local_dry_run(self, mock_root, mock_pat, mock_config):
         """Test local build dry run mode."""
         mock_root.return_value = Path("/test/project")
@@ -252,7 +252,7 @@ class TestBuildLocalCommand:
             ),
         }
 
-        with patch("epycloud.commands.build.subprocess.run") as mock_subprocess:
+        with patch("epycloud.commands.build.local.subprocess.run") as mock_subprocess:
             exit_code = build.handle(ctx)
 
             assert exit_code == 0
@@ -261,9 +261,9 @@ class TestBuildLocalCommand:
 class TestBuildDevCommand:
     """Test build dev command."""
 
-    @patch("epycloud.commands.build.get_github_pat")
-    @patch("epycloud.commands.build.get_project_root")
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.commands.build.handlers.get_github_pat")
+    @patch("epycloud.lib.command_helpers.get_project_root")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_dev_success(
         self, mock_subprocess, mock_root, mock_pat, mock_config
     ):
@@ -298,8 +298,8 @@ class TestBuildDevCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.build.get_github_pat")
-    @patch("epycloud.commands.build.get_project_root")
+    @patch("epycloud.commands.build.handlers.get_github_pat")
+    @patch("epycloud.lib.command_helpers.get_project_root")
     def test_build_dev_missing_github_pat(self, mock_root, mock_pat, mock_config):
         """Test error when GitHub PAT is missing."""
         mock_root.return_value = Path("/test/project")
@@ -326,8 +326,8 @@ class TestBuildDevCommand:
 
         assert exit_code == 2
 
-    @patch("epycloud.commands.build.get_github_pat")
-    @patch("epycloud.commands.build.get_project_root")
+    @patch("epycloud.commands.build.handlers.get_github_pat")
+    @patch("epycloud.lib.command_helpers.get_project_root")
     def test_build_dev_dry_run(self, mock_root, mock_pat, mock_config):
         """Test dev build dry run mode."""
         mock_root.return_value = Path("/test/project")
@@ -350,14 +350,14 @@ class TestBuildDevCommand:
             ),
         }
 
-        with patch("epycloud.commands.build.subprocess.run") as mock_subprocess:
+        with patch("epycloud.commands.build.dev.subprocess.run") as mock_subprocess:
             exit_code = build.handle(ctx)
 
             assert exit_code == 0
 
-    @patch("epycloud.commands.build.get_github_pat")
-    @patch("epycloud.commands.build.get_project_root")
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.commands.build.handlers.get_github_pat")
+    @patch("epycloud.lib.command_helpers.get_project_root")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_dev_with_custom_tag(
         self, mock_subprocess, mock_root, mock_pat, mock_config
     ):
@@ -395,7 +395,7 @@ class TestBuildDevCommand:
 class TestBuildStatusCommand:
     """Test build status command."""
 
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_status_display(self, mock_subprocess, mock_config):
         """Test displaying build status."""
         mock_subprocess.return_value = Mock(
@@ -443,7 +443,7 @@ class TestBuildStatusCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_status_no_builds(self, mock_subprocess, mock_config):
         """Test handling empty build list."""
         mock_subprocess.return_value = Mock(
@@ -470,7 +470,7 @@ class TestBuildStatusCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_status_ongoing_only(self, mock_subprocess, mock_config):
         """Test showing only ongoing builds."""
         mock_subprocess.return_value = Mock(
@@ -500,7 +500,7 @@ class TestBuildStatusCommand:
         cmd = mock_subprocess.call_args[0][0]
         assert "--ongoing" in cmd
 
-    @patch("epycloud.commands.build.subprocess.run")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_status_gcloud_error(self, mock_subprocess, mock_config):
         """Test handling gcloud command failure."""
         mock_subprocess.return_value = Mock(
@@ -614,7 +614,7 @@ class TestBuildDisplayStatus:
 
     def test_display_build_status_empty(self):
         """Test displaying empty build list."""
-        build._display_build_status([], 10)
+        build.display.display_build_status([], 10)
 
     def test_display_build_status_with_builds(self):
         """Test displaying builds."""
@@ -629,7 +629,7 @@ class TestBuildDisplayStatus:
             }
         ]
         # Should not raise an error
-        build._display_build_status(builds, 10)
+        build.display.display_build_status(builds, 10)
 
     def test_display_build_status_missing_fields(self):
         """Test displaying builds with missing fields."""
@@ -641,4 +641,4 @@ class TestBuildDisplayStatus:
             }
         ]
         # Should handle gracefully
-        build._display_build_status(builds, 10)
+        build.display.display_build_status(builds, 10)

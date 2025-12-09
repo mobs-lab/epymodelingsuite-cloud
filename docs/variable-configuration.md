@@ -128,12 +128,13 @@ gs://{BUCKET_NAME}/{DIR_PREFIX}{EXP_ID}/{RUN_ID}/
   runner-artifacts/
     result_0000.pkl, result_0001.pkl, ...
   outputs/
-    quantiles_compartments.csv.gz
-    quantiles_transitions.csv.gz
-    trajectories_compartments.csv.gz
-    trajectories_transitions.csv.gz
-    model_metadata.csv.gz
-    posteriors.csv.gz  (calibration only)
+    {TIMESTAMP}/                          # Timestamped subdirectory (YYYYMMDD-HHMMSS)
+      quantiles_compartments.csv.gz
+      quantiles_transitions.csv.gz
+      trajectories_compartments.csv.gz
+      trajectories_transitions.csv.gz
+      model_metadata.csv.gz
+      posteriors.csv.gz  (calibration only)
 ```
 
 **Path components:**
@@ -141,11 +142,14 @@ gs://{BUCKET_NAME}/{DIR_PREFIX}{EXP_ID}/{RUN_ID}/
 - `DIR_PREFIX` - Organizational prefix (from `storage.dir_prefix`)
 - `EXP_ID` - Experiment identifier (user provides when running workflow)
 - `RUN_ID` - Auto-generated timestamp-uuid (unique per workflow execution)
+- `TIMESTAMP` - Auto-generated when Stage C runs (format: YYYYMMDD-HHMMSS)
 
 **Output directories:**
 - `builder-artifacts/` - Stage A input files (N pickle files)
 - `runner-artifacts/` - Stage B result files (N pickle files)
-- `outputs/` - Stage C formatted CSV files (only created if `run_output_stage: true`)
+- `outputs/{TIMESTAMP}/` - Stage C formatted CSV files in timestamped subdirectory (only created if `run_output_stage: true`)
+
+**Timestamped outputs:** Each Stage C run creates a new timestamped subdirectory, allowing multiple output runs with different configurations without overwriting previous results.
 
 
 ## GitHub Authentication
@@ -283,12 +287,47 @@ epycloud build cloud
 
 These environment variables are used by the pipeline scripts during job execution and are not part of the configuration system.
 
+### Stage A/C (Builder/Output) Variables
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `FORECAST_REPO_REF` | Branch/tag/commit to checkout after cloning the forecast repo | (default branch) | `202547`, `test` |
+
+**FORECAST_REPO_REF Usage:**
+
+When `FORECAST_REPO_REF` is set, the builder and output scripts will checkout the specified ref after cloning the forecast repository:
+
+```bash
+# Via CLI
+epycloud run workflow --exp-id my-exp --forecast-repo-ref test-202546
+
+# Via config file (github.forecast_repo_ref)
+```
+
 ### Stage C (Output) Variables
 
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
 | `NUM_TASKS` | Number of Stage B result files to load | 1 | `52` |
 | `ALLOW_PARTIAL_RESULTS` | Allow generating outputs with partial results when some tasks fail | `true` | `false`, `0`, `no` |
+| `OUTPUT_CONFIG_FILE` | Specific output config filename to use | (auto-detect) | `output_projection.yaml` |
+
+**OUTPUT_CONFIG_FILE Usage:**
+
+Specify a particular output config file instead of using auto-detection. This is useful when you have multiple output configurations for different purposes (e.g., routine forecasts vs retrospective plots with new surveillance data):
+
+```bash
+# Via CLI flag
+epycloud run workflow --exp-id my-exp --output-config output_projection.yaml
+epycloud run job --local --stage output --exp-id my-exp --run-id <run_id> --num-tasks 52 --output-config output_calibration.yaml
+
+# Via environment variable (for advanced use)
+OUTPUT_CONFIG_FILE=output_projection.yaml epycloud run job --local --stage output ...
+```
+
+When not specified, Stage C uses this resolution order:
+1. `output.yaml` or `output.yml` in the experiment's config directory
+2. Auto-detection by scanning YAML files for `outputs` key
 
 **ALLOW_PARTIAL_RESULTS Usage:**
 
@@ -334,6 +373,7 @@ If you have existing `.env` files, migrate to the unified config system:
 | `IMAGE_NAME` | `docker.image_name` |
 | `IMAGE_TAG` | `docker.image_tag` |
 | `GITHUB_FORECAST_REPO` | `github.forecast_repo` |
+| `FORECAST_REPO_REF` | `github.forecast_repo_ref` |
 | `GITHUB_MODELING_SUITE_REPO` | `github.modeling_suite_repo` |
 | `GITHUB_MODELING_SUITE_REF` | `github.modeling_suite_ref` |
 | `DIR_PREFIX` | `storage.dir_prefix` |

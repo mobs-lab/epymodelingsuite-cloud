@@ -32,7 +32,8 @@ services:
       - RUN_ID=${RUN_ID}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - STORAGE_VERBOSE=${STORAGE_VERBOSE:-true}
-    entrypoint: ["python", "/scripts/main_runner.py"]
+      - PYTHONUNBUFFERED=1
+    entrypoint: ["python", "-u", "/scripts/main_runner.py"]
     # Additional args can be passed with: docker compose run runner [args]
     command: []
 
@@ -49,6 +50,7 @@ services:
       - EXP_ID=${EXP_ID}
       - RUN_ID=${RUN_ID}
       - NUM_TASKS=${NUM_TASKS:-1}
+      - OUTPUT_CONFIG_FILE=${OUTPUT_CONFIG_FILE:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - STORAGE_VERBOSE=${STORAGE_VERBOSE:-true}
     entrypoint: ["python", "/scripts/main_output.py"]

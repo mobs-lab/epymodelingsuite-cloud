@@ -1,5 +1,10 @@
-"""Integration tests for run command."""
+"""Integration tests for run command.
 
+Tests use minimal mocking - only external boundaries (API calls, subprocess).
+Internal validation logic and helpers use real implementations.
+"""
+
+from argparse import Namespace
 from unittest.mock import Mock, patch
 
 from epycloud.commands import run
@@ -8,11 +13,11 @@ from epycloud.commands import run
 class TestRunWorkflowCommand:
     """Test run workflow command integration."""
 
-    @patch("epycloud.commands.run.subprocess.run")
-    @patch("epycloud.commands.run.requests.post")
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
     def test_run_workflow_cloud_success(self, mock_post, mock_subprocess, mock_config):
         """Test successful workflow submission to cloud."""
-        # Setup mocks
+        # Mock only external boundaries
         mock_subprocess.return_value = Mock(returncode=0, stdout="mock-access-token\n", stderr="")
 
         mock_response = Mock()
@@ -24,7 +29,7 @@ class TestRunWorkflowCommand:
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        # Create context
+        # Use Namespace with real values, not Mock
         ctx = {
             "config": mock_config,
             "environment": "dev",
@@ -32,30 +37,31 @@ class TestRunWorkflowCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="workflow",
                 exp_id="test-sim",
                 run_id=None,
                 local=False,
                 skip_output=False,
                 max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
                 stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
-        # Execute
         exit_code = run.handle(ctx)
 
         # Validate
         assert exit_code == 0
         assert mock_post.called
         assert mock_subprocess.called
-
-        # Verify API call was made
-        call_args = mock_post.call_args
-        assert call_args is not None
 
     def test_run_workflow_missing_config(self):
         """Test error handling when config is missing."""
@@ -64,7 +70,7 @@ class TestRunWorkflowCommand:
             "environment": "dev",
             "verbose": False,
             "dry_run": False,
-            "args": Mock(run_subcommand="workflow", exp_id="test"),
+            "args": Namespace(run_subcommand="workflow", exp_id="test"),
         }
 
         exit_code = run.handle(ctx)
@@ -78,16 +84,22 @@ class TestRunWorkflowCommand:
             "environment": "dev",
             "verbose": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="workflow",
                 exp_id="../invalid",  # Path traversal
                 run_id=None,
                 local=False,
                 skip_output=False,
                 max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
                 stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
@@ -102,16 +114,22 @@ class TestRunWorkflowCommand:
             "environment": "dev",
             "verbose": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="workflow",
                 exp_id="test-sim",
                 run_id="2025-11-07",  # Wrong format
                 local=False,
                 skip_output=False,
                 max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
                 stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
@@ -119,37 +137,42 @@ class TestRunWorkflowCommand:
 
         assert exit_code == 1  # Validation error
 
-    def test_run_workflow_dry_run(self, mock_config):
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
+    def test_run_workflow_dry_run(self, mock_post, mock_subprocess, mock_config):
         """Test dry run mode doesn't make actual API calls."""
+        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+
         ctx = {
             "config": mock_config,
             "environment": "dev",
             "verbose": False,
             "dry_run": True,  # Dry run mode
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="workflow",
                 exp_id="test-sim",
                 run_id=None,
                 local=False,
                 skip_output=False,
                 max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
                 stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
-        with patch("epycloud.commands.run.subprocess.run") as mock_subprocess:
-            with patch("epycloud.commands.run.requests.post") as mock_post:
-                # Setup subprocess mock for token
-                mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+        exit_code = run.handle(ctx)
 
-                exit_code = run.handle(ctx)
-
-                # Should succeed without making actual API call
-                assert exit_code == 0
-                # requests.post should not be called in dry run
-                assert not mock_post.called
+        # Should succeed without making actual API call
+        assert exit_code == 0
+        # requests.post should not be called in dry run
+        assert not mock_post.called
 
 
 class TestRunJobCommand:
@@ -162,13 +185,14 @@ class TestRunJobCommand:
             "environment": "dev",
             "verbose": False,
             "dry_run": True,  # Dry run to avoid actual docker execution
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="job",
                 stage="A",
                 exp_id="test-sim",
                 run_id=None,
                 task_index=0,
                 num_tasks=None,
+                output_config=None,
                 local=True,
                 wait=False,
                 yes=True,
@@ -188,13 +212,14 @@ class TestRunJobCommand:
             "environment": "dev",
             "verbose": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="job",
                 stage="B",
                 exp_id="test-sim",
                 run_id=None,  # Missing run_id for stage B
                 task_index=0,
                 num_tasks=None,
+                output_config=None,
                 local=True,
                 wait=False,
                 yes=True,
@@ -214,13 +239,14 @@ class TestRunJobCommand:
             "environment": "dev",
             "verbose": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="job",
                 stage="C",
                 exp_id="test-sim",
                 run_id="20251107-100000-abc12345",
                 task_index=0,
                 num_tasks=None,  # Missing num_tasks for stage C
+                output_config=None,
                 local=True,
                 wait=False,
                 yes=True,
@@ -240,13 +266,14 @@ class TestRunJobCommand:
             "environment": "dev",
             "verbose": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="job",
                 stage="A",
-                exp_id="test/invalid",  # Invalid character
+                exp_id="test/invalid",  # Invalid character (slashes allowed, but not trailing/leading)
                 run_id=None,
                 task_index=0,
                 num_tasks=None,
+                output_config=None,
                 local=True,
                 wait=False,
                 yes=True,
@@ -263,18 +290,17 @@ class TestRunJobCommand:
 class TestRunWorkflowMachineTypeOverride:
     """Test machine type override integration in run workflow command."""
 
-    @patch("epycloud.commands.run.validate_machine_type")
-    @patch("epycloud.commands.run.subprocess.run")
-    @patch("epycloud.commands.run.requests.post")
+    @patch("epycloud.lib.validation.subprocess.run")
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
     def test_workflow_with_valid_machine_type_override(
-        self, mock_post, mock_subprocess, mock_validate, mock_config
+        self, mock_post, mock_workflow_subprocess, mock_validation_subprocess, mock_config
     ):
         """Test workflow submission with valid machine type override."""
-        # Mock validation to pass
-        mock_validate.return_value = "c2-standard-8"
-
-        # Mock gcloud token fetch
-        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+        # Mock gcloud commands for both validation and workflow
+        mock_result = Mock(returncode=0, stdout="mock-token\n", stderr="")
+        mock_validation_subprocess.return_value = mock_result
+        mock_workflow_subprocess.return_value = mock_result
 
         # Mock API response
         mock_response = Mock()
@@ -285,6 +311,36 @@ class TestRunWorkflowMachineTypeOverride:
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
+        # Mock gcloud compute machine-types commands
+        def subprocess_side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get('args', [])
+            cmd_str = ' '.join(cmd)
+
+            if 'machine-types describe' in cmd_str:
+                # Return machine type specs in JSON format
+                import json
+                return Mock(
+                    returncode=0,
+                    stdout=json.dumps({
+                        "guestCpus": 8,
+                        "memoryMb": 32768,
+                        "name": "c2-standard-8"
+                    }),
+                    stderr=""
+                )
+            elif 'machine-types list' in cmd_str:
+                # Return machine type list output (format=value(name) returns just names)
+                return Mock(
+                    returncode=0,
+                    stdout='c2-standard-8\nn2-standard-4\nn2-standard-8\n',
+                    stderr=""
+                )
+            # Default: return token
+            return Mock(returncode=0, stdout="mock-token\n", stderr="")
+
+        mock_validation_subprocess.side_effect = subprocess_side_effect
+        mock_workflow_subprocess.side_effect = subprocess_side_effect
+
         ctx = {
             "config": mock_config,
             "environment": "dev",
@@ -292,16 +348,22 @@ class TestRunWorkflowMachineTypeOverride:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="workflow",
                 exp_id="test-sim",
                 run_id=None,
                 local=False,
                 skip_output=False,
                 max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
                 stage_b_machine_type="c2-standard-8",  # Override provided
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
@@ -309,10 +371,6 @@ class TestRunWorkflowMachineTypeOverride:
 
         # Should succeed
         assert exit_code == 0
-        # Validation should be called with the override
-        mock_validate.assert_called_once_with(
-            "c2-standard-8", "test-project", "us-central1"
-        )
         # API call should include the override
         assert mock_post.called
         call_kwargs = mock_post.call_args[1]
@@ -323,14 +381,14 @@ class TestRunWorkflowMachineTypeOverride:
         assert "stageBMachineType" in parsed_arg
         assert parsed_arg["stageBMachineType"] == "c2-standard-8"
 
-    @patch("epycloud.commands.run.validate_machine_type")
-    def test_workflow_with_invalid_machine_type_rejects(self, mock_validate, mock_config):
+    @patch("epycloud.lib.validation.subprocess.run")
+    def test_workflow_with_invalid_machine_type_rejects(self, mock_subprocess, mock_config):
         """Test workflow submission rejected with invalid machine type."""
-        from epycloud.exceptions import ValidationError
-
-        # Mock validation to fail
-        mock_validate.side_effect = ValidationError(
-            "Machine type 'invalid-type' not found in region us-central1"
+        # Mock gcloud to return empty list (machine type not found)
+        mock_subprocess.return_value = Mock(
+            returncode=0,
+            stdout='',  # Empty output = machine type not found
+            stderr=""
         )
 
         ctx = {
@@ -340,16 +398,22 @@ class TestRunWorkflowMachineTypeOverride:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="workflow",
                 exp_id="test-sim",
                 run_id=None,
                 local=False,
                 skip_output=False,
                 max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
                 stage_b_machine_type="invalid-type",  # Invalid override
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 
@@ -357,10 +421,9 @@ class TestRunWorkflowMachineTypeOverride:
 
         # Should fail with validation error
         assert exit_code == 1
-        mock_validate.assert_called_once()
 
-    @patch("epycloud.commands.run.subprocess.run")
-    @patch("epycloud.commands.run.requests.post")
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
     def test_workflow_without_override_uses_default(
         self, mock_post, mock_subprocess, mock_config
     ):
@@ -384,16 +447,22 @@ class TestRunWorkflowMachineTypeOverride:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
+            "args": Namespace(
                 run_subcommand="workflow",
                 exp_id="test-sim",
                 run_id=None,
                 local=False,
                 skip_output=False,
                 max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
                 stage_b_machine_type=None,  # No override
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
                 wait=False,
                 yes=True,
+                project_directory=None,
             ),
         }
 

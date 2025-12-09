@@ -42,9 +42,8 @@ class TestValidateExpId:
         with pytest.raises(ValidationError, match="Must contain only"):
             validate_exp_id("test exp")  # Space
 
-        # Forward slash is caught by path traversal check first
-        with pytest.raises(ValidationError, match="Path traversal"):
-            validate_exp_id("test/exp")  # Forward slash
+        # Forward slash is now allowed for nested directories
+        assert validate_exp_id("test/exp") == "test/exp"
 
     def test_invalid_exp_id_path_traversal(self):
         """Test path traversal attempts are rejected."""
@@ -55,9 +54,9 @@ class TestValidateExpId:
             validate_exp_id("test/../exp")
 
     def test_invalid_exp_id_too_long(self):
-        """Test experiment ID length limit."""
+        """Test experiment ID length limit (max 200 chars)."""
         with pytest.raises(ValidationError, match="too long"):
-            validate_exp_id("a" * 101)
+            validate_exp_id("a" * 201)
 
 
 class TestValidateRunId:

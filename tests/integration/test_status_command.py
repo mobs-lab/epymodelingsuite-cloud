@@ -6,15 +6,20 @@ from unittest.mock import Mock, patch, call
 import pytest
 
 from epycloud.commands import status
+from epycloud.commands.status.operations import (
+    fetch_active_workflows,
+    fetch_active_batch_jobs,
+    display_status,
+)
 
 
 class TestStatusShowCommand:
     """Test status show command (one-time check)."""
 
-    @patch("epycloud.commands.status._fetch_active_batch_jobs")
-    @patch("epycloud.commands.status._fetch_active_workflows")
-    @patch("epycloud.commands.status.get_google_cloud_config")
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.commands.status.handlers.fetch_active_batch_jobs")
+    @patch("epycloud.commands.status.handlers.fetch_active_workflows")
+    @patch("epycloud.commands.status.handlers.get_google_cloud_config")
+    @patch("epycloud.commands.status.handlers.require_config")
     def test_status_show_once(
         self,
         mock_require_config,
@@ -50,10 +55,10 @@ class TestStatusShowCommand:
         mock_fetch_workflows.assert_called_once()
         mock_fetch_jobs.assert_called_once()
 
-    @patch("epycloud.commands.status._fetch_active_batch_jobs")
-    @patch("epycloud.commands.status._fetch_active_workflows")
-    @patch("epycloud.commands.status.get_google_cloud_config")
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.commands.status.handlers.fetch_active_batch_jobs")
+    @patch("epycloud.commands.status.handlers.fetch_active_workflows")
+    @patch("epycloud.commands.status.handlers.get_google_cloud_config")
+    @patch("epycloud.commands.status.handlers.require_config")
     def test_status_no_active_jobs(
         self,
         mock_require_config,
@@ -87,10 +92,10 @@ class TestStatusShowCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.status._fetch_active_batch_jobs")
-    @patch("epycloud.commands.status._fetch_active_workflows")
-    @patch("epycloud.commands.status.get_google_cloud_config")
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.commands.status.handlers.fetch_active_batch_jobs")
+    @patch("epycloud.commands.status.handlers.fetch_active_workflows")
+    @patch("epycloud.commands.status.handlers.get_google_cloud_config")
+    @patch("epycloud.commands.status.handlers.require_config")
     def test_status_with_active_workflows(
         self,
         mock_require_config,
@@ -130,10 +135,10 @@ class TestStatusShowCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.status._fetch_active_batch_jobs")
-    @patch("epycloud.commands.status._fetch_active_workflows")
-    @patch("epycloud.commands.status.get_google_cloud_config")
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.commands.status.handlers.fetch_active_batch_jobs")
+    @patch("epycloud.commands.status.handlers.fetch_active_workflows")
+    @patch("epycloud.commands.status.handlers.get_google_cloud_config")
+    @patch("epycloud.commands.status.handlers.require_config")
     def test_status_with_active_batch_jobs(
         self,
         mock_require_config,
@@ -188,10 +193,10 @@ class TestStatusShowCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.status._fetch_active_batch_jobs")
-    @patch("epycloud.commands.status._fetch_active_workflows")
-    @patch("epycloud.commands.status.get_google_cloud_config")
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.commands.status.handlers.fetch_active_batch_jobs")
+    @patch("epycloud.commands.status.handlers.fetch_active_workflows")
+    @patch("epycloud.commands.status.handlers.get_google_cloud_config")
+    @patch("epycloud.commands.status.handlers.require_config")
     def test_status_filter_by_exp_id(
         self,
         mock_require_config,
@@ -232,8 +237,8 @@ class TestStatusShowCommand:
 class TestStatusFetchFunctions:
     """Test status fetch helper functions."""
 
-    @patch("epycloud.commands.status._get_access_token")
-    @patch("epycloud.commands.status.requests.get")
+    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_success(self, mock_get, mock_token):
         """Test fetching active workflows from API."""
         mock_token.return_value = "test-token"
@@ -256,7 +261,8 @@ class TestStatusFetchFunctions:
         )
         mock_get.return_value.raise_for_status = Mock()
 
-        workflows = status._fetch_active_workflows(
+
+        workflows = fetch_active_workflows(
             project_id="test-project",
             region="us-central1",
             exp_id=None,
@@ -266,8 +272,8 @@ class TestStatusFetchFunctions:
         assert len(workflows) == 2
         mock_get.assert_called_once()
 
-    @patch("epycloud.commands.status._get_access_token")
-    @patch("epycloud.commands.status.requests.get")
+    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_filter_by_exp_id(self, mock_get, mock_token):
         """Test filtering workflows by exp_id."""
         mock_token.return_value = "test-token"
@@ -288,7 +294,8 @@ class TestStatusFetchFunctions:
         )
         mock_get.return_value.raise_for_status = Mock()
 
-        workflows = status._fetch_active_workflows(
+
+        workflows = fetch_active_workflows(
             project_id="test-project",
             region="us-central1",
             exp_id="test-flu",
@@ -298,8 +305,8 @@ class TestStatusFetchFunctions:
         assert len(workflows) == 1
         assert "test-flu" in workflows[0]["argument"]
 
-    @patch("epycloud.commands.status._get_access_token")
-    @patch("epycloud.commands.status.requests.get")
+    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_empty(self, mock_get, mock_token):
         """Test empty workflow list."""
         mock_token.return_value = "test-token"
@@ -309,7 +316,8 @@ class TestStatusFetchFunctions:
         )
         mock_get.return_value.raise_for_status = Mock()
 
-        workflows = status._fetch_active_workflows(
+
+        workflows = fetch_active_workflows(
             project_id="test-project",
             region="us-central1",
             exp_id=None,
@@ -318,14 +326,14 @@ class TestStatusFetchFunctions:
 
         assert len(workflows) == 0
 
-    @patch("epycloud.commands.status._get_access_token")
-    @patch("epycloud.commands.status.requests.get")
+    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_api_error(self, mock_get, mock_token):
         """Test API error resilience."""
         mock_token.return_value = "test-token"
         mock_get.side_effect = Exception("API error")
 
-        workflows = status._fetch_active_workflows(
+        workflows = fetch_active_workflows(
             project_id="test-project",
             region="us-central1",
             exp_id=None,
@@ -335,7 +343,7 @@ class TestStatusFetchFunctions:
         # Should return empty list on error
         assert workflows == []
 
-    @patch("epycloud.commands.status.subprocess.run")
+    @patch("epycloud.commands.status.operations.subprocess.run")
     def test_fetch_active_batch_jobs_success(self, mock_subprocess):
         """Test fetching active batch jobs."""
         mock_subprocess.return_value = Mock(
@@ -352,7 +360,7 @@ class TestStatusFetchFunctions:
             stderr="",
         )
 
-        jobs = status._fetch_active_batch_jobs(
+        jobs = fetch_active_batch_jobs(
             project_id="test-project",
             region="us-central1",
             exp_id=None,
@@ -362,7 +370,7 @@ class TestStatusFetchFunctions:
         assert len(jobs) == 1
         assert jobs[0]["labels"]["stage"] == "runner"
 
-    @patch("epycloud.commands.status.subprocess.run")
+    @patch("epycloud.commands.status.operations.subprocess.run")
     def test_fetch_active_batch_jobs_empty(self, mock_subprocess):
         """Test empty batch jobs list."""
         mock_subprocess.return_value = Mock(
@@ -371,7 +379,7 @@ class TestStatusFetchFunctions:
             stderr="",
         )
 
-        jobs = status._fetch_active_batch_jobs(
+        jobs = fetch_active_batch_jobs(
             project_id="test-project",
             region="us-central1",
             exp_id=None,
@@ -380,7 +388,7 @@ class TestStatusFetchFunctions:
 
         assert len(jobs) == 0
 
-    @patch("epycloud.commands.status.subprocess.run")
+    @patch("epycloud.commands.status.operations.subprocess.run")
     def test_fetch_active_batch_jobs_with_exp_id_filter(self, mock_subprocess):
         """Test batch jobs with exp_id filter."""
         mock_subprocess.return_value = Mock(
@@ -389,7 +397,7 @@ class TestStatusFetchFunctions:
             stderr="",
         )
 
-        jobs = status._fetch_active_batch_jobs(
+        jobs = fetch_active_batch_jobs(
             project_id="test-project",
             region="us-central1",
             exp_id="test-flu",
@@ -400,12 +408,12 @@ class TestStatusFetchFunctions:
         call_args = mock_subprocess.call_args[0][0]
         assert any("labels.exp_id=test-flu" in arg for arg in call_args)
 
-    @patch("epycloud.commands.status.subprocess.run")
+    @patch("epycloud.commands.status.operations.subprocess.run")
     def test_fetch_active_batch_jobs_gcloud_error(self, mock_subprocess):
         """Test gcloud error resilience."""
         mock_subprocess.side_effect = Exception("gcloud error")
 
-        jobs = status._fetch_active_batch_jobs(
+        jobs = fetch_active_batch_jobs(
             project_id="test-project",
             region="us-central1",
             exp_id=None,
@@ -422,7 +430,7 @@ class TestStatusDisplayFunction:
     def test_display_status_empty(self):
         """Test displaying empty status."""
         # Should not raise any errors
-        status._display_status([], [], None)
+        display_status([], [], None)
 
     def test_display_status_with_workflows(self):
         """Test displaying workflows."""
@@ -434,7 +442,7 @@ class TestStatusDisplayFunction:
             }
         ]
         # Should not raise any errors
-        status._display_status(workflows, [], None)
+        display_status(workflows, [], None)
 
     def test_display_status_with_jobs(self):
         """Test displaying batch jobs."""
@@ -457,12 +465,12 @@ class TestStatusDisplayFunction:
             }
         ]
         # Should not raise any errors
-        status._display_status([], jobs, None)
+        display_status([], jobs, None)
 
     def test_display_status_with_filter(self):
         """Test displaying status with filter."""
         # Should not raise any errors
-        status._display_status([], [], "test-flu")
+        display_status([], [], "test-flu")
 
     def test_display_status_invalid_argument_json(self):
         """Test displaying workflow with invalid argument JSON."""
@@ -474,7 +482,7 @@ class TestStatusDisplayFunction:
             }
         ]
         # Should handle gracefully
-        status._display_status(workflows, [], None)
+        display_status(workflows, [], None)
 
     def test_display_status_missing_task_groups(self):
         """Test displaying jobs with missing task groups."""
@@ -486,17 +494,17 @@ class TestStatusDisplayFunction:
             }
         ]
         # Should handle gracefully
-        status._display_status([], jobs, None)
+        display_status([], jobs, None)
 
 
 class TestStatusWatchMode:
     """Test status watch mode."""
 
-    @patch("epycloud.commands.status._fetch_active_batch_jobs")
-    @patch("epycloud.commands.status._fetch_active_workflows")
-    @patch("epycloud.commands.status.time.sleep")
-    @patch("epycloud.commands.status.get_google_cloud_config")
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.commands.status.handlers.fetch_active_batch_jobs")
+    @patch("epycloud.commands.status.handlers.fetch_active_workflows")
+    @patch("epycloud.commands.status.handlers.time.sleep")
+    @patch("epycloud.commands.status.handlers.get_google_cloud_config")
+    @patch("epycloud.commands.status.handlers.require_config")
     def test_status_watch_mode_interrupt(
         self,
         mock_require_config,
@@ -537,7 +545,7 @@ class TestStatusWatchMode:
 class TestStatusMissingConfig:
     """Test status command with missing configuration."""
 
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.lib.command_helpers.require_config")
     def test_status_missing_config(self, mock_require_config):
         """Test error when config is missing."""
         from epycloud.exceptions import ConfigError
@@ -558,8 +566,8 @@ class TestStatusMissingConfig:
 
         assert exit_code == 2
 
-    @patch("epycloud.commands.status.get_google_cloud_config")
-    @patch("epycloud.commands.status.require_config")
+    @patch("epycloud.commands.status.handlers.get_google_cloud_config")
+    @patch("epycloud.commands.status.handlers.require_config")
     def test_status_missing_project_id(self, mock_require_config, mock_gcloud_config, mock_config):
         """Test error when project_id is missing."""
         mock_require_config.return_value = mock_config

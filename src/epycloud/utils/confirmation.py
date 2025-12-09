@@ -21,6 +21,92 @@ def _heading(text: str) -> str:
     return colorize(f"[{text}]", Colors.CYAN)
 
 
+def _format_workflow_details(info: dict[str, Any], exp_id: str, run_id: str, mode: str) -> list[str]:
+    """Format workflow details section.
+
+    Parameters
+    ----------
+    info : dict[str, Any]
+        Confirmation info dictionary
+    exp_id : str
+        Experiment ID
+    run_id : str
+        Run ID
+    mode : str
+        Execution mode ('cloud' or 'local')
+
+    Returns
+    -------
+    list[str]
+        Lines for workflow details section
+    """
+    lines = []
+    lines.append(_heading("Workflow Details"))
+    lines.append(f"  Experiment ID: {exp_id}")
+    lines.append(f"  Run ID: {run_id}")
+
+    if mode == "cloud":
+        if "max_parallelism" in info:
+            lines.append(f"  Max parallelism: {info['max_parallelism']}")
+        # Show machine type overrides for all stages
+        if "stage_a_machine_type" in info and info["stage_a_machine_type"]:
+            override_marker = " (override)" if info.get("stage_a_machine_type_override") else ""
+            lines.append(f"  Stage A machine type: {info['stage_a_machine_type']}{override_marker}")
+        if "stage_b_machine_type" in info and info["stage_b_machine_type"]:
+            override_marker = " (override)" if info.get("stage_b_machine_type_override") else ""
+            lines.append(f"  Stage B machine type: {info['stage_b_machine_type']}{override_marker}")
+        if "stage_c_machine_type" in info and info["stage_c_machine_type"]:
+            override_marker = " (override)" if info.get("stage_c_machine_type_override") else ""
+            lines.append(f"  Stage C machine type: {info['stage_c_machine_type']}{override_marker}")
+
+    if "skip_output" in info:
+        output_status = "disabled" if info["skip_output"] else "enabled"
+        lines.append(f"  Stage C (output): {output_status}")
+    if "output_config" in info and info["output_config"]:
+        lines.append(f"  Output config: {info['output_config']}")
+
+    if mode == "cloud" and "storage_path" in info:
+        lines.append(f"  Storage path: {info['storage_path']}")
+
+    return lines
+
+
+def _format_job_details(info: dict[str, Any], exp_id: str, run_id: str) -> list[str]:
+    """Format job details section.
+
+    Parameters
+    ----------
+    info : dict[str, Any]
+        Confirmation info dictionary
+    exp_id : str
+        Experiment ID
+    run_id : str
+        Run ID
+
+    Returns
+    -------
+    list[str]
+        Lines for job details section
+    """
+    stage = info.get("stage", "")
+    stage_name = {"A": "Builder", "B": "Runner", "C": "Output"}.get(stage, stage)
+
+    lines = []
+    lines.append(_heading("Job Details"))
+    lines.append(f"  Experiment ID: {exp_id}")
+    lines.append(f"  Stage: {stage} ({stage_name})")
+    lines.append(f"  Run ID: {run_id}")
+
+    if "task_index" in info and stage == "B":
+        lines.append(f"  Task index: {info['task_index']}")
+    if "num_tasks" in info and stage == "C":
+        lines.append(f"  Num tasks: {info['num_tasks']}")
+    if "output_config" in info and info["output_config"] and stage == "C":
+        lines.append(f"  Output config: {info['output_config']}")
+
+    return lines
+
+
 def format_confirmation(info: dict[str, Any], mode: str) -> str:
     """Format confirmation information with sections.
 
@@ -90,7 +176,9 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
                     f"  epymodelingsuite repo: {info['modeling_suite_repo']}@{info['modeling_suite_ref']}"
                 )
             if "forecast_repo" in info:
-                lines.append(f"  Forecast repo: {info['forecast_repo']}")
+                forecast_ref = info.get("forecast_repo_ref", "")
+                ref_display = f"@{forecast_ref}" if forecast_ref else ""
+                lines.append(f"  Forecast repo: {info['forecast_repo']}{ref_display}")
             if "pat_configured" in info:
                 pat_status = "✓ configured" if info["pat_configured"] else "✗ not configured"
                 lines.append(f"  GitHub PAT: {pat_status}")
@@ -98,37 +186,9 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
 
         # [Workflow Details] or [Job Details]
         if command_type == "workflow":
-            lines.append(_heading("Workflow Details"))
-            lines.append(f"  Experiment ID: {exp_id}")
-            lines.append(f"  Run ID: {run_id}")
-            if "max_parallelism" in info:
-                lines.append(f"  Max parallelism: {info['max_parallelism']}")
-            # Show machine type overrides for all stages
-            if "stage_a_machine_type" in info and info["stage_a_machine_type"]:
-                override_marker = " (override)" if info.get("stage_a_machine_type_override") else ""
-                lines.append(f"  Stage A machine type: {info['stage_a_machine_type']}{override_marker}")
-            if "stage_b_machine_type" in info and info["stage_b_machine_type"]:
-                override_marker = " (override)" if info.get("stage_b_machine_type_override") else ""
-                lines.append(f"  Stage B machine type: {info['stage_b_machine_type']}{override_marker}")
-            if "stage_c_machine_type" in info and info["stage_c_machine_type"]:
-                override_marker = " (override)" if info.get("stage_c_machine_type_override") else ""
-                lines.append(f"  Stage C machine type: {info['stage_c_machine_type']}{override_marker}")
-            if "skip_output" in info:
-                output_status = "disabled" if info["skip_output"] else "enabled"
-                lines.append(f"  Stage C (output): {output_status}")
-            if "storage_path" in info:
-                lines.append(f"  Storage path: {info['storage_path']}")
+            lines.extend(_format_workflow_details(info, exp_id, run_id, mode))
         else:  # job
-            stage = info.get("stage", "")
-            stage_name = {"A": "Builder", "B": "Runner", "C": "Output"}.get(stage, stage)
-            lines.append(_heading("Job Details"))
-            lines.append(f"  Experiment ID: {exp_id}")
-            lines.append(f"  Stage: {stage} ({stage_name})")
-            lines.append(f"  Run ID: {run_id}")
-            if "task_index" in info and stage == "B":
-                lines.append(f"  Task index: {info['task_index']}")
-            if "num_tasks" in info and stage == "C":
-                lines.append(f"  Num tasks: {info['num_tasks']}")
+            lines.extend(_format_job_details(info, exp_id, run_id))
         lines.append("")
 
         # [Resources] (job only)
@@ -166,23 +226,9 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
 
         # [Workflow Details] or [Job Details]
         if command_type == "workflow":
-            lines.append(_heading("Workflow Details"))
-            lines.append(f"  Experiment ID: {exp_id}")
-            lines.append(f"  Run ID: {run_id}")
-            if "skip_output" in info:
-                output_status = "disabled" if info["skip_output"] else "enabled"
-                lines.append(f"  Stage C (output): {output_status}")
+            lines.extend(_format_workflow_details(info, exp_id, run_id, mode))
         else:  # job
-            stage = info.get("stage", "")
-            stage_name = {"A": "Builder", "B": "Runner", "C": "Output"}.get(stage, stage)
-            lines.append(_heading("Job Details"))
-            lines.append(f"  Experiment ID: {exp_id}")
-            lines.append(f"  Stage: {stage} ({stage_name})")
-            lines.append(f"  Run ID: {run_id}")
-            if "task_index" in info and stage == "B":
-                lines.append(f"  Task index: {info['task_index']}")
-            if "num_tasks" in info and stage == "C":
-                lines.append(f"  Num tasks: {info['num_tasks']}")
+            lines.extend(_format_job_details(info, exp_id, run_id))
         lines.append("")
 
         # [Docker Image]

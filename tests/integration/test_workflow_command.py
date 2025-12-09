@@ -12,8 +12,8 @@ from epycloud.commands import workflow
 class TestWorkflowListCommand:
     """Test workflow list command."""
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_list_success(self, mock_get, mock_token, mock_config):
         """Test successful listing of workflow executions."""
         mock_token.return_value = "test-token"
@@ -80,8 +80,8 @@ class TestWorkflowListCommand:
         assert mock_get.called
         assert mock_token.called
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_list_with_status_filter(self, mock_get, mock_token, mock_config):
         """Test listing with status filter."""
         mock_token.return_value = "test-token"
@@ -112,10 +112,10 @@ class TestWorkflowListCommand:
         assert exit_code == 0
         # Check that filter was included in URL
         call_args = mock_get.call_args
-        assert "filter=state=FAILED" in call_args[0][0]
+        assert 'filter=state="FAILED"' in call_args[0][0]
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_list_with_exp_id_filter(self, mock_get, mock_token, mock_config):
         """Test listing with exp_id filter."""
         mock_token.return_value = "test-token"
@@ -161,8 +161,8 @@ class TestWorkflowListCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_list_empty_result(self, mock_get, mock_token, mock_config):
         """Test handling when no executions found."""
         mock_token.return_value = "test-token"
@@ -192,8 +192,8 @@ class TestWorkflowListCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_list_api_error(self, mock_get, mock_token, mock_config):
         """Test handling of API errors."""
         mock_token.return_value = "test-token"
@@ -259,8 +259,8 @@ class TestWorkflowListCommand:
 class TestWorkflowDescribeCommand:
     """Test workflow describe command."""
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_describe_success(self, mock_get, mock_token, mock_config):
         """Test successful describe of workflow execution."""
         mock_token.return_value = "test-token"
@@ -296,8 +296,8 @@ class TestWorkflowDescribeCommand:
         assert exit_code == 0
         assert mock_get.called
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_describe_not_found(self, mock_get, mock_token, mock_config):
         """Test handling of 404 for unknown execution."""
         mock_token.return_value = "test-token"
@@ -327,8 +327,8 @@ class TestWorkflowDescribeCommand:
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_describe_with_full_name(self, mock_get, mock_token, mock_config):
         """Test describe with full execution name."""
         mock_token.return_value = "test-token"
@@ -366,8 +366,8 @@ class TestWorkflowDescribeCommand:
 class TestWorkflowCancelCommand:
     """Test workflow cancel command."""
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.post")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
     def test_workflow_cancel_success(self, mock_post, mock_token, mock_config):
         """Test successful cancellation of running workflow."""
         mock_token.return_value = "test-token"
@@ -397,8 +397,8 @@ class TestWorkflowCancelCommand:
         call_args = mock_post.call_args
         assert ":cancel" in call_args[0][0]
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.post")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
     def test_workflow_cancel_already_done(self, mock_post, mock_token, mock_config):
         """Test canceling already completed workflow."""
         mock_token.return_value = "test-token"
@@ -451,9 +451,9 @@ class TestWorkflowCancelCommand:
 class TestWorkflowRetryCommand:
     """Test workflow retry command."""
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.post")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_retry_success(self, mock_get, mock_post, mock_token, mock_config):
         """Test successful retry of failed workflow."""
         mock_token.return_value = "test-token"
@@ -501,8 +501,8 @@ class TestWorkflowRetryCommand:
         submitted_arg = json.loads(post_call_args[1]["json"]["argument"])
         assert submitted_arg["exp_id"] == "test-exp"
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_retry_not_found(self, mock_get, mock_token, mock_config):
         """Test retry of non-existent execution."""
         mock_token.return_value = "test-token"
@@ -532,8 +532,8 @@ class TestWorkflowRetryCommand:
 
         assert exit_code == 1
 
-    @patch("epycloud.commands.workflow.get_gcloud_access_token")
-    @patch("epycloud.commands.workflow.requests.get")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
     def test_workflow_retry_dry_run(self, mock_get, mock_token, mock_config):
         """Test retry dry run mode."""
         mock_token.return_value = "test-token"
@@ -561,7 +561,7 @@ class TestWorkflowRetryCommand:
             ),
         }
 
-        with patch("epycloud.commands.workflow.requests.post") as mock_post:
+        with patch("epycloud.commands.workflow.api.requests.post") as mock_post:
             exit_code = workflow.handle(ctx)
 
             assert exit_code == 0
@@ -572,7 +572,7 @@ class TestWorkflowRetryCommand:
 class TestWorkflowLogsCommand:
     """Test workflow logs command."""
 
-    @patch("epycloud.commands.workflow.subprocess.run")
+    @patch("epycloud.commands.workflow.streaming.subprocess.run")
     def test_workflow_logs_success(self, mock_subprocess, mock_config):
         """Test fetching workflow logs."""
         mock_subprocess.return_value = Mock(
@@ -614,7 +614,7 @@ class TestWorkflowLogsCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.workflow.subprocess.run")
+    @patch("epycloud.commands.workflow.streaming.subprocess.run")
     def test_workflow_logs_empty(self, mock_subprocess, mock_config):
         """Test handling empty logs."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -638,7 +638,7 @@ class TestWorkflowLogsCommand:
 
         assert exit_code == 0
 
-    @patch("epycloud.commands.workflow.subprocess.run")
+    @patch("epycloud.commands.workflow.streaming.subprocess.run")
     def test_workflow_logs_gcloud_error(self, mock_subprocess, mock_config):
         """Test handling gcloud command failure."""
         from subprocess import CalledProcessError
@@ -672,7 +672,7 @@ class TestWorkflowHelperFunctions:
 
     def test_parse_execution_name_short_id(self):
         """Test parsing short execution ID."""
-        result = workflow._parse_execution_name(
+        result = workflow.api.parse_execution_name(
             "exec-123", "my-project", "us-central1", "my-workflow"
         )
         expected = (
@@ -683,13 +683,13 @@ class TestWorkflowHelperFunctions:
     def test_parse_execution_name_full_path(self):
         """Test parsing full execution path."""
         full_path = "projects/p/locations/l/workflows/w/executions/e"
-        result = workflow._parse_execution_name(full_path, "x", "y", "z")
+        result = workflow.api.parse_execution_name(full_path, "x", "y", "z")
         assert result == full_path
 
     def test_parse_timestamp_utc(self):
         """Test parsing UTC timestamp."""
         ts = "2025-11-16T10:00:00Z"
-        result = workflow._parse_timestamp(ts)
+        result = workflow.handlers._parse_timestamp(ts)
         assert result.year == 2025
         assert result.month == 11
         assert result.day == 16
@@ -697,12 +697,12 @@ class TestWorkflowHelperFunctions:
     def test_parse_timestamp_with_offset(self):
         """Test parsing timestamp with offset."""
         ts = "2025-11-16T10:00:00+00:00"
-        result = workflow._parse_timestamp(ts)
+        result = workflow.handlers._parse_timestamp(ts)
         assert result.year == 2025
 
     def test_parse_timestamp_invalid(self):
         """Test parsing invalid timestamp."""
-        result = workflow._parse_timestamp("invalid")
+        result = workflow.handlers._parse_timestamp("invalid")
         from datetime import datetime
 
         assert result == datetime.min.replace(tzinfo=result.tzinfo)
@@ -744,3 +744,366 @@ class TestWorkflowNoSubcommand:
         exit_code = workflow.handle(ctx)
 
         assert exit_code == 2
+
+
+class TestWorkflowListErrorPaths:
+    """Test error handling in workflow list command."""
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_list_network_error(self, mock_get, mock_token, mock_config):
+        """Test handling of network errors during list."""
+        mock_token.return_value = "test-token"
+        mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="list",
+                limit=20,
+                status=None,
+                exp_id=None,
+                since=None,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_list_json_decode_error(self, mock_get, mock_token, mock_config):
+        """Test handling of malformed JSON responses."""
+        mock_token.return_value = "test-token"
+
+        # Mock response with malformed JSON
+        error_response = Mock()
+        error_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
+        error_response.raise_for_status = Mock()
+        mock_get.return_value = error_response
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="list",
+                limit=20,
+                status=None,
+                exp_id=None,
+                since=None,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_list_enrichment_failure(self, mock_get, mock_token, mock_config):
+        """Test handling when enrichment (describe) calls fail for some executions."""
+        mock_token.return_value = "test-token"
+
+        # Mock list response
+        list_response = Mock()
+        list_response.json.return_value = {
+            "executions": [
+                {
+                    "name": "projects/test-project/locations/us-central1/"
+                    "workflows/epymodelingsuite-pipeline/executions/exec-123",
+                    "state": "SUCCEEDED",
+                    "startTime": "2025-11-16T10:00:00Z",
+                },
+            ]
+        }
+        list_response.raise_for_status = Mock()
+
+        # Mock describe failure (404)
+        error_response = Mock()
+        error_response.status_code = 404
+        http_error = requests.HTTPError()
+        http_error.response = error_response
+        error_response.raise_for_status = Mock(side_effect=http_error)
+
+        mock_get.side_effect = [list_response, error_response]
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="list",
+                limit=20,
+                status=None,
+                exp_id=None,
+                since=None,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Should still succeed (show executions without enrichment)
+        assert exit_code == 0
+
+
+class TestWorkflowCancelErrorPaths:
+    """Test error handling in workflow cancel command."""
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_workflow_cancel_network_error(self, mock_post, mock_token, mock_config):
+        """Test handling of network errors during cancel."""
+        mock_token.return_value = "test-token"
+        mock_post.side_effect = requests.ConnectionError("Network unreachable")
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_workflow_cancel_not_found(self, mock_post, mock_token, mock_config):
+        """Test canceling non-existent workflow."""
+        mock_token.return_value = "test-token"
+
+        error_response = Mock()
+        error_response.status_code = 404
+        error_response.text = "Execution not found"
+        http_error = requests.HTTPError()
+        http_error.response = error_response
+        error_response.raise_for_status = Mock(side_effect=http_error)
+        mock_post.return_value = error_response
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="nonexistent-exec",
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+
+class TestWorkflowRetryErrorPaths:
+    """Test error handling in workflow retry command."""
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_retry_malformed_argument(self, mock_get, mock_token, mock_config):
+        """Test retry when original execution has malformed argument."""
+        mock_token.return_value = "test-token"
+
+        get_response = Mock()
+        get_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/failed-exec",
+            "state": "FAILED",
+            "argument": "not-valid-json",  # Malformed JSON
+        }
+        get_response.raise_for_status = Mock()
+        mock_get.return_value = get_response
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="retry",
+                execution_id="failed-exec",
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Should fail gracefully
+        assert exit_code == 1
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_retry_submission_failure(self, mock_get, mock_post, mock_token, mock_config):
+        """Test retry when new submission fails."""
+        mock_token.return_value = "test-token"
+
+        # Mock get for fetching original execution
+        get_response = Mock()
+        get_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/failed-exec",
+            "state": "FAILED",
+            "argument": json.dumps({"exp_id": "test-exp", "run_id": "run-123"}),
+        }
+        get_response.raise_for_status = Mock()
+        mock_get.return_value = get_response
+
+        # Mock post failure
+        error_response = Mock()
+        error_response.status_code = 500
+        error_response.text = "Internal Server Error"
+        http_error = requests.HTTPError()
+        http_error.response = error_response
+        error_response.raise_for_status = Mock(side_effect=http_error)
+        mock_post.return_value = error_response
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="retry",
+                execution_id="failed-exec",
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_retry_network_error(self, mock_get, mock_token, mock_config):
+        """Test retry with network error."""
+        mock_token.return_value = "test-token"
+        mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="retry",
+                execution_id="failed-exec",
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+
+class TestWorkflowDescribeErrorPaths:
+    """Test error handling in workflow describe command."""
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_describe_network_error(self, mock_get, mock_token, mock_config):
+        """Test describe with network error."""
+        mock_token.return_value = "test-token"
+        mock_get.side_effect = requests.ConnectionError("Network unreachable")
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="describe",
+                execution_id="exec-123",
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.get")
+    def test_workflow_describe_malformed_json(self, mock_get, mock_token, mock_config):
+        """Test describe with malformed JSON response."""
+        mock_token.return_value = "test-token"
+
+        mock_response = Mock()
+        mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="describe",
+                execution_id="exec-123",
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        assert exit_code == 1
+
+
+class TestWorkflowExecutionNameParsing:
+    """Test execution name parsing edge cases."""
+
+    def test_parse_execution_name_with_special_chars(self):
+        """Test parsing execution ID with special characters."""
+        result = workflow.api.parse_execution_name(
+            "exec-123-abc_def", "my-project", "us-central1", "my-workflow"
+        )
+        expected = (
+            "projects/my-project/locations/us-central1/workflows/"
+            "my-workflow/executions/exec-123-abc_def"
+        )
+        assert result == expected
+
+    def test_parse_execution_name_empty_id(self):
+        """Test parsing empty execution ID."""
+        result = workflow.api.parse_execution_name("", "my-project", "us-central1", "my-workflow")
+        expected = "projects/my-project/locations/us-central1/workflows/my-workflow/executions/"
+        assert result == expected
+
+    def test_parse_execution_name_partial_path(self):
+        """Test parsing partial path (should treat as short ID)."""
+        partial = "workflows/my-workflow/executions/exec-123"
+        result = workflow.api.parse_execution_name(partial, "p", "us-central1", "w")
+        # Should treat as short ID since it doesn't start with "projects/"
+        expected = f"projects/p/locations/us-central1/workflows/w/executions/{partial}"
+        assert result == expected

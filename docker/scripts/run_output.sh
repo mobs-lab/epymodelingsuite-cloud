@@ -111,18 +111,18 @@ clone_forecast_repo() {
         exit 1
     fi
 
-    echo "Cloning forecast repository: $FORECAST_REPO"
-
     # Remove existing directory if present
     if [ -d "$FORECAST_REPO_DIR" ]; then
         echo "Removing existing directory..."
         rm -rf "$FORECAST_REPO_DIR"
     fi
 
+    echo "Cloning forecast repository: $FORECAST_REPO"
+
     # Clone the repository using HTTPS with PAT
     # Format: https://oauth2:TOKEN@github.com/owner/repo.git
     REPO_URL="https://oauth2:${GITHUB_PAT}@github.com/${FORECAST_REPO}.git"
-    git clone "$REPO_URL" "$FORECAST_REPO_DIR"
+    git clone --quiet "$REPO_URL" "$FORECAST_REPO_DIR"
 
     echo "✓ Repository cloned to: $FORECAST_REPO_DIR"
 

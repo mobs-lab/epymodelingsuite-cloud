@@ -109,6 +109,14 @@ def resolve_configs(
     # Identify each YAML file by parsing its structure
     unidentified_files = []
 
+    # Track multiple files of same type for better error handling
+    config_candidates = {
+        "basemodel": [],
+        "sampling": [],
+        "calibration": [],
+        "output": [],
+    }
+
     for yaml_file in yaml_files:
         try:
             config_type = identify_config_type(str(yaml_file))
@@ -122,14 +130,42 @@ def resolve_configs(
             unidentified_files.append((yaml_file.name, "Unknown config structure"))
             continue
 
-        # Check for duplicates
-        if configs[config_type] is not None:
-            raise ValueError(
-                f"Multiple {config_type} config files found in {exp_config_dir}: "
-                f"{Path(configs[config_type]).name} and {yaml_file.name}"
-            )
+        # Collect all candidates for each type
+        config_candidates[config_type].append(yaml_file)
 
-        configs[config_type] = str(yaml_file)
+    # Process candidates with prioritization
+    for config_type, candidates in config_candidates.items():
+        if len(candidates) == 0:
+            continue
+        elif len(candidates) == 1:
+            configs[config_type] = str(candidates[0])
+        else:
+            # Multiple files of same type found
+            # For output configs, prioritize output.yaml/output.yml
+            if config_type == "output":
+                prioritized = None
+                for candidate in candidates:
+                    if candidate.name in ["output.yaml", "output.yml"]:
+                        prioritized = candidate
+                        break
+
+                if prioritized:
+                    configs[config_type] = str(prioritized)
+                    _logger.info(
+                        f"Multiple output configs found, using prioritized: {prioritized.name}"
+                    )
+                else:
+                    # No prioritized name found, raise error
+                    raise ValueError(
+                        f"Multiple output config files found with no output.yaml/output.yml: "
+                        f"{[c.name for c in candidates]}"
+                    )
+            else:
+                # For other config types, raise error on duplicates
+                raise ValueError(
+                    f"Multiple {config_type} config files found in {exp_config_dir}: "
+                    f"{[c.name for c in candidates]}"
+                )
 
     # Log unidentified files as warnings (not errors)
     if unidentified_files:
@@ -138,6 +174,103 @@ def resolve_configs(
             _logger.warning(f"  - {filename}: {reason}")
 
     return configs
+
+
+def resolve_output_config(
+    exp_id: str,
+    output_config_filename: str | None = None,
+    config_dir: str = "/data/forecast/experiments",
+) -> str:
+    """Resolve output config file for an experiment.
+
+    If a specific filename is provided, validates the file exists and is a valid
+    output config. Otherwise, tries common names (output.yaml/output.yml) first,
+    then falls back to auto-detection via resolve_configs().
+
+    Parameters
+    ----------
+    exp_id : str
+        Experiment ID (e.g., 'test-sim', 'flu_round05', 'test/my-exp')
+    output_config_filename : str | None
+        Specific output config filename (e.g., "output_projection.yaml")
+        If None, tries output.yaml/output.yml first, then falls back to auto-detection
+    config_dir : str
+        Base directory for experiments (default: '/data/forecast/experiments')
+
+    Returns
+    -------
+    str
+        Absolute path to the output config file
+
+    Raises
+    ------
+    FileNotFoundError
+        If specified file not found or no output config detected
+    ValueError
+        If file doesn't contain valid output config structure
+    """
+    # Find the experiment config directory (handles nested paths)
+    exp_config_dir = Path(config_dir) / exp_id / "config"
+
+    # If direct path doesn't exist, search for the experiment
+    if not exp_config_dir.exists():
+        base_dir = Path(config_dir)
+        exp_name = exp_id.split("/")[-1] if "/" in exp_id else exp_id
+
+        found_paths = []
+        top_level_path = base_dir / exp_name / "config"
+        if top_level_path.exists():
+            found_paths.append(top_level_path)
+        found_paths.extend(base_dir.glob(f"*/{exp_name}/config"))
+
+        if not found_paths:
+            raise FileNotFoundError(
+                f"Config directory not found for exp_id '{exp_id}': {exp_config_dir}"
+            )
+        if len(found_paths) > 1:
+            raise ValueError(
+                f"Multiple config directories found for exp_id '{exp_id}': {found_paths}"
+            )
+        exp_config_dir = found_paths[0]
+
+    # If specific filename provided, validate and return
+    if output_config_filename:
+        output_config_path = exp_config_dir / output_config_filename
+        if not output_config_path.exists():
+            raise FileNotFoundError(
+                f"Output config file not found: {output_config_path}"
+            )
+
+        # Validate it's a valid output config
+        config_type = identify_config_type(str(output_config_path))
+        if config_type != "output":
+            raise ValueError(
+                f"File '{output_config_filename}' is not a valid output config "
+                f"(detected type: {config_type})"
+            )
+
+        _logger.info(f"Using specified output config: {output_config_path}")
+        return str(output_config_path)
+
+    # Try common names first: output.yaml, output.yml
+    for common_name in ["output.yaml", "output.yml"]:
+        candidate = exp_config_dir / common_name
+        if candidate.exists():
+            config_type = identify_config_type(str(candidate))
+            if config_type == "output":
+                _logger.info(f"Found output config: {candidate}")
+                return str(candidate)
+
+    # Fall back to auto-detection
+    config_paths = resolve_configs(exp_id, config_dir)
+    if config_paths["output"]:
+        _logger.info(f"Auto-detected output config: {config_paths['output']}")
+        return config_paths["output"]
+
+    raise FileNotFoundError(
+        f"No output config found for exp_id '{exp_id}'. "
+        f"Searched in: {exp_config_dir}"
+    )
 
 
 def load_all_configs(

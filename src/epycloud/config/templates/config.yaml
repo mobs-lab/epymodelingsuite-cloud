@@ -51,6 +51,7 @@ github:
   modeling_suite_repo: mobs-lab/epymodelingsuite
   modeling_suite_ref: main
   # forecast_repo is profile-specific
+  forecast_repo_ref: ""  # Branch/tag/commit for forecast repo (empty = default branch)
 
 # Logging configuration
 logging:
