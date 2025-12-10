@@ -101,6 +101,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Execution ID or full execution name",
     )
 
+    cancel_parser.add_argument(
+        "--only-workflow",
+        action="store_true",
+        help="Cancel only the workflow execution, not child batch jobs (default: false)",
+    )
+
     # ========== workflow retry ==========
     retry_parser = workflow_subparsers.add_parser(
         "retry",

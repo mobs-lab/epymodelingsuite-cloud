@@ -366,15 +366,28 @@ class TestWorkflowDescribeCommand:
 class TestWorkflowCancelCommand:
     """Test workflow cancel command."""
 
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
     @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
     @patch("epycloud.commands.workflow.api.requests.post")
-    def test_workflow_cancel_success(self, mock_post, mock_token, mock_config):
+    def test_workflow_cancel_success(
+        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+    ):
         """Test successful cancellation of running workflow."""
         mock_token.return_value = "test-token"
 
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
+
+        # Mock execution with run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
+        }
+
+        # Mock empty list of batch jobs
+        mock_list_jobs.return_value = []
 
         ctx = {
             "config": mock_config,
@@ -386,6 +399,7 @@ class TestWorkflowCancelCommand:
             "args": Mock(
                 workflow_subcommand="cancel",
                 execution_id="exec-123",
+                only_workflow=False,
             ),
         }
 
@@ -397,11 +411,24 @@ class TestWorkflowCancelCommand:
         call_args = mock_post.call_args
         assert ":cancel" in call_args[0][0]
 
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
     @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
     @patch("epycloud.commands.workflow.api.requests.post")
-    def test_workflow_cancel_already_done(self, mock_post, mock_token, mock_config):
+    def test_workflow_cancel_already_done(
+        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+    ):
         """Test canceling already completed workflow."""
         mock_token.return_value = "test-token"
+
+        # Mock execution with run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
+        }
+
+        # Mock empty list of batch jobs
+        mock_list_jobs.return_value = []
 
         error_response = Mock()
         error_response.status_code = 400
@@ -421,6 +448,7 @@ class TestWorkflowCancelCommand:
             "args": Mock(
                 workflow_subcommand="cancel",
                 execution_id="exec-123",
+                only_workflow=False,
             ),
         }
 
@@ -440,6 +468,7 @@ class TestWorkflowCancelCommand:
             "args": Mock(
                 workflow_subcommand="cancel",
                 execution_id="exec-123",
+                only_workflow=False,
             ),
         }
 
@@ -862,11 +891,21 @@ class TestWorkflowListErrorPaths:
 class TestWorkflowCancelErrorPaths:
     """Test error handling in workflow cancel command."""
 
+    @patch("epycloud.commands.workflow.api.get_execution")
     @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
     @patch("epycloud.commands.workflow.api.requests.post")
-    def test_workflow_cancel_network_error(self, mock_post, mock_token, mock_config):
+    def test_workflow_cancel_network_error(
+        self, mock_post, mock_token, mock_get_exec, mock_config
+    ):
         """Test handling of network errors during cancel."""
         mock_token.return_value = "test-token"
+
+        # Mock execution with run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
+        }
+
         mock_post.side_effect = requests.ConnectionError("Network unreachable")
 
         ctx = {
@@ -879,6 +918,7 @@ class TestWorkflowCancelErrorPaths:
             "args": Mock(
                 workflow_subcommand="cancel",
                 execution_id="exec-123",
+                only_workflow=False,
             ),
         }
 
@@ -886,19 +926,22 @@ class TestWorkflowCancelErrorPaths:
 
         assert exit_code == 1
 
+    @patch("epycloud.commands.workflow.api.get_execution")
     @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
     @patch("epycloud.commands.workflow.api.requests.post")
-    def test_workflow_cancel_not_found(self, mock_post, mock_token, mock_config):
+    def test_workflow_cancel_not_found(
+        self, mock_post, mock_token, mock_get_exec, mock_config
+    ):
         """Test canceling non-existent workflow."""
         mock_token.return_value = "test-token"
 
+        # Mock 404 from get_execution
         error_response = Mock()
         error_response.status_code = 404
         error_response.text = "Execution not found"
         http_error = requests.HTTPError()
         http_error.response = error_response
-        error_response.raise_for_status = Mock(side_effect=http_error)
-        mock_post.return_value = error_response
+        mock_get_exec.side_effect = http_error
 
         ctx = {
             "config": mock_config,
@@ -910,12 +953,445 @@ class TestWorkflowCancelErrorPaths:
             "args": Mock(
                 workflow_subcommand="cancel",
                 execution_id="nonexistent-exec",
+                only_workflow=False,
             ),
         }
 
         exit_code = workflow.handle(ctx)
 
         assert exit_code == 1
+
+
+class TestWorkflowCancelWithBatchJobs:
+    """Test workflow cancel with batch job cascade cancellation."""
+
+    @patch("epycloud.commands.workflow.api.cancel_batch_job")
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_with_batch_jobs_cascade(
+        self,
+        mock_post,
+        mock_token,
+        mock_get_exec,
+        mock_list_jobs,
+        mock_cancel_job,
+        mock_config,
+    ):
+        """Test canceling workflow with active batch jobs (default cascade behavior)."""
+        mock_token.return_value = "test-token"
+
+        # Mock successful workflow cancel
+        mock_cancel_response = Mock()
+        mock_cancel_response.status_code = 200
+        mock_cancel_response.json.return_value = {"name": "test-execution"}
+        mock_post.return_value = mock_cancel_response
+
+        # Mock execution with run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
+        }
+
+        # Mock 3 active batch jobs
+        mock_list_jobs.return_value = [
+            {
+                "name": "projects/test/locations/us-central1/jobs/builder-job",
+                "labels": {"stage": "builder", "run_id": "20251210-120000-abcd1234"},
+            },
+            {
+                "name": "projects/test/locations/us-central1/jobs/runner-job",
+                "labels": {"stage": "runner", "run_id": "20251210-120000-abcd1234"},
+            },
+            {
+                "name": "projects/test/locations/us-central1/jobs/output-job",
+                "labels": {"stage": "output", "run_id": "20251210-120000-abcd1234"},
+            },
+        ]
+
+        # Mock successful batch job cancellation
+        mock_cancel_job.return_value = {"name": "job-cancelled"}
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify workflow was cancelled
+        assert exit_code == 0
+        assert mock_post.call_count == 1
+
+        # Verify execution details were fetched
+        assert mock_get_exec.call_count == 1
+
+        # Verify batch jobs were listed
+        assert mock_list_jobs.call_count == 1
+        mock_list_jobs.assert_called_with("test-project", "us-central1", "20251210-120000-abcd1234", False)
+
+        # Verify all 3 batch jobs were cancelled
+        assert mock_cancel_job.call_count == 3
+
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_only_workflow_flag(
+        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+    ):
+        """Test --only-workflow flag prevents batch job cancellation."""
+        mock_token.return_value = "test-token"
+
+        # Mock successful workflow cancel
+        mock_cancel_response = Mock()
+        mock_cancel_response.status_code = 200
+        mock_cancel_response.json.return_value = {"name": "test-execution"}
+        mock_post.return_value = mock_cancel_response
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=True,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify workflow was cancelled
+        assert exit_code == 0
+        assert mock_post.call_count == 1
+
+        # Verify execution details were NOT fetched
+        assert mock_get_exec.call_count == 0
+
+        # Verify batch jobs were NOT listed
+        assert mock_list_jobs.call_count == 0
+
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_no_run_id_in_execution(
+        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+    ):
+        """Test cancellation when execution has no run_id."""
+        mock_token.return_value = "test-token"
+
+        # Mock successful workflow cancel
+        mock_cancel_response = Mock()
+        mock_cancel_response.status_code = 200
+        mock_cancel_response.json.return_value = {"name": "test-execution"}
+        mock_post.return_value = mock_cancel_response
+
+        # Mock execution without run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"exp_id": "test-exp"}),  # No run_id
+        }
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify workflow was cancelled successfully
+        assert exit_code == 0
+
+        # Verify execution details were fetched
+        assert mock_get_exec.call_count == 1
+
+        # Verify batch jobs were NOT listed (no run_id)
+        assert mock_list_jobs.call_count == 0
+
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_no_batch_jobs_found(
+        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+    ):
+        """Test cancellation when no active batch jobs exist."""
+        mock_token.return_value = "test-token"
+
+        # Mock successful workflow cancel
+        mock_cancel_response = Mock()
+        mock_cancel_response.status_code = 200
+        mock_cancel_response.json.return_value = {"name": "test-execution"}
+        mock_post.return_value = mock_cancel_response
+
+        # Mock execution with run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
+        }
+
+        # Mock empty list of batch jobs
+        mock_list_jobs.return_value = []
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify success
+        assert exit_code == 0
+
+        # Verify batch jobs were listed
+        assert mock_list_jobs.call_count == 1
+
+    @patch("epycloud.commands.workflow.api.cancel_batch_job")
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_partial_batch_failure(
+        self,
+        mock_post,
+        mock_token,
+        mock_get_exec,
+        mock_list_jobs,
+        mock_cancel_job,
+        mock_config,
+    ):
+        """Test cancellation when some batch jobs fail to cancel."""
+        mock_token.return_value = "test-token"
+
+        # Mock successful workflow cancel
+        mock_cancel_response = Mock()
+        mock_cancel_response.status_code = 200
+        mock_cancel_response.json.return_value = {"name": "test-execution"}
+        mock_post.return_value = mock_cancel_response
+
+        # Mock execution with run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
+        }
+
+        # Mock 3 batch jobs
+        mock_list_jobs.return_value = [
+            {
+                "name": "projects/test/locations/us-central1/jobs/job1",
+                "labels": {"stage": "builder", "run_id": "20251210-120000-abcd1234"},
+            },
+            {
+                "name": "projects/test/locations/us-central1/jobs/job2",
+                "labels": {"stage": "runner", "run_id": "20251210-120000-abcd1234"},
+            },
+            {
+                "name": "projects/test/locations/us-central1/jobs/job3",
+                "labels": {"stage": "output", "run_id": "20251210-120000-abcd1234"},
+            },
+        ]
+
+        # Mock: first two succeed, third fails with HTTP 500
+        error_response = Mock()
+        error_response.status_code = 500
+        http_error = requests.HTTPError()
+        http_error.response = error_response
+
+        mock_cancel_job.side_effect = [
+            {"name": "job1-cancelled"},
+            {"name": "job2-cancelled"},
+            http_error,
+        ]
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify workflow was still cancelled successfully
+        assert exit_code == 0
+
+        # Verify all 3 batch jobs were attempted
+        assert mock_cancel_job.call_count == 3
+
+    @patch("epycloud.commands.workflow.api.cancel_batch_job")
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_batch_job_already_done(
+        self,
+        mock_post,
+        mock_token,
+        mock_get_exec,
+        mock_list_jobs,
+        mock_cancel_job,
+        mock_config,
+    ):
+        """Test cancellation when batch job is already completed."""
+        mock_token.return_value = "test-token"
+
+        # Mock successful workflow cancel
+        mock_cancel_response = Mock()
+        mock_cancel_response.status_code = 200
+        mock_cancel_response.json.return_value = {"name": "test-execution"}
+        mock_post.return_value = mock_cancel_response
+
+        # Mock execution with run_id
+        mock_get_exec.return_value = {
+            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
+            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
+        }
+
+        # Mock 1 batch job
+        mock_list_jobs.return_value = [
+            {
+                "name": "projects/test/locations/us-central1/jobs/job1",
+                "labels": {"stage": "builder", "run_id": "20251210-120000-abcd1234"},
+            }
+        ]
+
+        # Mock HTTP 400 (already completed)
+        error_response = Mock()
+        error_response.status_code = 400
+        http_error = requests.HTTPError()
+        http_error.response = error_response
+        mock_cancel_job.side_effect = http_error
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify success (HTTP 400 treated as info, not error)
+        assert exit_code == 0
+
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
+    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_execution_fetch_fails(
+        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+    ):
+        """Test cancellation when execution details cannot be fetched."""
+        mock_token.return_value = "test-token"
+
+        # Mock execution fetch failure with HTTP 500
+        error_response = Mock()
+        error_response.status_code = 500
+        http_error = requests.HTTPError()
+        http_error.response = error_response
+        mock_get_exec.side_effect = http_error
+
+        # Mock successful workflow cancel
+        mock_cancel_response = Mock()
+        mock_cancel_response.status_code = 200
+        mock_cancel_response.json.return_value = {"name": "test-execution"}
+        mock_post.return_value = mock_cancel_response
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify workflow was still cancelled successfully
+        assert exit_code == 0
+
+        # Verify batch jobs were NOT listed (couldn't get run_id)
+        assert mock_list_jobs.call_count == 0
+
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    def test_cancel_dry_run_with_cascade(self, mock_token, mock_config):
+        """Test dry run doesn't actually cancel anything."""
+        mock_token.return_value = "test-token"
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": True,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        exit_code = workflow.handle(ctx)
+
+        # Verify success
+        assert exit_code == 0
+
+        # Verify no token was actually used (dry run exits early)
+        assert mock_token.call_count == 0
 
 
 class TestWorkflowRetryErrorPaths:
