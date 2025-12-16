@@ -44,9 +44,9 @@ epycloud config edit
 
 # Option 2: Copy config files to ~/.config/epymodelingsuite-cloud/
 mkdir -p ~/.config/epymodelingsuite-cloud/{environments,profiles}
-cp config.yaml ~/.config/epymodelingsuite-cloud/
-cp env_default.yaml ~/.config/epymodelingsuite-cloud/environments/
-cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/
+cp config.yaml ~/.config/epymodelingsuite-cloud/config.yaml
+cp env_default.yaml ~/.config/epymodelingsuite-cloud/environments/default.yaml
+cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/flu.yaml
 
 # Add your GitHub Personal Access Token
 epycloud config edit-secrets
@@ -140,9 +140,9 @@ epycloud config edit
 
 # Option 2: Copy config files to ~/.config/epymodelingsuite-cloud/
 mkdir -p ~/.config/epymodelingsuite-cloud/{environments,profiles}
-cp config.yaml ~/.config/epymodelingsuite-cloud/
-cp env_default.yaml ~/.config/epymodelingsuite-cloud/environments/
-cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/
+cp config.yaml ~/.config/epymodelingsuite-cloud/config.yaml
+cp env_default.yaml ~/.config/epymodelingsuite-cloud/environments/default.yaml
+cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/flu.yaml
 
 # Add secrets (GitHub PAT, etc.)
 epycloud config edit-secrets
