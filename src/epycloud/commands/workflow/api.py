@@ -286,3 +286,117 @@ def parse_execution_name(
         f"projects/{project_id}/locations/{region}/"
         f"workflows/{workflow_name}/executions/{execution_id}"
     )
+
+
+def list_batch_jobs_for_run(
+    project_id: str,
+    region: str,
+    run_id: str,
+    verbose: bool = False,
+) -> list[dict[str, Any]]:
+    """List batch jobs associated with a workflow run.
+
+    Uses gcloud CLI to list batch jobs filtered by run_id label.
+    Only returns jobs in RUNNING, QUEUED, or SCHEDULED states.
+
+    Parameters
+    ----------
+    project_id : str
+        GCP project ID
+    region : str
+        GCP region
+    run_id : str
+        Run ID from workflow execution
+    verbose : bool
+        Enable verbose output
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        List of batch job objects
+
+    Raises
+    ------
+    CloudAPIError
+        If gcloud command fails
+    """
+    import subprocess
+
+    from epycloud.lib.validation import sanitize_label_value
+
+    try:
+        # Sanitize run_id for label filtering (must match what was set in job creation)
+        run_id_label = sanitize_label_value(run_id)
+
+        # Build gcloud command filter
+        # Note: Multiple state checks need parentheses for OR grouping
+        state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
+        filter_expr = f"{state_filter} AND labels.run_id={run_id_label}"
+
+        cmd = [
+            "gcloud",
+            "batch",
+            "jobs",
+            "list",
+            f"--project={project_id}",
+            f"--location={region}",
+            "--format=json",
+            f"--filter={filter_expr}",
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        if not result.stdout.strip():
+            return []
+
+        jobs = json.loads(result.stdout)
+        return jobs
+
+    except Exception as e:
+        if verbose:
+            from epycloud.lib.output import warning
+
+            warning(f"Failed to list batch jobs for run {run_id}: {e}")
+        return []
+
+
+def cancel_batch_job(
+    job_name: str,
+    token: str,
+) -> dict[str, Any]:
+    """Cancel a Cloud Batch job.
+
+    Parameters
+    ----------
+    job_name : str
+        Full job name (projects/.../locations/.../jobs/...)
+    token : str
+        OAuth access token
+
+    Returns
+    -------
+    dict[str, Any]
+        Response from cancel API
+
+    Raises
+    ------
+    requests.HTTPError
+        If API request fails
+    """
+    cancel_url = f"https://batch.googleapis.com/v1/{job_name}:cancel"
+
+    response = requests.post(
+        cancel_url,
+        json={},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+    )
+    response.raise_for_status()
+    return response.json()
