@@ -653,8 +653,7 @@ The Docker Compose setup (defined in [docker-compose.yml](../docker-compose.yml)
     experiments/            # YAML experiment configurations
 ```
 
-The storage abstraction layer in the scripts automatically detects `EXECUTION_MODE=local` and uses `/data/bucket/` instead of `gs://bucket-name/`. See [local-docker-design.md](local-docker-design.md) for implementation details.
-
+The storage abstraction layer in the scripts automatically detects `EXECUTION_MODE=local` and uses `/data/bucket/` instead of `gs://bucket-name/`.
 
 ## 7) Scripts
 
