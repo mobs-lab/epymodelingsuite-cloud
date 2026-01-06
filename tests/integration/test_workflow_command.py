@@ -1583,3 +1583,40 @@ class TestWorkflowExecutionNameParsing:
         # Should treat as short ID since it doesn't start with "projects/"
         expected = f"projects/p/locations/us-central1/workflows/w/executions/{partial}"
         assert result == expected
+
+
+class TestListBatchJobsForRun:
+    """Test list_batch_jobs_for_run filter format."""
+
+    @patch("subprocess.run")
+    def test_list_batch_jobs_filter_format(self, mock_subprocess):
+        """Test that gcloud filter uses quotes around label values."""
+        mock_subprocess.return_value = Mock(
+            returncode=0,
+            stdout=json.dumps([]),
+            stderr="",
+        )
+
+        from epycloud.commands.workflow.api import list_batch_jobs_for_run
+
+        list_batch_jobs_for_run("test-project", "us-central1", "20251210-120000-abcd1234", False)
+
+        # Verify gcloud command was called with correct filter format
+        cmd = mock_subprocess.call_args[0][0]
+
+        # Find the filter argument (it's in format --filter=value)
+        filter_arg = None
+        for arg in cmd:
+            if arg.startswith("--filter="):
+                filter_arg = arg.split("=", 1)[1]
+                break
+
+        assert filter_arg is not None, "Filter argument not found in gcloud command"
+
+        # Verify label value is quoted
+        assert 'labels.run_id="20251210-120000-abcd1234"' in filter_arg
+
+        # Verify state filter is present
+        assert "status.state:RUNNING" in filter_arg
+        assert "status.state:QUEUED" in filter_arg
+        assert "status.state:SCHEDULED" in filter_arg

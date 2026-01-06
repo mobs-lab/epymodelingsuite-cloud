@@ -331,7 +331,7 @@ def list_batch_jobs_for_run(
         # Build gcloud command filter
         # Note: Multiple state checks need parentheses for OR grouping
         state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
-        filter_expr = f"{state_filter} AND labels.run_id={run_id_label}"
+        filter_expr = f'{state_filter} AND labels.run_id="{run_id_label}"'
 
         cmd = [
             "gcloud",
