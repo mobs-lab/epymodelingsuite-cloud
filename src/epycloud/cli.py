@@ -166,6 +166,10 @@ def main() -> int:
             info("Run 'epycloud config init' to initialize configuration")
             return 2
 
+    # Determine dry_run: command-level takes precedence over global
+    # Check if subcommand has its own dry_run flag
+    dry_run = getattr(args, "dry_run", False)
+
     # Create context for commands
     ctx = {
         "config": config,
@@ -173,7 +177,7 @@ def main() -> int:
         "profile": args.profile or (config.get("_meta", {}).get("profile") if config else None),
         "verbose": args.verbose,
         "quiet": args.quiet,
-        "dry_run": args.dry_run,
+        "dry_run": dry_run,
         "args": args,
     }
 
