@@ -105,6 +105,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     workflow_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without executing",
+    )
+
+    workflow_parser.add_argument(
         "--project-directory",
         help="Docker Compose project directory (default: auto-detected)",
     )
@@ -178,6 +184,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--yes",
         action="store_true",
         help="Auto-confirm without prompting",
+    )
+
+    job_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without executing",
     )
 
     job_parser.add_argument(

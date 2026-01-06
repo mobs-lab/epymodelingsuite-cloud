@@ -160,9 +160,9 @@ def display_status(
         print()  # Blank line before section
         section_header("Active workflows")
 
-        print("-" * 120)
-        print(f"{'EXECUTION ID':<40} {'EXP_ID':<40} {'START TIME':<37}")
-        print("-" * 120)
+        print("-" * 135)
+        print(f"{'EXECUTION ID':<40} {'EXP_ID':<55} {'START TIME':<37}")
+        print("-" * 135)
 
         for workflow in workflows:
             name = workflow.get("name", "")
@@ -184,6 +184,10 @@ def display_status(
                 labels = workflow.get("labels", {})
                 exp_id = labels.get("exp_id", "unknown")
 
+            # Truncate exp_id if too long (keep first 52 chars + "...")
+            if len(exp_id) > 55:
+                exp_id = exp_id[:52] + "..."
+
             # Format start time
             start_time = workflow.get("startTime", "")
             if start_time:
@@ -191,7 +195,7 @@ def display_status(
             else:
                 start_time_str = "unknown"
 
-            print(f"{execution_id:<40} {exp_id:<40} {start_time_str:<37}")
+            print(f"{execution_id:<40} {exp_id:<55} {start_time_str:<37}")
 
         print()
 
@@ -199,9 +203,9 @@ def display_status(
     if jobs:
         section_header("Active batch jobs")
 
-        print("-" * 120)
-        print(f"{'JOB NAME':<40} {'EXP_ID':<40} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
-        print("-" * 120)
+        print("-" * 135)
+        print(f"{'JOB NAME':<40} {'EXP_ID':<55} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
+        print("-" * 135)
 
         for job in jobs:
             job_name = job.get("name", "").split("/")[-1]
@@ -219,6 +223,10 @@ def display_status(
                 task_spec = task_groups_list[0].get("taskSpec", {})
                 env_vars = task_spec.get("environment", {}).get("variables", {})
                 exp_id = env_vars.get("EXP_ID", labels.get("exp_id", "unknown"))
+
+            # Truncate exp_id if too long (keep first 52 chars + "...")
+            if len(exp_id) > 55:
+                exp_id = exp_id[:52] + "..."
 
             # Get task counts
             task_groups = status.get("taskGroups", {})
@@ -248,7 +256,7 @@ def display_status(
             status_padded = f"{state:<12}"
             status_display = format_status(status_padded, "batch")
 
-            print(f"{job_name:<40} {exp_id:<40} {stage:<8} {status_display} {tasks_str:<15}")
+            print(f"{job_name:<40} {exp_id:<55} {stage:<8} {status_display} {tasks_str:<15}")
 
         print()
 

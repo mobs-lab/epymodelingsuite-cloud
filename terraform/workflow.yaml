@@ -164,7 +164,7 @@ main:
                 stage: builder
                 managed-by: workflows
           query:
-            jobId: $${"epy-" + string(int(sys.now())) + "-stage-a"}
+            jobId: $${"stage-a-" + uniqueId}
         result: jobA
 
     - wait_for_stageA_creation:
@@ -288,7 +288,7 @@ main:
                 stage: runner
                 managed-by: workflows
           query:
-            jobId: $${"epy-" + string(int(sys.now())) + "-stage-b"}
+            jobId: $${"stage-b-" + uniqueId}
         result: jobB
 
     - wait_for_stageB_creation:
@@ -388,7 +388,7 @@ main:
                           stage: output
                           managed-by: workflows
                     query:
-                      jobId: $${"epy-" + string(int(sys.now())) + "-stage-c"}
+                      jobId: $${"stage-c-" + uniqueId}
                   result: jobC
 
               - wait_for_stageC_creation:

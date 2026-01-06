@@ -63,6 +63,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     apply_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without executing",
+    )
+
+    apply_parser.add_argument(
         "--target",
         help="Target specific resource",
     )
@@ -77,6 +83,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--auto-approve",
         action="store_true",
         help="Skip confirmation prompt",
+    )
+
+    destroy_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without executing",
     )
 
     destroy_parser.add_argument(
