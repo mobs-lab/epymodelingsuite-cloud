@@ -27,9 +27,9 @@ def display_execution_list(executions: list[dict[str, Any]], region: str) -> Non
 
     print()
     section_header("Workflow executions")
-    print("-" * 120)
-    print(f"{'EXECUTION ID':<40} {'STATUS':<12} {'START TIME':<20} {'EXP_ID':<40}")
-    print("-" * 120)
+    print("-" * 135)
+    print(f"{'EXECUTION ID':<40} {'STATUS':<12} {'START TIME':<20} {'EXP_ID':<55}")
+    print("-" * 135)
 
     for execution in executions:
         name = execution.get("name", "")
@@ -47,6 +47,10 @@ def display_execution_list(executions: list[dict[str, Any]], region: str) -> Non
         except json.JSONDecodeError:
             pass
 
+        # Truncate exp_id if too long (keep first 52 chars + "...")
+        if len(exp_id) > 55:
+            exp_id = exp_id[:52] + "..."
+
         # Format start time
         start_time_str = format_timestamp_full(start_time) if start_time else "unknown"
 
@@ -54,7 +58,7 @@ def display_execution_list(executions: list[dict[str, Any]], region: str) -> Non
         status_padded = f"{state:<12}"
         status_display = format_status(status_padded, "workflow")
 
-        print(f"{execution_id:<40} {status_display} {start_time_str:<20} {exp_id:<40}")
+        print(f"{execution_id:<40} {status_display} {start_time_str:<20} {exp_id:<55}")
 
     print()
     info(f"Total: {len(executions)} execution(s)")
