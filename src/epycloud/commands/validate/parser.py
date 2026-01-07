@@ -28,7 +28,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     group.add_argument(
         "--exp-id",
         nargs="+",
-        help="Experiment ID(s) to validate from GitHub repository (supports multiple)",
+        help="Experiment ID(s) to validate from GitHub repository (supports wildcards: *, ?, [])",
     )
     group.add_argument(
         "--path",

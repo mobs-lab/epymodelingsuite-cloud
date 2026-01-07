@@ -1,5 +1,6 @@
 """Validate operations and utilities."""
 
+import fnmatch
 import tempfile
 from base64 import b64decode
 from pathlib import Path
@@ -419,6 +420,149 @@ def fetch_github_file(
         else:
             status_code = e.response.status_code if e.response else "unknown"
             raise Exception(f"GitHub API error {status_code}")
+
+
+def expand_exp_id_pattern(
+    pattern: str,
+    forecast_repo: str,
+    github_token: str,
+    verbose: bool = False,
+) -> list[str]:
+    """Expand exp-id pattern to list of matching experiment IDs.
+
+    Supports glob patterns like:
+    - 202549/* (all experiments in directory)
+    - test-* (all experiments starting with "test-")
+    - */calibration (all "calibration" experiments in subdirectories)
+
+    Parameters
+    ----------
+    pattern : str
+        Experiment ID pattern (supports *, ?, [])
+    forecast_repo : str
+        GitHub forecast repository (owner/repo)
+    github_token : str
+        GitHub personal access token
+    verbose : bool, optional
+        Verbose output (default: False)
+
+    Returns
+    -------
+    list[str]
+        List of matching experiment IDs
+
+    Raises
+    ------
+    Exception
+        If pattern expansion fails
+    """
+    # Check if pattern contains wildcards
+    if not any(c in pattern for c in ['*', '?', '[']):
+        # No wildcards, return as-is
+        return [pattern]
+
+    # Split pattern into directory levels
+    pattern_parts = pattern.split('/')
+
+    # Fetch experiments directory listing
+    api_url = f"https://api.github.com/repos/{forecast_repo}/contents/experiments"
+
+    if verbose:
+        info(f"Fetching experiments from: {api_url}")
+
+    try:
+        response = requests.get(
+            api_url,
+            headers={
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+            },
+        )
+        response.raise_for_status()
+        items = response.json()
+
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            raise Exception(f"Experiments directory not found in {forecast_repo}")
+        else:
+            status_code = e.response.status_code if e.response else "unknown"
+            raise Exception(f"GitHub API error {status_code}")
+
+    # Filter directories
+    directories = [item["name"] for item in items if item.get("type") == "dir"]
+
+    # Handle different pattern scenarios
+    if len(pattern_parts) == 1:
+        # Simple pattern like "test-*"
+        matches = fnmatch.filter(directories, pattern_parts[0])
+    else:
+        # Multi-level pattern like "202549/*" or "*/calibration"
+        # For now, we'll handle the common case of "prefix/*"
+        if pattern_parts[1] == '*':
+            # Match first level, then fetch subdirectories
+            first_level_matches = fnmatch.filter(directories, pattern_parts[0])
+            matches = []
+            for first_level in first_level_matches:
+                # Fetch subdirectories
+                sub_api_url = f"https://api.github.com/repos/{forecast_repo}/contents/experiments/{first_level}"
+                try:
+                    sub_response = requests.get(
+                        sub_api_url,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json",
+                        },
+                    )
+                    sub_response.raise_for_status()
+                    sub_items = sub_response.json()
+                    sub_dirs = [
+                        item["name"] for item in sub_items
+                        if item.get("type") == "dir" and "config" in item["name"].lower() or item.get("type") == "dir"
+                    ]
+                    # Check if it's a valid experiment (has config directory)
+                    if any("config" in item["name"].lower() for item in sub_items if item.get("type") == "dir"):
+                        # This is likely an experiment directory with config subdirectory
+                        matches.append(first_level)
+                    else:
+                        # These might be experiment subdirectories
+                        for sub_dir in sub_dirs:
+                            matches.append(f"{first_level}/{sub_dir}")
+                except Exception as e:
+                    if verbose:
+                        warning(f"Could not fetch subdirectories for {first_level}: {e}")
+        else:
+            # General multi-level pattern matching
+            matches = []
+            for directory in directories:
+                if len(pattern_parts) == 2:
+                    # Two-level pattern
+                    exp_id = directory
+                    if fnmatch.fnmatch(exp_id, pattern_parts[0]):
+                        # Check subdirectories
+                        sub_api_url = f"https://api.github.com/repos/{forecast_repo}/contents/experiments/{directory}"
+                        try:
+                            sub_response = requests.get(
+                                sub_api_url,
+                                headers={
+                                    "Authorization": f"token {github_token}",
+                                    "Accept": "application/vnd.github.v3+json",
+                                },
+                            )
+                            sub_response.raise_for_status()
+                            sub_items = sub_response.json()
+                            sub_dirs = [item["name"] for item in sub_items if item.get("type") == "dir"]
+                            for sub_dir in fnmatch.filter(sub_dirs, pattern_parts[1]):
+                                matches.append(f"{directory}/{sub_dir}")
+                        except Exception:
+                            pass
+
+    if not matches:
+        raise Exception(f"No experiments match pattern: {pattern}")
+
+    if verbose:
+        info(f"Pattern '{pattern}' expanded to {len(matches)} experiment(s)")
+
+    return sorted(matches)
 
 
 def display_validation_results(result: dict[str, Any]) -> None:

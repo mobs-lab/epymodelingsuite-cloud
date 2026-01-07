@@ -9,6 +9,7 @@ import yaml
 
 from epycloud.commands.validate.operations import (
     display_validation_results,
+    expand_exp_id_pattern,
     validate_directory,
     validate_remote,
 )
@@ -79,13 +80,7 @@ def handle(ctx: dict[str, Any]) -> int:
 
     else:
         # Remote (GitHub) validation mode
-        try:
-            exp_ids = [validate_exp_id(eid) for eid in args.exp_id]
-        except ValidationError as e:
-            error(str(e))
-            return 1
-
-        # Get GitHub configuration
+        # Get GitHub configuration first (needed for pattern expansion)
         github = get_github_config(config)
         forecast_repo = github["forecast_repo"]
 
@@ -108,6 +103,31 @@ def handle(ctx: dict[str, Any]) -> int:
             info("  export GITHUB_TOKEN=github_pat_xxxxx (or ghp_xxxxx for classic)")
             info("  config secrets.yaml: github.personal_access_token")
             return 2
+
+        # Expand patterns and validate
+        exp_ids = []
+        for pattern in args.exp_id:
+            # Check if this is a pattern
+            if any(c in pattern for c in ['*', '?', '[']):
+                try:
+                    expanded = expand_exp_id_pattern(
+                        pattern=pattern,
+                        forecast_repo=forecast_repo,
+                        github_token=github_token,
+                        verbose=verbose,
+                    )
+                    exp_ids.extend(expanded)
+                except Exception as e:
+                    error(f"Failed to expand pattern '{pattern}': {e}")
+                    return 1
+            else:
+                # Not a pattern, validate and add directly
+                try:
+                    validated = validate_exp_id(pattern)
+                    exp_ids.append(validated)
+                except ValidationError as e:
+                    error(str(e))
+                    return 1
 
         # Handle dry-run
         if handle_dry_run(
