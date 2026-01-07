@@ -169,17 +169,31 @@ See [README.md](../README.md#glossary) for core concepts like Experiment (EXP_ID
 
 ### Environment vs Profile
 
-**Environment (dev/prod/local)** - Infrastructure target:
-- CLI flag: `epycloud --env=prod`
-- **Explicit** - always visible in commands
-- **Stateless** - no hidden state
-- Controls: Resources, GCP project, deployment target
+Both environments and profiles can override any configuration value. The examples below show typical usage patterns:
 
-**Profile (flu/covid/rsv)** - Project configuration:
-- Activation: `epycloud profile use flu`
-- **Stateful** - persists between commands
-- **Convenient** - don't repeat on every command
-- Controls: Forecast repo, default settings, project-specific resources
+**Environment (dev/prod/local)**:
+- **Usage**: `epycloud --env=prod` (explicit CLI flag, default: dev)
+- **Behavior**: Stateless - always visible in commands
+- **Typically for**: Infrastructure settings (resources, image tags, branches, parallelism)
+- **Example**: `--env=dev` for dev branch + dev image tag, `--env=prod` for production settings
+
+**Profile (flu/covid/rsv)**:
+- **Usage**: `epycloud profile use flu` (activate once, persists)
+- **Behavior**: Stateful - persists between commands
+- **Typically for**: Project settings (forecast repos, directory prefixes, project-specific defaults)
+- **Example**: Activate flu profile once, then all commands use flu settings automatically
+
+**Example:**
+```bash
+# Activate flu profile (one-time)
+epycloud profile use flu
+
+# Build dev branch with dev tag (dev environment + flu profile)
+epycloud --env=dev build cloud
+
+# Run production workflow (prod environment + flu profile)
+epycloud --env=prod run workflow --exp-id flu-2024
+```
 
 ### Execution Modes
 
@@ -223,16 +237,100 @@ epycloud supports execution of simulation/calibration both in cloud and locally.
 
 ### Configuration Hierarchy
 
-Configuration is merged in order from lowest to highest priority:
+epycloud uses a **hierarchical, stacked configuration system** where each layer can override values from lower layers. This allows you to:
+- Define common defaults in base config
+- Override for specific environments (dev/prod/local)
+- Customize for different projects/diseases (flu/covid/rsv)
+- Make temporary overrides via environment variables or command-line flags
 
-1. **Base config** - `~/.config/epymodelingsuite-cloud/config.yaml`
-2. **Environment config** - `environments/{env}.yaml` (dev/prod/local)
-3. **Profile config** - `profiles/{profile}.yaml` (flu/covid/rsv)
-4. **Project config** - `./epycloud.yaml` (optional, in current directory)
-5. **Environment variables** - `EPYCLOUD_*`
-6. **Command-line arguments** - `--project-id`, etc.
+**Override Order - Stacked Configuration Layers:**
 
-### Example Configuration
+Configuration layers stack on top of each other, with higher layers overriding lower ones:
+
+```
+┌─────────────────────────────────────┐
+│  Command-line Args                  │  ← Highest priority
+│  --project-id, --env, etc.          │
+├─────────────────────────────────────┤
+│  Environment Variables              │
+│  EPYCLOUD_PROJECT_ID, etc.          │
+├─────────────────────────────────────┤
+│  Project Config (optional)          │
+│  ./epycloud.yaml                    │
+├─────────────────────────────────────┤
+│  Profile Config                     │
+│  profiles/flu.yaml                  │
+├─────────────────────────────────────┤
+│  Environment Config                 │
+│  environments/dev.yaml              │
+├─────────────────────────────────────┤
+│  Base Config                        │
+│  config.yaml                        │
+└─────────────────────────────────────┘  ← Lowest priority
+```
+
+**How it works:**
+- Each layer can override values from layers below it
+- Unspecified values are inherited from lower layers
+- This creates a flexible, composable configuration system
+
+**Concrete Example:**
+
+```yaml
+# Base config (config.yaml)
+google_cloud:
+  project_id: my-project
+  region: us-central1
+  bucket_name: my-bucket
+pipeline:
+  max_parallelism: 50
+resources:
+  stage_b:
+    cpu_milli: 2000
+    memory_mib: 8192
+
+# Environment config (environments/dev.yaml)
+docker:
+  image_tag: dev # Use 'dev' image
+
+github:
+  modeling_suite_ref: dev # Use 'dev' branch
+
+# Profile config (profiles/flu.yaml)
+github:
+  forecast_repo: mobs-lab/flu-forecast-epydemix
+pipeline:
+  dir_prefix: pipeline/flu/  # Add flu-specific prefix
+
+# Final merged config (dev environment + flu profile):
+google_cloud:
+  project_id: my-project           # From base
+  region: us-central1              # From base
+  bucket_name: my-bucket           # From base
+docker:
+  image_tag: dev                   # From dev environment
+github:
+  modeling_suite_ref: dev          # From dev environment
+  forecast_repo: mobs-lab/flu-forecast-epydemix  # From flu profile
+pipeline:
+  max_parallelism: 50              # From base (not overridden)
+  dir_prefix: pipeline/flu/        # From flu profile
+resources:
+  stage_b:
+    cpu_milli: 2000                # From base (not overridden)
+    memory_mib: 8192               # From base (not overridden)
+```
+
+**Key Points:**
+- Using `--env dev` applies the dev environment config on top of base config
+- The `docker.image_tag` and `github.modeling_suite_ref` are set to `dev` by the dev environment
+- This means: `epycloud --env dev build cloud` will build the dev branch into a Docker image tagged as `dev`
+- Similarly: `epycloud --env dev run workflow --exp-id test` will use dev environment settings
+- The flu profile adds `github.forecast_repo` and `pipeline.dir_prefix` specific to flu forecasting
+- Values not specified in higher layers (like `pipeline.max_parallelism`) are inherited from base
+- Deep merge preserves unspecified nested values
+
+### Example Configuration Files
 
 **Base config** (`~/.config/epymodelingsuite-cloud/config.yaml`):
 ```yaml
