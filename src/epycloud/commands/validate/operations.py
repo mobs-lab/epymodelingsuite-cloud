@@ -13,6 +13,7 @@ from epycloud.lib.output import error, info, success, warning
 def validate_directory(
     config_dir: Path,
     verbose: bool,
+    quiet: bool = False,
 ) -> dict[str, Any]:
     """Validate all config sets in a directory.
 
@@ -22,6 +23,8 @@ def validate_directory(
         Path to config directory
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -66,7 +69,7 @@ def validate_directory(
             elif config_type == "output":
                 output_configs.append(yaml_file)
         except Exception as e:
-            if verbose:
+            if verbose and not quiet:
                 warning(f"Could not classify {yaml_file.name}: {e}")
 
     if not basemodel_configs:
@@ -83,40 +86,38 @@ def validate_directory(
             "error": "No modelset configs found",
         }
 
-    # Validate the config set
-    # Typically one experiment has: 1 basemodel + 1 modelset + optional output
-    basemodel_path = basemodel_configs[0]
-    modelset_path = modelset_configs[0]
-    output_path = output_configs[0] if output_configs else None
-
-    # Warn if multiple configs found
-    if len(basemodel_configs) > 1 and verbose:
-        warning(f"Multiple basemodel configs found, using: {basemodel_path.name}")
-    if len(modelset_configs) > 1 and verbose:
-        warning(f"Multiple modelset configs found, using: {modelset_path.name}")
-    if len(output_configs) > 1 and verbose:
-        warning(f"Multiple output configs found, using: {output_path.name}")
-
-    success_val, error_msg = validate_config_set(
-        basemodel_path=basemodel_path,
-        modelset_path=modelset_path,
-        output_path=output_path,
-        verbose=verbose,
-    )
-
-    set_result = {
-        "basemodel": basemodel_path.name,
-        "modelset": modelset_path.name,
-        "status": "pass" if success_val else "fail",
+    # Validate all config sets (all combinations of basemodel × modelset × output)
+    results = {
+        "directory": str(config_dir),
+        "config_sets": []
     }
 
-    if output_path is not None:
-        set_result["output"] = output_path.name
+    # If no output configs, validate basemodel-modelset only
+    output_paths = output_configs if output_configs else [None]
 
-    if error_msg:
-        set_result["error"] = error_msg
+    for basemodel_path in basemodel_configs:
+        for modelset_path in modelset_configs:
+            for output_path in output_paths:
+                success_val, error_msg = validate_config_set(
+                    basemodel_path=basemodel_path,
+                    modelset_path=modelset_path,
+                    output_path=output_path,
+                    verbose=verbose,
+                )
 
-    results = {"directory": str(config_dir), "config_sets": [set_result]}
+                set_result = {
+                    "basemodel": basemodel_path.name,
+                    "modelset": modelset_path.name,
+                    "status": "pass" if success_val else "fail",
+                }
+
+                if output_path is not None:
+                    set_result["output"] = output_path.name
+
+                if error_msg:
+                    set_result["error"] = error_msg
+
+                results["config_sets"].append(set_result)
 
     return results
 
@@ -226,6 +227,7 @@ def validate_remote(
             exp_id=exp_id,
             github_token=github_token,
             verbose=verbose,
+            quiet=quiet,
         )
     except Exception as e:
         return {
@@ -247,6 +249,7 @@ def validate_remote(
             result = validate_directory(
                 config_dir=tmppath,
                 verbose=verbose,
+                quiet=quiet,
             )
 
             # Update directory path to reflect remote source
@@ -267,6 +270,7 @@ def fetch_config_files(
     exp_id: str,
     github_token: str,
     verbose: bool,
+    quiet: bool = False,
 ) -> dict[str, str]:
     """Fetch config files from GitHub repository.
 
@@ -280,6 +284,8 @@ def fetch_config_files(
         GitHub personal access token
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -295,7 +301,7 @@ def fetch_config_files(
     config_dir_path = f"experiments/{exp_id}/config"
     api_url = f"https://api.github.com/repos/{forecast_repo}/contents/{config_dir_path}"
 
-    if verbose:
+    if verbose and not quiet:
         info(f"Fetching directory listing: {api_url}")
 
     try:
@@ -338,11 +344,12 @@ def fetch_config_files(
                 path=file_path,
                 token=github_token,
                 verbose=verbose,
+                quiet=quiet,
             )
             config_files[filename] = content
 
         except Exception as e:
-            if verbose:
+            if verbose and not quiet:
                 warning(f"Could not fetch {filename}: {e}")
 
     if not config_files:
@@ -356,6 +363,7 @@ def fetch_github_file(
     path: str,
     token: str,
     verbose: bool,
+    quiet: bool = False,
 ) -> str:
     """Fetch a file from GitHub repository using API.
 
@@ -369,6 +377,8 @@ def fetch_github_file(
         GitHub personal access token
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -382,7 +392,7 @@ def fetch_github_file(
     """
     api_url = f"https://api.github.com/repos/{repo}/contents/{path}"
 
-    if verbose:
+    if verbose and not quiet:
         info(f"Fetching: {path}")
 
     try:

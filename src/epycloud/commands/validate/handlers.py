@@ -331,25 +331,28 @@ def _validate_multiple_local(
                     print(f"  {error_text}")
                     failed += 1
             else:
-                config_failed = sum(
-                    1 for cs in result.get("config_sets", []) if cs["status"] == "fail"
-                )
+                # Count by config sets, not by experiments
+                config_sets = result.get("config_sets", [])
+                config_passed = sum(1 for cs in config_sets if cs["status"] == "pass")
+                config_failed = sum(1 for cs in config_sets if cs["status"] == "fail")
+
                 if config_failed > 0:
                     status = "\033[31m[FAILED]\033[0m" if use_color else "[FAILED]"
                     print(f"{local_path} {status}")
-                    if config_files:
-                        print(f"  {config_files}")
-                    errors = [cs.get("error", "") for cs in result.get("config_sets", [])
+                    for config_line in config_files:
+                        print(f"  {config_line}")
+                    errors = [cs.get("error", "") for cs in config_sets
                               if cs["status"] == "fail" and "error" in cs]
                     for err in errors:
                         print(f"  {err}")
-                    failed += 1
+                    failed += config_failed
+                    passed += config_passed
                 else:
                     status = "\033[32m[PASSED]\033[0m" if use_color else "[PASSED]"
                     print(f"{local_path} {status}")
-                    if config_files:
-                        print(f"  {config_files}")
-                    passed += 1
+                    for config_line in config_files:
+                        print(f"  {config_line}")
+                    passed += config_passed
 
         except Exception as e:
             status = "\033[33m[ERROR]\033[0m" if use_color else "[ERROR]"
@@ -417,25 +420,28 @@ def _validate_multiple_remote(
                     print(f"  {error_text}")
                     failed += 1
             else:
-                config_failed = sum(
-                    1 for cs in result.get("config_sets", []) if cs["status"] == "fail"
-                )
+                # Count by config sets, not by experiments
+                config_sets = result.get("config_sets", [])
+                config_passed = sum(1 for cs in config_sets if cs["status"] == "pass")
+                config_failed = sum(1 for cs in config_sets if cs["status"] == "fail")
+
                 if config_failed > 0:
                     status = "\033[31m[FAILED]\033[0m" if use_color else "[FAILED]"
                     print(f"{exp_id} {status}")
-                    if config_files:
-                        print(f"  {config_files}")
-                    errors = [cs.get("error", "") for cs in result.get("config_sets", [])
+                    for config_line in config_files:
+                        print(f"  {config_line}")
+                    errors = [cs.get("error", "") for cs in config_sets
                               if cs["status"] == "fail" and "error" in cs]
                     for err in errors:
                         print(f"  {err}")
-                    failed += 1
+                    failed += config_failed
+                    passed += config_passed
                 else:
                     status = "\033[32m[PASSED]\033[0m" if use_color else "[PASSED]"
                     print(f"{exp_id} {status}")
-                    if config_files:
-                        print(f"  {config_files}")
-                    passed += 1
+                    for config_line in config_files:
+                        print(f"  {config_line}")
+                    passed += config_passed
 
         except Exception as e:
             status = "\033[33m[ERROR]\033[0m" if use_color else "[ERROR]"
@@ -454,18 +460,23 @@ def _validate_multiple_remote(
     return 0 if (failed == 0 and errored == 0) else 1
 
 
-def _extract_config_files(result: dict[str, Any]) -> str:
-    """Extract config file names from validation result."""
+def _extract_config_files(result: dict[str, Any]) -> list[str]:
+    """Extract config file names from validation result.
+
+    Returns list of config set strings (one per combination).
+    """
     config_sets = result.get("config_sets", [])
     if not config_sets:
-        return ""
+        return []
 
-    cs = config_sets[0]
-    files = [cs.get("basemodel", ""), cs.get("modelset", "")]
-    if cs.get("output"):
-        files.append(cs.get("output"))
+    config_lines = []
+    for cs in config_sets:
+        files = [cs.get("basemodel", ""), cs.get("modelset", "")]
+        if cs.get("output"):
+            files.append(cs.get("output"))
+        config_lines.append(" + ".join(f for f in files if f))
 
-    return " + ".join(f for f in files if f)
+    return config_lines
 
 
 def _print_summary(passed: int, failed: int, errored: int) -> None:
