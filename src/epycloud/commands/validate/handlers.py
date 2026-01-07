@@ -113,9 +113,9 @@ def handle(ctx: dict[str, Any]) -> int:
 
         # Get GitHub token from multiple sources
         if not github_token:
-            # Try secrets config
-            secrets = config.get("secrets", {})
-            github_token = secrets.get("github", {}).get("personal_access_token")
+            # Try config (merged from secrets.yaml)
+            github = get_github_config(config)
+            github_token = github["personal_access_token"]
 
         if not github_token:
             # Try environment variable
