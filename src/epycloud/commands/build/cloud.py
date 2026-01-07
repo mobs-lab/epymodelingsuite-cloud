@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import Colors, ask_confirmation, colorize, error, info, success, warning
 
 
 def build_cloud(
@@ -78,7 +78,10 @@ def build_cloud(
         info(f"Current directory: {Path.cwd()}")
         return 1
 
-    info(f"Building with Cloud Build (async: {not wait})...")
+    # Display build information
+    print("Build with Cloud Build")
+    print()
+    print(colorize("[Configuration]", Colors.CYAN))
     info(f"Image: {image_path}")
     info(f"Dockerfile: {dockerfile_path}")
     info(f"Context: {context_path}")
@@ -92,6 +95,17 @@ def build_cloud(
         info("Cache: disabled (default)")
     else:
         info("Cache: enabled (--cache)")
+
+    async_mode = "async" if not wait else "sync (--wait)"
+    info(f"Mode: {async_mode}")
+    print()
+
+    # Ask for confirmation before proceeding
+    if not dry_run:
+        if not ask_confirmation("Continue?", default=True):
+            info("Build cancelled")
+            return 0
+        print()
 
     # Build substitutions string
     no_cache_str = "true" if no_cache else "false"

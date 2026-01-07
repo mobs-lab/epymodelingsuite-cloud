@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "epycloud"
-version = "0.3.6"
+version = "0.3.7"
 description = "CLI for epymodelingsuite cloud pipeline management"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,6 +27,7 @@ dependencies = [
     "python-json-logger>=2.0.7",
     "pyyaml>=6.0",
     "requests>=2.31.0",
+    "epymodelingsuite",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +51,9 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
 ignore = []
+
+[tool.uv.sources]
+epymodelingsuite = { git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git", rev = "dev" }
 
 [dependency-groups]
 dev = [

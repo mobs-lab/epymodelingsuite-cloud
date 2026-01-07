@@ -12,11 +12,15 @@ from epycloud.commands import build
 class TestBuildCloudCommand:
     """Test build cloud command."""
 
+    @patch("epycloud.commands.build.cloud.ask_confirmation")
     @patch("epycloud.lib.command_helpers.get_project_root")
     @patch("epycloud.commands.build.cloud.subprocess.run")
-    def test_build_cloud_success(self, mock_subprocess, mock_root, mock_config):
+    def test_build_cloud_success(
+        self, mock_subprocess, mock_root, mock_confirm, mock_config
+    ):
         """Test successful cloud build submission."""
         mock_root.return_value = Path("/test/project")
+        mock_confirm.return_value = True
         mock_subprocess.return_value = Mock(
             returncode=0,
             stdout="Build ID: abc123\n",
@@ -45,11 +49,15 @@ class TestBuildCloudCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
+    @patch("epycloud.commands.build.cloud.ask_confirmation")
     @patch("epycloud.lib.command_helpers.get_project_root")
     @patch("epycloud.commands.build.cloud.subprocess.run")
-    def test_build_cloud_with_wait(self, mock_subprocess, mock_root, mock_config):
+    def test_build_cloud_with_wait(
+        self, mock_subprocess, mock_root, mock_confirm, mock_config
+    ):
         """Test cloud build with wait flag."""
         mock_root.return_value = Path("/test/project")
+        mock_confirm.return_value = True
         mock_subprocess.return_value = Mock(
             returncode=0,
             stdout="Build completed\n",
@@ -104,6 +112,41 @@ class TestBuildCloudCommand:
 
             # Dry run should still succeed but not run subprocess
             assert exit_code == 0
+
+    @patch("epycloud.commands.build.cloud.ask_confirmation")
+    @patch("epycloud.lib.command_helpers.get_project_root")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
+    def test_build_cloud_cancelled(
+        self, mock_subprocess, mock_root, mock_confirm, mock_config
+    ):
+        """Test cloud build cancelled by user."""
+        mock_root.return_value = Path("/test/project")
+        mock_confirm.return_value = False  # User cancels
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                build_subcommand="cloud",
+                no_cache=False,
+                tag=None,
+                wait=False,
+                dockerfile=None,
+                context=None,
+                cache=False,
+            ),
+        }
+
+        exit_code = build.handle(ctx)
+
+        # Should exit with 0 when cancelled
+        assert exit_code == 0
+        # Subprocess should not be called when build is cancelled
+        assert not mock_subprocess.called
 
     def test_build_cloud_missing_project_id(self):
         """Test error when project_id not configured."""
@@ -163,15 +206,17 @@ class TestBuildCloudCommand:
 class TestBuildLocalCommand:
     """Test build local command."""
 
+    @patch("epycloud.commands.build.local.ask_confirmation")
     @patch("epycloud.commands.build.handlers.get_github_pat")
     @patch("epycloud.lib.command_helpers.get_project_root")
     @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_local_success(
-        self, mock_subprocess, mock_root, mock_pat, mock_config
+        self, mock_subprocess, mock_root, mock_pat, mock_confirm, mock_config
     ):
         """Test successful local build."""
         mock_root.return_value = Path("/test/project")
         mock_pat.return_value = "ghp_test_token"
+        mock_confirm.return_value = True
         mock_subprocess.return_value = Mock(
             returncode=0,
             stdout="Build successful\n",
@@ -261,15 +306,17 @@ class TestBuildLocalCommand:
 class TestBuildDevCommand:
     """Test build dev command."""
 
+    @patch("epycloud.commands.build.dev.ask_confirmation")
     @patch("epycloud.commands.build.handlers.get_github_pat")
     @patch("epycloud.lib.command_helpers.get_project_root")
     @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_dev_success(
-        self, mock_subprocess, mock_root, mock_pat, mock_config
+        self, mock_subprocess, mock_root, mock_pat, mock_confirm, mock_config
     ):
         """Test successful dev build."""
         mock_root.return_value = Path("/test/project")
         mock_pat.return_value = "ghp_test_token"
+        mock_confirm.return_value = True
         mock_subprocess.return_value = Mock(
             returncode=0,
             stdout="Build successful\n",
@@ -355,15 +402,17 @@ class TestBuildDevCommand:
 
             assert exit_code == 0
 
+    @patch("epycloud.commands.build.dev.ask_confirmation")
     @patch("epycloud.commands.build.handlers.get_github_pat")
     @patch("epycloud.lib.command_helpers.get_project_root")
     @patch("epycloud.commands.build.cloud.subprocess.run")
     def test_build_dev_with_custom_tag(
-        self, mock_subprocess, mock_root, mock_pat, mock_config
+        self, mock_subprocess, mock_root, mock_pat, mock_confirm, mock_config
     ):
         """Test dev build with custom tag."""
         mock_root.return_value = Path("/test/project")
         mock_pat.return_value = "ghp_test_token"
+        mock_confirm.return_value = True
         mock_subprocess.return_value = Mock(
             returncode=0,
             stdout="Build successful\n",

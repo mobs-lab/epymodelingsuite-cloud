@@ -1,5 +1,6 @@
 """Validate operations and utilities."""
 
+import fnmatch
 import tempfile
 from base64 import b64decode
 from pathlib import Path
@@ -13,6 +14,7 @@ from epycloud.lib.output import error, info, success, warning
 def validate_directory(
     config_dir: Path,
     verbose: bool,
+    quiet: bool = False,
 ) -> dict[str, Any]:
     """Validate all config sets in a directory.
 
@@ -22,6 +24,8 @@ def validate_directory(
         Path to config directory
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -66,7 +70,7 @@ def validate_directory(
             elif config_type == "output":
                 output_configs.append(yaml_file)
         except Exception as e:
-            if verbose:
+            if verbose and not quiet:
                 warning(f"Could not classify {yaml_file.name}: {e}")
 
     if not basemodel_configs:
@@ -83,40 +87,38 @@ def validate_directory(
             "error": "No modelset configs found",
         }
 
-    # Validate the config set
-    # Typically one experiment has: 1 basemodel + 1 modelset + optional output
-    basemodel_path = basemodel_configs[0]
-    modelset_path = modelset_configs[0]
-    output_path = output_configs[0] if output_configs else None
-
-    # Warn if multiple configs found
-    if len(basemodel_configs) > 1 and verbose:
-        warning(f"Multiple basemodel configs found, using: {basemodel_path.name}")
-    if len(modelset_configs) > 1 and verbose:
-        warning(f"Multiple modelset configs found, using: {modelset_path.name}")
-    if len(output_configs) > 1 and verbose:
-        warning(f"Multiple output configs found, using: {output_path.name}")
-
-    success_val, error_msg = validate_config_set(
-        basemodel_path=basemodel_path,
-        modelset_path=modelset_path,
-        output_path=output_path,
-        verbose=verbose,
-    )
-
-    set_result = {
-        "basemodel": basemodel_path.name,
-        "modelset": modelset_path.name,
-        "status": "pass" if success_val else "fail",
+    # Validate all config sets (all combinations of basemodel × modelset × output)
+    results = {
+        "directory": str(config_dir),
+        "config_sets": []
     }
 
-    if output_path is not None:
-        set_result["output"] = output_path.name
+    # If no output configs, validate basemodel-modelset only
+    output_paths = output_configs if output_configs else [None]
 
-    if error_msg:
-        set_result["error"] = error_msg
+    for basemodel_path in basemodel_configs:
+        for modelset_path in modelset_configs:
+            for output_path in output_paths:
+                success_val, error_msg = validate_config_set(
+                    basemodel_path=basemodel_path,
+                    modelset_path=modelset_path,
+                    output_path=output_path,
+                    verbose=verbose,
+                )
 
-    results = {"directory": str(config_dir), "config_sets": [set_result]}
+                set_result = {
+                    "basemodel": basemodel_path.name,
+                    "modelset": modelset_path.name,
+                    "status": "pass" if success_val else "fail",
+                }
+
+                if output_path is not None:
+                    set_result["output"] = output_path.name
+
+                if error_msg:
+                    set_result["error"] = error_msg
+
+                results["config_sets"].append(set_result)
 
     return results
 
@@ -195,6 +197,7 @@ def validate_remote(
     forecast_repo: str,
     github_token: str,
     verbose: bool,
+    quiet: bool = False,
 ) -> dict[str, Any]:
     """Validate remote experiment configuration from GitHub.
 
@@ -208,6 +211,8 @@ def validate_remote(
         GitHub personal access token
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -215,13 +220,15 @@ def validate_remote(
         Validation result dictionary
     """
     # Fetch config files from GitHub
-    info("Fetching config files from GitHub...")
+    if not quiet:
+        print("Fetching config files from GitHub...")
     try:
         config_files = fetch_config_files(
             forecast_repo=forecast_repo,
             exp_id=exp_id,
             github_token=github_token,
             verbose=verbose,
+            quiet=quiet,
         )
     except Exception as e:
         return {
@@ -243,6 +250,7 @@ def validate_remote(
             result = validate_directory(
                 config_dir=tmppath,
                 verbose=verbose,
+                quiet=quiet,
             )
 
             # Update directory path to reflect remote source
@@ -263,6 +271,7 @@ def fetch_config_files(
     exp_id: str,
     github_token: str,
     verbose: bool,
+    quiet: bool = False,
 ) -> dict[str, str]:
     """Fetch config files from GitHub repository.
 
@@ -276,6 +285,8 @@ def fetch_config_files(
         GitHub personal access token
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -291,7 +302,7 @@ def fetch_config_files(
     config_dir_path = f"experiments/{exp_id}/config"
     api_url = f"https://api.github.com/repos/{forecast_repo}/contents/{config_dir_path}"
 
-    if verbose:
+    if verbose and not quiet:
         info(f"Fetching directory listing: {api_url}")
 
     try:
@@ -334,11 +345,12 @@ def fetch_config_files(
                 path=file_path,
                 token=github_token,
                 verbose=verbose,
+                quiet=quiet,
             )
             config_files[filename] = content
 
         except Exception as e:
-            if verbose:
+            if verbose and not quiet:
                 warning(f"Could not fetch {filename}: {e}")
 
     if not config_files:
@@ -352,6 +364,7 @@ def fetch_github_file(
     path: str,
     token: str,
     verbose: bool,
+    quiet: bool = False,
 ) -> str:
     """Fetch a file from GitHub repository using API.
 
@@ -365,6 +378,8 @@ def fetch_github_file(
         GitHub personal access token
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -378,7 +393,7 @@ def fetch_github_file(
     """
     api_url = f"https://api.github.com/repos/{repo}/contents/{path}"
 
-    if verbose:
+    if verbose and not quiet:
         info(f"Fetching: {path}")
 
     try:
@@ -407,6 +422,149 @@ def fetch_github_file(
             raise Exception(f"GitHub API error {status_code}")
 
 
+def expand_exp_id_pattern(
+    pattern: str,
+    forecast_repo: str,
+    github_token: str,
+    verbose: bool = False,
+) -> list[str]:
+    """Expand exp-id pattern to list of matching experiment IDs.
+
+    Supports glob patterns like:
+    - 202549/* (all experiments in directory)
+    - test-* (all experiments starting with "test-")
+    - */calibration (all "calibration" experiments in subdirectories)
+
+    Parameters
+    ----------
+    pattern : str
+        Experiment ID pattern (supports *, ?, [])
+    forecast_repo : str
+        GitHub forecast repository (owner/repo)
+    github_token : str
+        GitHub personal access token
+    verbose : bool, optional
+        Verbose output (default: False)
+
+    Returns
+    -------
+    list[str]
+        List of matching experiment IDs
+
+    Raises
+    ------
+    Exception
+        If pattern expansion fails
+    """
+    # Check if pattern contains wildcards
+    if not any(c in pattern for c in ['*', '?', '[']):
+        # No wildcards, return as-is
+        return [pattern]
+
+    # Split pattern into directory levels
+    pattern_parts = pattern.split('/')
+
+    # Fetch experiments directory listing
+    api_url = f"https://api.github.com/repos/{forecast_repo}/contents/experiments"
+
+    if verbose:
+        info(f"Fetching experiments from: {api_url}")
+
+    try:
+        response = requests.get(
+            api_url,
+            headers={
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+            },
+        )
+        response.raise_for_status()
+        items = response.json()
+
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            raise Exception(f"Experiments directory not found in {forecast_repo}")
+        else:
+            status_code = e.response.status_code if e.response else "unknown"
+            raise Exception(f"GitHub API error {status_code}")
+
+    # Filter directories
+    directories = [item["name"] for item in items if item.get("type") == "dir"]
+
+    # Handle different pattern scenarios
+    if len(pattern_parts) == 1:
+        # Simple pattern like "test-*"
+        matches = fnmatch.filter(directories, pattern_parts[0])
+    else:
+        # Multi-level pattern like "202549/*" or "*/calibration"
+        # For now, we'll handle the common case of "prefix/*"
+        if pattern_parts[1] == '*':
+            # Match first level, then fetch subdirectories
+            first_level_matches = fnmatch.filter(directories, pattern_parts[0])
+            matches = []
+            for first_level in first_level_matches:
+                # Fetch subdirectories
+                sub_api_url = f"https://api.github.com/repos/{forecast_repo}/contents/experiments/{first_level}"
+                try:
+                    sub_response = requests.get(
+                        sub_api_url,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json",
+                        },
+                    )
+                    sub_response.raise_for_status()
+                    sub_items = sub_response.json()
+                    sub_dirs = [
+                        item["name"] for item in sub_items
+                        if item.get("type") == "dir" and "config" in item["name"].lower() or item.get("type") == "dir"
+                    ]
+                    # Check if it's a valid experiment (has config directory)
+                    if any("config" in item["name"].lower() for item in sub_items if item.get("type") == "dir"):
+                        # This is likely an experiment directory with config subdirectory
+                        matches.append(first_level)
+                    else:
+                        # These might be experiment subdirectories
+                        for sub_dir in sub_dirs:
+                            matches.append(f"{first_level}/{sub_dir}")
+                except Exception as e:
+                    if verbose:
+                        warning(f"Could not fetch subdirectories for {first_level}: {e}")
+        else:
+            # General multi-level pattern matching
+            matches = []
+            for directory in directories:
+                if len(pattern_parts) == 2:
+                    # Two-level pattern
+                    exp_id = directory
+                    if fnmatch.fnmatch(exp_id, pattern_parts[0]):
+                        # Check subdirectories
+                        sub_api_url = f"https://api.github.com/repos/{forecast_repo}/contents/experiments/{directory}"
+                        try:
+                            sub_response = requests.get(
+                                sub_api_url,
+                                headers={
+                                    "Authorization": f"token {github_token}",
+                                    "Accept": "application/vnd.github.v3+json",
+                                },
+                            )
+                            sub_response.raise_for_status()
+                            sub_items = sub_response.json()
+                            sub_dirs = [item["name"] for item in sub_items if item.get("type") == "dir"]
+                            for sub_dir in fnmatch.filter(sub_dirs, pattern_parts[1]):
+                                matches.append(f"{directory}/{sub_dir}")
+                        except Exception:
+                            pass
+
+    if not matches:
+        raise Exception(f"No experiments match pattern: {pattern}")
+
+    if verbose:
+        info(f"Pattern '{pattern}' expanded to {len(matches)} experiment(s)")
+
+    return sorted(matches)
+
+
 def display_validation_results(result: dict[str, Any]) -> None:
     """Display validation results in text format.
 
@@ -415,7 +573,6 @@ def display_validation_results(result: dict[str, Any]) -> None:
     result : dict[str, Any]
         Validation result dictionary
     """
-    print()
     print(f"Validating: {result['directory']}")
     print()
 

@@ -319,11 +319,12 @@ wheels = [
 
 [[package]]
 name = "epycloud"
-version = "0.3.5"
+version = "0.3.7"
 source = { editable = "." }
 dependencies = [
     { name = "dill" },
     { name = "epydemix" },
+    { name = "epymodelingsuite" },
     { name = "google-cloud-storage" },
     { name = "numpy" },
     { name = "pandas" },
@@ -350,6 +351,7 @@ dev = [
 requires-dist = [
     { name = "dill", specifier = ">=0.4.0" },
     { name = "epydemix", specifier = ">=1.0.1" },
+    { name = "epymodelingsuite", git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git?rev=dev" },
     { name = "epymodelingsuite", marker = "extra == 'dev'", git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git?rev=dev" },
     { name = "google-cloud-storage", specifier = ">=2.18.2" },
     { name = "numpy", specifier = ">=1.24.0" },
@@ -388,7 +390,7 @@ wheels = [
 [[package]]
 name = "epymodelingsuite"
 version = "0.2.0"
-source = { git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git?rev=dev#e573f4ae94997442b1a73ac4163eef5d45ba3bed" }
+source = { git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git?rev=dev#f9fdff1487db5dff1d6269ef0449ffd64e8527bb" }
 dependencies = [
     { name = "epiweeks" },
     { name = "epydemix" },
