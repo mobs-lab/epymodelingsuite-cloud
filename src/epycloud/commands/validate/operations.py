@@ -195,6 +195,7 @@ def validate_remote(
     forecast_repo: str,
     github_token: str,
     verbose: bool,
+    quiet: bool = False,
 ) -> dict[str, Any]:
     """Validate remote experiment configuration from GitHub.
 
@@ -208,6 +209,8 @@ def validate_remote(
         GitHub personal access token
     verbose : bool
         Verbose output
+    quiet : bool, optional
+        Suppress progress messages (default: False)
 
     Returns
     -------
@@ -215,7 +218,8 @@ def validate_remote(
         Validation result dictionary
     """
     # Fetch config files from GitHub
-    info("Fetching config files from GitHub...")
+    if not quiet:
+        print("Fetching config files from GitHub...")
     try:
         config_files = fetch_config_files(
             forecast_repo=forecast_repo,
@@ -415,7 +419,6 @@ def display_validation_results(result: dict[str, Any]) -> None:
     result : dict[str, Any]
         Validation result dictionary
     """
-    print()
     print(f"Validating: {result['directory']}")
     print()
 

@@ -23,12 +23,14 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--exp-id",
-        help="Experiment ID to validate from GitHub repository",
+        nargs="+",
+        help="Experiment ID(s) to validate from GitHub repository (supports multiple)",
     )
     group.add_argument(
         "--path",
         type=Path,
-        help="Path to local config directory (e.g., ./local/forecast/experiments/test-sim/config)",
+        nargs="+",
+        help="Path(s) to local config directory (e.g., ./local/forecast/experiments/test-sim/config)",
     )
 
     parser.add_argument(
