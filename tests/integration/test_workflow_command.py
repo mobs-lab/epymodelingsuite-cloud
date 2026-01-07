@@ -935,13 +935,13 @@ class TestWorkflowCancelErrorPaths:
         """Test canceling non-existent workflow."""
         mock_token.return_value = "test-token"
 
-        # Mock 404 from get_execution
+        # Mock 404 from cancel_execution (workflow not found)
         error_response = Mock()
         error_response.status_code = 404
         error_response.text = "Execution not found"
         http_error = requests.HTTPError()
         http_error.response = error_response
-        mock_get_exec.side_effect = http_error
+        mock_post.side_effect = http_error
 
         ctx = {
             "config": mock_config,
@@ -966,16 +966,12 @@ class TestWorkflowCancelWithBatchJobs:
     """Test workflow cancel with batch job cascade cancellation."""
 
     @patch("epycloud.commands.workflow.api.cancel_batch_job")
-    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
-    @patch("epycloud.commands.workflow.api.get_execution")
     @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
     @patch("epycloud.commands.workflow.api.requests.post")
     def test_cancel_with_batch_jobs_cascade(
         self,
         mock_post,
         mock_token,
-        mock_get_exec,
-        mock_list_jobs,
         mock_cancel_job,
         mock_config,
     ):
@@ -987,28 +983,6 @@ class TestWorkflowCancelWithBatchJobs:
         mock_cancel_response.status_code = 200
         mock_cancel_response.json.return_value = {"name": "test-execution"}
         mock_post.return_value = mock_cancel_response
-
-        # Mock execution with run_id
-        mock_get_exec.return_value = {
-            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
-            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
-        }
-
-        # Mock 3 active batch jobs
-        mock_list_jobs.return_value = [
-            {
-                "name": "projects/test/locations/us-central1/jobs/builder-job",
-                "labels": {"stage": "builder", "run_id": "20251210-120000-abcd1234"},
-            },
-            {
-                "name": "projects/test/locations/us-central1/jobs/runner-job",
-                "labels": {"stage": "runner", "run_id": "20251210-120000-abcd1234"},
-            },
-            {
-                "name": "projects/test/locations/us-central1/jobs/output-job",
-                "labels": {"stage": "output", "run_id": "20251210-120000-abcd1234"},
-            },
-        ]
 
         # Mock successful batch job cancellation
         mock_cancel_job.return_value = {"name": "job-cancelled"}
@@ -1033,12 +1007,8 @@ class TestWorkflowCancelWithBatchJobs:
         assert exit_code == 0
         assert mock_post.call_count == 1
 
-        # Verify execution details were fetched
-        assert mock_get_exec.call_count == 1
-
-        # Verify batch jobs were listed
-        assert mock_list_jobs.call_count == 1
-        mock_list_jobs.assert_called_with("test-project", "us-central1", "20251210-120000-abcd1234", False)
+        # Verify batch jobs were attempted to be cancelled (3 jobs: a, b, c)
+        assert mock_cancel_job.call_count == 3
 
         # Verify all 3 batch jobs were cancelled
         assert mock_cancel_job.call_count == 3
@@ -1085,14 +1055,13 @@ class TestWorkflowCancelWithBatchJobs:
         # Verify batch jobs were NOT listed
         assert mock_list_jobs.call_count == 0
 
-    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
-    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.api.cancel_batch_job")
     @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
     @patch("epycloud.commands.workflow.api.requests.post")
     def test_cancel_no_run_id_in_execution(
-        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+        self, mock_post, mock_token, mock_cancel_job, mock_config
     ):
-        """Test cancellation when execution has no run_id."""
+        """Test cancellation - batch jobs are still cancelled deterministically."""
         mock_token.return_value = "test-token"
 
         # Mock successful workflow cancel
@@ -1101,11 +1070,8 @@ class TestWorkflowCancelWithBatchJobs:
         mock_cancel_response.json.return_value = {"name": "test-execution"}
         mock_post.return_value = mock_cancel_response
 
-        # Mock execution without run_id
-        mock_get_exec.return_value = {
-            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
-            "argument": json.dumps({"exp_id": "test-exp"}),  # No run_id
-        }
+        # Mock successful batch job cancellation
+        mock_cancel_job.return_value = {"name": "job-cancelled"}
 
         ctx = {
             "config": mock_config,
@@ -1126,20 +1092,16 @@ class TestWorkflowCancelWithBatchJobs:
         # Verify workflow was cancelled successfully
         assert exit_code == 0
 
-        # Verify execution details were fetched
-        assert mock_get_exec.call_count == 1
+        # Batch jobs are still attempted (3 jobs: a, b, c)
+        assert mock_cancel_job.call_count == 3
 
-        # Verify batch jobs were NOT listed (no run_id)
-        assert mock_list_jobs.call_count == 0
-
-    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")
-    @patch("epycloud.commands.workflow.api.get_execution")
+    @patch("epycloud.commands.workflow.api.cancel_batch_job")
     @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
     @patch("epycloud.commands.workflow.api.requests.post")
     def test_cancel_no_batch_jobs_found(
-        self, mock_post, mock_token, mock_get_exec, mock_list_jobs, mock_config
+        self, mock_post, mock_token, mock_cancel_job, mock_config
     ):
-        """Test cancellation when no active batch jobs exist."""
+        """Test cancellation when batch jobs don't exist (404 errors)."""
         mock_token.return_value = "test-token"
 
         # Mock successful workflow cancel
@@ -1148,14 +1110,12 @@ class TestWorkflowCancelWithBatchJobs:
         mock_cancel_response.json.return_value = {"name": "test-execution"}
         mock_post.return_value = mock_cancel_response
 
-        # Mock execution with run_id
-        mock_get_exec.return_value = {
-            "name": "projects/test/locations/us-central1/workflows/epymodelingsuite-pipeline/executions/exec-123",
-            "argument": json.dumps({"run_id": "20251210-120000-abcd1234", "exp_id": "test-exp"}),
-        }
-
-        # Mock empty list of batch jobs
-        mock_list_jobs.return_value = []
+        # Mock 404 errors for batch job cancellation (jobs don't exist)
+        error_response = Mock()
+        error_response.status_code = 404
+        http_error = requests.HTTPError()
+        http_error.response = error_response
+        mock_cancel_job.side_effect = http_error
 
         ctx = {
             "config": mock_config,
@@ -1173,11 +1133,11 @@ class TestWorkflowCancelWithBatchJobs:
 
         exit_code = workflow.handle(ctx)
 
-        # Verify success
+        # Verify success (404 on batch jobs is handled gracefully)
         assert exit_code == 0
 
-        # Verify batch jobs were listed
-        assert mock_list_jobs.call_count == 1
+        # Batch jobs were attempted to be cancelled
+        assert mock_cancel_job.call_count == 3
 
     @patch("epycloud.commands.workflow.api.cancel_batch_job")
     @patch("epycloud.commands.workflow.api.list_batch_jobs_for_run")

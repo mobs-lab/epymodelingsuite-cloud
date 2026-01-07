@@ -200,15 +200,17 @@ class TestConfigShowCommand:
 class TestConfigEditCommand:
     """Test config edit command."""
 
+    @patch("epycloud.commands.config_cmd.operations.ask_confirmation")
     @patch("epycloud.commands.config_cmd.operations.subprocess.run")
     @patch("epycloud.commands.config_cmd.operations.get_config_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
-    def test_config_edit_opens_editor(self, mock_get_file, mock_subprocess):
+    def test_config_edit_opens_editor(self, mock_get_file, mock_subprocess, mock_confirm):
         """Test that edit opens config file in editor."""
         mock_file = Mock()
         mock_file.exists.return_value = True
         mock_get_file.return_value = mock_file
         mock_subprocess.return_value = Mock(returncode=0)
+        mock_confirm.return_value = True  # User confirms opening editor
 
         ctx = {
             "config": None,
@@ -227,15 +229,17 @@ class TestConfigEditCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert call_args[0] == "vim"
 
+    @patch("epycloud.commands.config_cmd.operations.ask_confirmation")
     @patch("epycloud.commands.config_cmd.operations.subprocess.run")
     @patch("epycloud.commands.config_cmd.operations.get_environment_file")
     @patch.dict(os.environ, {"EDITOR": "nano"})
-    def test_config_edit_env_file(self, mock_get_env_file, mock_subprocess):
+    def test_config_edit_env_file(self, mock_get_env_file, mock_subprocess, mock_confirm):
         """Test editing environment-specific config."""
         mock_file = Mock()
         mock_file.exists.return_value = True
         mock_get_env_file.return_value = mock_file
         mock_subprocess.return_value = Mock(returncode=0)
+        mock_confirm.return_value = True  # User confirms opening editor
 
         ctx = {
             "config": None,
@@ -297,10 +301,11 @@ class TestConfigEditCommand:
 
         assert exit_code == 1
 
+    @patch("epycloud.commands.config_cmd.operations.ask_confirmation")
     @patch("epycloud.commands.config_cmd.operations.subprocess.run")
     @patch("epycloud.commands.config_cmd.operations.get_config_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
-    def test_config_edit_editor_fails(self, mock_get_file, mock_subprocess):
+    def test_config_edit_editor_fails(self, mock_get_file, mock_subprocess, mock_confirm):
         """Test error when editor process fails."""
         import subprocess
 
@@ -308,6 +313,7 @@ class TestConfigEditCommand:
         mock_file.exists.return_value = True
         mock_get_file.return_value = mock_file
         mock_subprocess.side_effect = subprocess.CalledProcessError(1, "vim")
+        mock_confirm.return_value = True  # User confirms opening editor
 
         ctx = {
             "config": None,
@@ -327,12 +333,13 @@ class TestConfigEditCommand:
 class TestConfigEditSecretsCommand:
     """Test config edit-secrets command."""
 
+    @patch("epycloud.commands.config_cmd.operations.ask_confirmation")
     @patch("epycloud.commands.config_cmd.operations.subprocess.run")
     @patch("epycloud.commands.config_cmd.operations.os.chmod")
     @patch("epycloud.commands.config_cmd.operations.get_secrets_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_secrets_opens_editor(
-        self, mock_get_file, mock_chmod, mock_subprocess, tmp_path
+        self, mock_get_file, mock_chmod, mock_subprocess, mock_confirm, tmp_path
     ):
         """Test that edit-secrets opens secrets file in editor."""
         secrets_file = tmp_path / "secrets.yaml"
@@ -341,6 +348,7 @@ class TestConfigEditSecretsCommand:
         os.chmod(secrets_file, 0o600)
         mock_get_file.return_value = secrets_file
         mock_subprocess.return_value = Mock(returncode=0)
+        mock_confirm.return_value = True  # User confirms opening editor
 
         ctx = {
             "config": None,
@@ -357,17 +365,19 @@ class TestConfigEditSecretsCommand:
         assert exit_code == 0
         mock_subprocess.assert_called_once()
 
+    @patch("epycloud.commands.config_cmd.operations.ask_confirmation")
     @patch("epycloud.commands.config_cmd.operations.subprocess.run")
     @patch("epycloud.commands.config_cmd.operations.os.chmod")
     @patch("epycloud.commands.config_cmd.operations.get_secrets_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_secrets_creates_file_if_missing(
-        self, mock_get_file, mock_chmod, mock_subprocess, tmp_path
+        self, mock_get_file, mock_chmod, mock_subprocess, mock_confirm, tmp_path
     ):
         """Test that edit-secrets creates file if it doesn't exist."""
         secrets_file = tmp_path / "secrets.yaml"
         mock_get_file.return_value = secrets_file
         mock_subprocess.return_value = Mock(returncode=0)
+        mock_confirm.return_value = True  # User confirms opening editor
 
         ctx = {
             "config": None,
@@ -386,12 +396,13 @@ class TestConfigEditSecretsCommand:
         # Verify chmod was called to set permissions to 0600
         mock_chmod.assert_called()
 
+    @patch("epycloud.commands.config_cmd.operations.ask_confirmation")
     @patch("epycloud.commands.config_cmd.operations.subprocess.run")
     @patch("epycloud.commands.config_cmd.operations.os.chmod")
     @patch("epycloud.commands.config_cmd.operations.get_secrets_file")
     @patch.dict(os.environ, {"EDITOR": "vim"})
     def test_config_edit_secrets_fixes_permissions(
-        self, mock_get_file, mock_chmod, mock_subprocess, tmp_path
+        self, mock_get_file, mock_chmod, mock_subprocess, mock_confirm, tmp_path
     ):
         """Test that edit-secrets fixes insecure permissions."""
         secrets_file = tmp_path / "secrets.yaml"
@@ -400,6 +411,7 @@ class TestConfigEditSecretsCommand:
         os.chmod(secrets_file, 0o644)
         mock_get_file.return_value = secrets_file
         mock_subprocess.return_value = Mock(returncode=0)
+        mock_confirm.return_value = True  # User confirms opening editor
 
         ctx = {
             "config": None,

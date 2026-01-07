@@ -188,15 +188,18 @@ class TestBatchConfigStageB:
 
         # Verify container config for Stage B
         runnable = config["taskGroups"][0]["taskSpec"]["runnables"][0]["container"]
-        assert runnable["entrypoint"] == "python3"
-        assert runnable["commands"] == ["-u", "/scripts/main_runner.py"]
+        assert runnable["entrypoint"] == "/bin/bash"
+        assert runnable["commands"] == ["/scripts/run_runner.sh"]
 
         # Verify environment variables
         env_vars = config["taskGroups"][0]["taskSpec"]["environment"]["variables"]
         assert env_vars["EXECUTION_MODE"] == "cloud"
         assert env_vars["TASK_INDEX"] == "5"
-        # Stage B doesn't need GITHUB_FORECAST_REPO
-        assert "GITHUB_FORECAST_REPO" not in env_vars
+        # Stage B now includes GITHUB_FORECAST_REPO and other variables
+        assert env_vars["GITHUB_FORECAST_REPO"] == "owner/forecast-repo"
+        assert env_vars["GCLOUD_PROJECT_ID"] == "test-project"
+        assert env_vars["GITHUB_PAT_SECRET"] == "github-pat"
+        assert env_vars["FORECAST_REPO_DIR"] == "/data/forecast/"
         assert "NUM_TASKS" not in env_vars
 
         # Verify compute resources
