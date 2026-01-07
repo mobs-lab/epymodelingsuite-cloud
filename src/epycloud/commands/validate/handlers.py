@@ -68,6 +68,12 @@ def handle(ctx: dict[str, Any]) -> int:
                 ctx, local_paths[0], output_format, verbose, is_local=True
             )
 
+        # Handle JSON/YAML output for multiple paths
+        if output_format in ("json", "yaml"):
+            return _validate_multiple_structured(
+                ctx, local_paths, output_format, verbose, is_local=True
+            )
+
         # Table output for text format
         return _validate_multiple_local(ctx, local_paths, verbose)
 
@@ -118,6 +124,13 @@ def handle(ctx: dict[str, Any]) -> int:
                 is_local=False, forecast_repo=forecast_repo, github_token=github_token
             )
 
+        # Handle JSON/YAML output for multiple exp-ids
+        if output_format in ("json", "yaml"):
+            return _validate_multiple_structured(
+                ctx, exp_ids, output_format, verbose,
+                is_local=False, forecast_repo=forecast_repo, github_token=github_token
+            )
+
         # Table output for text format
         return _validate_multiple_remote(
             ctx, exp_ids, forecast_repo, github_token, verbose
@@ -134,25 +147,31 @@ def _validate_single_legacy(
     github_token: str = None,
 ) -> int:
     """Validate with legacy detailed output (for json/yaml formats)."""
+    # Only show progress messages for text format
+    quiet_mode = output_format in ("json", "yaml")
+
     if is_local:
-        print(f"Validating local config: {item}")
-        print()
+        if not quiet_mode:
+            print(f"Validating local config: {item}")
+            print()
 
         if handle_dry_run(ctx, f"Validate local config at {item}"):
             return 0
 
         try:
-            result = validate_directory(config_dir=item, verbose=verbose)
+            result = validate_directory(config_dir=item, verbose=verbose, quiet=quiet_mode)
         except Exception as e:
-            error(f"Validation failed: {e}")
+            if not quiet_mode:
+                error(f"Validation failed: {e}")
             if verbose:
                 import traceback
                 traceback.print_exc()
             return 2
     else:
-        print(f"Experiment: {item}")
-        print(f"Repository: {forecast_repo}")
-        print()
+        if not quiet_mode:
+            print(f"Experiment: {item}")
+            print(f"Repository: {forecast_repo}")
+            print()
 
         try:
             result = validate_remote(
@@ -160,13 +179,24 @@ def _validate_single_legacy(
                 forecast_repo=forecast_repo,
                 github_token=github_token,
                 verbose=verbose,
+                quiet=quiet_mode,
             )
         except Exception as e:
-            error(f"Validation failed: {e}")
+            if not quiet_mode:
+                error(f"Validation failed: {e}")
             if verbose:
                 import traceback
                 traceback.print_exc()
             return 2
+
+    # Determine overall status
+    has_error = bool(result.get("error"))
+    has_failure = any(cs["status"] == "fail" for cs in result.get("config_sets", []))
+    overall_status = "fail" if (has_error or has_failure) else "pass"
+
+    # Add status to result for structured output
+    if output_format in ("json", "yaml"):
+        result["status"] = overall_status
 
     # Output results
     if output_format == "json":
@@ -177,11 +207,82 @@ def _validate_single_legacy(
         display_validation_results(result)
 
     # Return appropriate exit code
-    if result.get("error"):
-        return 1
+    return 1 if (has_error or has_failure) else 0
 
-    failed = sum(1 for cs in result.get("config_sets", []) if cs["status"] == "fail")
-    return 1 if failed > 0 else 0
+
+def _validate_multiple_structured(
+    ctx: dict[str, Any],
+    items: list[str | Path],
+    output_format: str,
+    verbose: bool,
+    is_local: bool = False,
+    forecast_repo: str = None,
+    github_token: str = None,
+) -> int:
+    """Validate multiple items with structured output (JSON/YAML)."""
+    if handle_dry_run(ctx, f"Validate {len(items)} {'local config(s)' if is_local else 'experiment(s)'}"):
+        return 0
+
+    results = []
+    has_errors = False
+
+    for item in items:
+        try:
+            if is_local:
+                result = validate_directory(config_dir=item, verbose=verbose, quiet=True)
+            else:
+                result = validate_remote(
+                    exp_id=item,
+                    forecast_repo=forecast_repo,
+                    github_token=github_token,
+                    verbose=verbose,
+                    quiet=True,
+                )
+            results.append(result)
+
+            # Track if any failed
+            if result.get("error") or any(
+                cs["status"] == "fail" for cs in result.get("config_sets", [])
+            ):
+                has_errors = True
+
+        except Exception as e:
+            error_result = {
+                "directory": str(item) if is_local else f"{forecast_repo}/experiments/{item}/config",
+                "config_sets": [],
+                "error": str(e),
+            }
+            results.append(error_result)
+            has_errors = True
+
+    # Add summary
+    passed = sum(
+        1 for r in results
+        if not r.get("error") and all(cs["status"] == "pass" for cs in r.get("config_sets", []))
+    )
+    failed = sum(
+        1 for r in results
+        if not r.get("error") and any(cs["status"] == "fail" for cs in r.get("config_sets", []))
+    )
+    errored = sum(1 for r in results if r.get("error"))
+
+    output = {
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "failed": failed,
+            "errored": errored,
+        },
+        "results": results,
+    }
+
+    # Output results
+    if output_format == "json":
+        print(json.dumps(output, indent=2))
+    elif output_format == "yaml":
+        print(yaml.dump(output, default_flow_style=False))
+
+    return 1 if has_errors else 0
 
 
 def _validate_multiple_local(
