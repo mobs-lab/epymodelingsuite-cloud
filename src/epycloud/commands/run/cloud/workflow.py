@@ -120,6 +120,10 @@ def run_workflow_cloud(
     # Build Docker image URI
     image_uri = get_image_uri(config)
 
+    # Extract image tag from config for runtime override
+    docker_config = config.get("docker", {})
+    image_tag = docker_config.get("image_tag", "latest")
+
     # Process machine type overrides for all stages
     # Stage A
     stage_a_config = batch_config.get("stage_a", {})
@@ -190,6 +194,7 @@ def run_workflow_cloud(
             "skip_output": skip_output,
             "output_config": output_config,
             "image_uri": image_uri,
+            "image_tag": image_tag,
         }
     )
 
@@ -206,6 +211,7 @@ def run_workflow_cloud(
         "exp_id": exp_id,
         "githubForecastRepo": github_forecast_repo,
         "batchSaEmail": batch_sa_email,
+        "imageTag": image_tag,
     }
 
     if run_id:
