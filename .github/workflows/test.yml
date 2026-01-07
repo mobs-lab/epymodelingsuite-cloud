@@ -49,3 +49,4 @@ jobs:
           report-only-changed-files: true
           remove-link-from-badge: true
           remove-links-to-lines: true
+          default-branch: main
