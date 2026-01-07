@@ -37,11 +37,11 @@ jobs:
         run: uv sync --dev
 
       - name: Run tests with coverage
-        run: uv run pytest --cov=src --cov-report=term-missing --junitxml=pytest.xml | tee coverage.txt
+        run: uv run pytest --cov=src --cov-report=term-missing --cov-report=xml --junitxml=pytest.xml
 
       - name: Comment coverage on PR
         uses: MishaKav/pytest-coverage-comment@v1.1.52
         if: github.event_name == 'pull_request'
         with:
-          pytest-coverage-path: coverage.txt
+          pytest-coverage-path: coverage.xml
           junitxml-path: pytest.xml
