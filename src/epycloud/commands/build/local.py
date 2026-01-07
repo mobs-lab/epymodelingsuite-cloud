@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 from epycloud.lib.command_helpers import check_docker_available
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import Colors, ask_confirmation, colorize, error, info, success, warning
 
 
 def build_local(
@@ -62,7 +62,10 @@ def build_local(
         info("Install Docker Engine or OrbStack (macOS)")
         return 1
 
-    info("Building cloud image locally...")
+    # Display build information
+    print("Build locally and push to registry")
+    print()
+    print(colorize("[Configuration]", Colors.CYAN))
     info(f"Image: {image_path}")
     info(f"Dockerfile: {dockerfile_path}")
     info(f"Context: {context_path}")
@@ -73,10 +76,22 @@ def build_local(
         info("Repository: not configured")
 
     if no_cache:
-        warning("Cache disabled (--no-cache)")
+        info("Cache: disabled (--no-cache)")
+    else:
+        info("Cache: enabled")
 
-    if not push:
-        warning("Will not push to registry (--no-push)")
+    if push:
+        info("Push: enabled")
+    else:
+        info("Push: disabled (--no-push)")
+    print()
+
+    # Ask for confirmation before proceeding
+    if not dry_run:
+        if not ask_confirmation("Continue?", default=True):
+            info("Build cancelled")
+            return 0
+        print()
 
     # Build docker command with absolute paths
     cmd = [
