@@ -29,9 +29,9 @@ jobs:
 
       - name: Configure Git for private repos
         env:
-          GITHUB_TOKEN: ${{ secrets.EPYMODELINGSUITE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Install dependencies
         run: uv sync --dev

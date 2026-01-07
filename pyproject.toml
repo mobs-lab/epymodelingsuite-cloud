@@ -35,7 +35,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.1.0",
-    "epymodelingsuite @ git+ssh://git@github.com/mobs-lab/epymodelingsuite.git@dev",
+    "epymodelingsuite @ git+https://github.com/mobs-lab/epymodelingsuite.git@dev",
 ]
 
 [project.scripts]
@@ -53,7 +53,7 @@ select = ["E", "F", "W", "I", "N", "UP"]
 ignore = []
 
 [tool.uv.sources]
-epymodelingsuite = { git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git", rev = "dev" }
+epymodelingsuite = { git = "https://github.com/mobs-lab/epymodelingsuite.git", rev = "dev" }
 
 [dependency-groups]
 dev = [
