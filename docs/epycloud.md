@@ -51,6 +51,12 @@ cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/flu.yaml
 # Add your GitHub Personal Access Token
 epycloud config edit-secrets
 
+# Activate a profile (e.g., flu)
+epycloud profile use flu
+
+# Verify all configurations are loaded
+epycloud config show
+
 # You're ready!
 epycloud --help
 ```
@@ -146,6 +152,12 @@ cp profile_flu.yaml ~/.config/epymodelingsuite-cloud/profiles/flu.yaml
 
 # Add secrets (GitHub PAT, etc.)
 epycloud config edit-secrets
+
+# Activate a profile (e.g., flu)
+epycloud profile use flu
+
+# Verify all configurations are loaded (should show all YAMLs)
+epycloud config show
 ```
 
 All epycloud commands and local Docker operations now use this unified configuration system.
