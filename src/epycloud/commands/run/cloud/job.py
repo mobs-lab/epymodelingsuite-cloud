@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import tempfile
-import time
+import uuid
 from typing import Any
 
 from epycloud.lib.command_helpers import (
@@ -124,9 +124,9 @@ def run_job_cloud(
     # Get batch service account
     batch_sa_email = get_batch_service_account(project_id)
 
-    # Generate job ID
-    timestamp = int(time.time())
-    job_id = f"epy-{timestamp}-stage-{stage.lower()}-manual"
+    # Generate job ID with 8-character UUID (consistent with workflow pattern)
+    unique_id = str(uuid.uuid4())[:8]
+    job_id = f"stage-{stage.lower()}-manual-{unique_id}"
 
     # Auto-generate run_id for stage A if not provided
     if stage == "A" and not run_id:

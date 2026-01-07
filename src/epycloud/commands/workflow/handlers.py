@@ -316,25 +316,20 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
         error(f"Failed to get access token: {e}")
         return 1
 
-    # Fetch execution details to extract run_id for batch job cancellation
-    execution = None
-    run_id = None
+    # Construct batch job names deterministically from execution ID
+    # Job IDs follow pattern: stage-{a,b,c}-{first-8-chars-of-execution-id}
+    batch_job_names = []
     if not args.only_workflow:
-        try:
-            execution = api.get_execution(execution_name, token)
-            argument_str = execution.get("argument", "{}")
-            arg = json.loads(argument_str)
-            run_id = arg.get("run_id")
-        except requests.HTTPError as e:
-            if e.response and e.response.status_code == 404:
-                error(f"Execution not found: {args.execution_id}")
-                return 1
-            # Other errors - warn but continue with workflow cancel
-            if verbose:
-                warning(f"Failed to fetch execution details: {e}")
-        except Exception as e:
-            if verbose:
-                warning(f"Failed to extract run_id: {e}")
+        execution_id = args.execution_id.split("/")[-1]  # Extract ID from full path
+        execution_prefix = execution_id[:8]
+
+        # Construct full job resource paths
+        for stage in ["a", "b", "c"]:
+            job_name = (
+                f"projects/{project_id}/locations/{region}/jobs/"
+                f"stage-{stage}-{execution_prefix}"
+            )
+            batch_job_names.append(job_name)
 
     # Make API request
     try:
@@ -342,61 +337,45 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
         success(f"Execution cancelled: {args.execution_id}")
 
         # Cancel child batch jobs unless --only-workflow flag is set
-        if not args.only_workflow and run_id:
-            info(f"Cancelling child batch jobs for run: {run_id}")
+        if not args.only_workflow and batch_job_names:
+            cancelled_count = 0
+            not_found_count = 0
+            failed_count = 0
 
-            try:
-                # List active batch jobs for this run
-                jobs = api.list_batch_jobs_for_run(project_id, region, run_id, verbose)
+            for job_name in batch_job_names:
+                job_id = job_name.split("/")[-1] if job_name else "unknown"
 
-                if not jobs:
-                    info("No active batch jobs found")
-                else:
-                    cancelled_count = 0
-                    failed_count = 0
-
-                    for job in jobs:
-                        job_name = job.get("name", "")
-                        job_id = job_name.split("/")[-1] if job_name else "unknown"
-                        stage = job.get("labels", {}).get("stage", "unknown")
-
-                        try:
-                            api.cancel_batch_job(job_name, token)
-                            info(f"Cancelled {stage} job: {job_id}")
-                            cancelled_count += 1
-                        except requests.HTTPError as e:
-                            if e.response:
-                                status_code = e.response.status_code
-                                if status_code in (400, 404):
-                                    # Job already completed/cancelled - not an error
-                                    info(f"Job already completed: {job_id}")
-                                else:
-                                    # Other errors - log but continue
-                                    warning(f"Failed to cancel job {job_id}: HTTP {status_code}")
-                                    failed_count += 1
-                            else:
-                                warning(f"Failed to cancel job {job_id}: No response")
-                                failed_count += 1
-                        except Exception as e:
-                            warning(f"Failed to cancel job {job_id}: {e}")
+                try:
+                    api.cancel_batch_job(job_name, token)
+                    info(f"Cancelled job: {job_id}")
+                    cancelled_count += 1
+                except requests.HTTPError as e:
+                    if e.response:
+                        status_code = e.response.status_code
+                        if status_code == 404:
+                            # Job doesn't exist (workflow may not have reached this stage)
+                            if verbose:
+                                info(f"Job not found: {job_id}")
+                            not_found_count += 1
+                        elif status_code == 400:
+                            # Job already completed/cancelled
+                            info(f"Job already completed: {job_id}")
+                        else:
+                            # Other errors - log but continue
+                            warning(f"Failed to cancel job {job_id}: HTTP {status_code}")
                             failed_count += 1
+                    else:
+                        warning(f"Failed to cancel job {job_id}: No response")
+                        failed_count += 1
+                except Exception as e:
+                    warning(f"Failed to cancel job {job_id}: {e}")
+                    failed_count += 1
 
-                    # Summary
-                    if cancelled_count > 0:
-                        success(f"Cancelled {cancelled_count} batch job(s)")
-                    if failed_count > 0:
-                        warning(f"Failed to cancel {failed_count} batch job(s)")
-
-            except Exception as e:
-                # Don't fail overall command if batch cancellation fails
-                warning(f"Failed to list/cancel batch jobs: {e}")
-                if verbose:
-                    import traceback
-
-                    traceback.print_exc()
-
-        elif not args.only_workflow and not run_id:
-            warning("Could not extract run_id from execution - skipping batch job cancellation")
+            # Summary
+            if cancelled_count > 0:
+                success(f"Cancelled {cancelled_count} batch job(s)")
+            if failed_count > 0:
+                warning(f"Failed to cancel {failed_count} batch job(s)")
 
         return 0
 

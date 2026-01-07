@@ -40,7 +40,10 @@ epycloud config init
 epycloud config edit
 epycloud config edit-secrets  # For GitHub PAT
 
-# Verify configuration
+# Activate a profile (e.g., flu)
+epycloud profile use flu
+
+# Verify configuration (should show all YAMLs)
 epycloud config show
 ```
 
@@ -56,6 +59,8 @@ epycloud config show
 # epycloud config init
 # epycloud config edit
 # epycloud config edit-secrets
+# epycloud profile use flu
+# epycloud config show
 
 # Deploy infrastructure
 # epycloud terraform init && epycloud terraform apply
@@ -230,7 +235,8 @@ Run the pipeline locally for testing using Docker.
 epycloud config init
 epycloud config edit          # Configure Google Cloud, Docker settings
 epycloud config edit-secrets  # Add GitHub PAT for building Docker image
-epycloud config show          # Verify configuration
+epycloud profile use flu      # Activate a profile
+epycloud config show          # Verify configuration (should show all YAMLs)
 
 # 2. Create experiment directory
 mkdir -p ./local/forecast/experiments/{EXP_ID}/config/
