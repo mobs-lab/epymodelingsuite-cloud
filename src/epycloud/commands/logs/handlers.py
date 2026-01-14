@@ -40,9 +40,14 @@ def handle(ctx: dict[str, Any]) -> int:
         error(str(e))
         return 2
 
+    # Require at least one of: exp_id, job_name, or execution_id
+    if not args.exp_id and not args.job_name and not args.execution_id:
+        error("At least one of --exp-id, --job-name, or --execution-id is required")
+        return 1
+
     # Validate inputs
     try:
-        exp_id = validate_exp_id(args.exp_id)
+        exp_id = validate_exp_id(args.exp_id) if args.exp_id else None
         run_id = validate_run_id(args.run_id) if args.run_id else None
         stage = validate_stage_name(args.stage) if args.stage else None
     except ValidationError as e:
@@ -63,6 +68,8 @@ def handle(ctx: dict[str, Any]) -> int:
         task_index=task_index,
         level=args.level,
         since=args.since,
+        job_name=args.job_name,
+        execution_id=args.execution_id,
     )
 
     if verbose:
@@ -87,19 +94,21 @@ def handle(ctx: dict[str, Any]) -> int:
 
 
 def build_log_filter(
-    exp_id: str,
+    exp_id: str | None,
     run_id: str | None,
     stage: str | None,
     task_index: int | None,
     level: str | None,
     since: str | None,
+    job_name: str | None = None,
+    execution_id: str | None = None,
 ) -> str:
     """Build Cloud Logging filter string.
 
     Parameters
     ----------
-    exp_id : str
-        Experiment ID
+    exp_id : str | None
+        Experiment ID (optional if job_name is provided)
     run_id : str | None
         Run ID (optional)
     stage : str | None
@@ -110,6 +119,10 @@ def build_log_filter(
         Log level (optional)
     since : str | None
         Since duration (optional)
+    job_name : str | None
+        Batch job name (optional, e.g., stage-b-003a2da6)
+    execution_id : str | None
+        Workflow execution ID (optional, filters all stages from that execution)
 
     Returns
     -------
@@ -122,8 +135,9 @@ def build_log_filter(
     filter_parts.append('resource.type="batch.googleapis.com/Job"')
 
     # Labels (must be sanitized to match what was set in job creation)
-    exp_id_label = sanitize_label_value(exp_id)
-    filter_parts.append(f'labels.exp_id="{exp_id_label}"')
+    if exp_id:
+        exp_id_label = sanitize_label_value(exp_id)
+        filter_parts.append(f'labels.exp_id="{exp_id_label}"')
 
     if run_id:
         run_id_label = sanitize_label_value(run_id)
@@ -134,6 +148,18 @@ def build_log_filter(
 
     if task_index is not None:
         filter_parts.append(f'labels.batch.task_index="{task_index}"')
+
+    # Job name filter (prefix match on batch job ID)
+    # Job names like "stage-b-a50f0fb0" become UIDs like "stage-b-a50f0fb0-ae53b727-..."
+    if job_name:
+        filter_parts.append(f'labels.job_uid=~"^{job_name}"')
+
+    # Execution ID filter (matches all stages from that execution)
+    if execution_id:
+        # Extract first 8 chars (uniqueId used in job names)
+        unique_id = execution_id[:8]
+        # Use regex to match all stages: stage-a-xxx, stage-b-xxx, stage-c-xxx
+        filter_parts.append(f'labels.job_uid=~"^stage-.-{unique_id}"')
 
     # Severity level
     if level:

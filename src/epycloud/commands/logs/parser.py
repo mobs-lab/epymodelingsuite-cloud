@@ -19,8 +19,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     parser.add_argument(
         "--exp-id",
-        help="Experiment ID (required)",
-        required=True,
+        help="Experiment ID (required unless --job-name or --execution-id is specified)",
     )
 
     parser.add_argument(
@@ -38,6 +37,16 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         "--task-index",
         type=int,
         help="Task index for stage B (default: all tasks)",
+    )
+
+    parser.add_argument(
+        "--job-name",
+        help="Batch job name (e.g., stage-b-003a2da6)",
+    )
+
+    parser.add_argument(
+        "--execution-id",
+        help="Workflow execution ID (filters all stages from that execution)",
     )
 
     parser.add_argument(
