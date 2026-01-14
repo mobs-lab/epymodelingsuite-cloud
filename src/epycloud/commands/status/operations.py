@@ -36,33 +36,48 @@ def fetch_active_workflows(
         List of active workflow executions
     """
     workflow_name = "epymodelingsuite-pipeline"
-    list_url = (
+    base_url = (
         f"https://workflowexecutions.googleapis.com/v1/"
         f"projects/{project_id}/locations/{region}/workflows/{workflow_name}/executions"
-        f'?pageSize=20&filter=state="ACTIVE"&view=FULL'
     )
 
     try:
         # Get auth token
         token = get_gcloud_access_token(verbose)
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
 
-        # Make API request
-        response = requests.get(
-            list_url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-        )
-        response.raise_for_status()
-        result = response.json()
-        executions = result.get("executions", [])
+        # Fetch all pages of results
+        all_executions: list[dict[str, Any]] = []
+        page_token: str | None = None
+
+        while True:
+            # Build URL with pagination
+            url = f'{base_url}?pageSize=30&filter=state="ACTIVE"&view=FULL'
+            if page_token:
+                url += f"&pageToken={page_token}"
+
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+
+            executions = result.get("executions", [])
+            all_executions.extend(executions)
+
+            # Check for next page
+            page_token = result.get("nextPageToken")
+            if not page_token:
+                break
 
         # Filter by exp_id if provided
         if exp_id:
-            executions = [e for e in executions if exp_id in e.get("argument", "")]
+            all_executions = [
+                e for e in all_executions if exp_id in e.get("argument", "")
+            ]
 
-        return executions
+        return all_executions
 
     except Exception as e:
         if verbose:
