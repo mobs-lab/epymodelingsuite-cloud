@@ -11,6 +11,34 @@ from epycloud.lib.formatters import format_status, format_timestamp_full
 from epycloud.lib.output import section_header, supports_color, warning
 
 
+def extract_image_tag(image_uri: str) -> str:
+    """Extract tag from Docker image URI.
+
+    Parameters
+    ----------
+    image_uri : str
+        Full image URI (e.g., "us-central1-docker.pkg.dev/proj/repo/img:tag")
+
+    Returns
+    -------
+    str
+        Image tag, digest prefix, or "latest" if no tag specified
+    """
+    if not image_uri:
+        return "unknown"
+
+    if "@sha256:" in image_uri:
+        # Digest reference - show first 7 chars of hash (like git)
+        digest = image_uri.split("@sha256:")[-1]
+        return f"sha256:{digest[:7]}"
+    elif ":" in image_uri.split("/")[-1]:
+        # Has explicit tag
+        return image_uri.split(":")[-1]
+    else:
+        # No tag = implicit latest
+        return "latest"
+
+
 def fetch_active_workflows(
     project_id: str,
     region: str,
@@ -219,7 +247,7 @@ def display_status(
         section_header("Active batch jobs")
 
         print("-" * 135)
-        print(f"{'JOB NAME':<40} {'EXP_ID':<55} {'STAGE':<8} {'STATUS':<12} {'TASKS':<15}")
+        print(f"{'JOB NAME':<40} {'EXP_ID':<45} {'STAGE':<8} {'IMAGE TAG':<15} {'STATUS':<12} {'TASKS':<7}")
         print("-" * 135)
 
         for job in jobs:
@@ -231,17 +259,28 @@ def display_status(
             labels = job.get("labels", {})
             stage = labels.get("stage", "unknown")
 
-            # Get exp_id from environment variables (original, unsanitized)
+            # Get exp_id and image_uri from task spec
             task_groups_list = job.get("taskGroups", [])
             exp_id = "unknown"
+            image_tag = "unknown"
             if task_groups_list:
                 task_spec = task_groups_list[0].get("taskSpec", {})
                 env_vars = task_spec.get("environment", {}).get("variables", {})
                 exp_id = env_vars.get("EXP_ID", labels.get("exp_id", "unknown"))
 
-            # Truncate exp_id if too long (keep first 52 chars + "...")
-            if len(exp_id) > 55:
-                exp_id = exp_id[:52] + "..."
+                # Extract image tag from container config
+                runnables = task_spec.get("runnables", [])
+                if runnables:
+                    image_uri = runnables[0].get("container", {}).get("imageUri", "")
+                    image_tag = extract_image_tag(image_uri)
+
+            # Truncate exp_id if too long (keep first 42 chars + "...")
+            if len(exp_id) > 45:
+                exp_id = exp_id[:42] + "..."
+
+            # Truncate image_tag if too long
+            if len(image_tag) > 15:
+                image_tag = image_tag[:12] + "..."
 
             # Get task counts
             task_groups = status.get("taskGroups", {})
@@ -271,7 +310,7 @@ def display_status(
             status_padded = f"{state:<12}"
             status_display = format_status(status_padded, "batch")
 
-            print(f"{job_name:<40} {exp_id:<55} {stage:<8} {status_display} {tasks_str:<15}")
+            print(f"{job_name:<40} {exp_id:<45} {stage:<8} {image_tag:<15} {status_display} {tasks_str:<7}")
 
         print()
 
