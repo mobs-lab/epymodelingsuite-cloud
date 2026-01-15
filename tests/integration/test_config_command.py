@@ -433,7 +433,7 @@ class TestConfigEditSecretsCommand:
 class TestConfigValidateCommand:
     """Test config validate command."""
 
-    @patch("epycloud.config.loader.ConfigLoader")
+    @patch("epycloud.commands.config_cmd.handlers.ConfigLoader")
     @patch("epycloud.commands.config_cmd.handlers.get_config_value")
     def test_config_validate_success(self, mock_get_value, mock_loader):
         """Test successful validation."""
@@ -658,7 +658,7 @@ class TestConfigGetCommand:
 class TestConfigSetCommand:
     """Test config set command."""
 
-    @patch("epycloud.commands.config_cmd.operations.get_config_file")
+    @patch("epycloud.commands.config_cmd.handlers.get_config_file")
     @patch("epycloud.commands.config_cmd.handlers.set_config_value")
     def test_config_set_value(self, mock_set_value, mock_get_file, tmp_path):
         """Test setting config value."""
@@ -709,7 +709,7 @@ class TestConfigSetCommand:
         # Should fail due to missing config file
         assert exit_code == 1
 
-    @patch("epycloud.commands.config_cmd.operations.get_config_file")
+    @patch("epycloud.commands.config_cmd.handlers.get_config_file")
     @patch("epycloud.commands.config_cmd.handlers.set_config_value")
     def test_config_set_creates_nested_key(self, mock_set_value, mock_get_file, tmp_path):
         """Test setting a new nested key."""

@@ -185,6 +185,7 @@ def run_workflow_cloud(
             "forecast_repo_ref": github_forecast_repo_ref,
             "pat_configured": bool(github["personal_access_token"]),
             "max_parallelism": max_parallelism,
+            "task_count_per_node": task_count_per_node,
             "stage_a_machine_type": stage_a_machine_type,
             "stage_a_machine_type_override": stage_a_machine_type_override,
             "stage_b_machine_type": stage_b_machine_type,

@@ -267,7 +267,7 @@ def validate_github_token(token: str) -> str:
 def validate_stage_name(stage: str) -> str:
     """Validate pipeline stage name.
 
-    Valid stage names are: builder, runner, output.
+    Valid stage names are: A, B, C, builder, runner, output.
 
     Parameters
     ----------
@@ -290,17 +290,19 @@ def validate_stage_name(stage: str) -> str:
     'builder'
     >>> validate_stage_name("RUNNER")
     'runner'
+    >>> validate_stage_name("A")
+    'a'
     >>> validate_stage_name("invalid")
     Traceback (most recent call last):
         ...
-    ValidationError: Invalid stage name: invalid. Must be one of: builder, runner, output
+    ValidationError: Invalid stage name: invalid. Must be one of: A, B, C, builder, output, runner
     """
     if not stage or not stage.strip():
         raise ValidationError("Stage name cannot be empty")
 
     stage = stage.strip().lower()
 
-    valid_stages = {"builder", "runner", "output"}
+    valid_stages = {"a", "b", "c", "builder", "runner", "output"}
     if stage not in valid_stages:
         raise ValidationError(
             f"Invalid stage name: {stage}. Must be one of: {', '.join(sorted(valid_stages))}"

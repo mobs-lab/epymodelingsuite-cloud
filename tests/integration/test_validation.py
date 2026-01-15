@@ -202,13 +202,17 @@ class TestValidateStageName:
         assert validate_stage_name("output") == "output"
         assert validate_stage_name("BUILDER") == "builder"  # Normalized to lowercase
 
+    def test_valid_stage_letters(self):
+        """Test valid stage letters."""
+        assert validate_stage_name("A") == "a"
+        assert validate_stage_name("B") == "b"
+        assert validate_stage_name("C") == "c"
+        assert validate_stage_name("a") == "a"  # Lowercase also valid
+
     def test_invalid_stage_name(self):
         """Test invalid stage name."""
         with pytest.raises(ValidationError, match="Invalid stage name"):
             validate_stage_name("invalid")
-
-        with pytest.raises(ValidationError, match="Invalid stage name"):
-            validate_stage_name("A")  # Legacy names not accepted
 
     def test_invalid_stage_name_empty(self):
         """Test empty stage name."""

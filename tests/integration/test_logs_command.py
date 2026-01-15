@@ -46,6 +46,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -83,6 +85,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -118,6 +122,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -153,6 +159,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -188,6 +196,8 @@ class TestLogsCommand:
                 tail=500,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -222,6 +232,8 @@ class TestLogsCommand:
                 tail=0,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -257,6 +269,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -289,6 +303,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -321,6 +337,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level="ERROR",
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -349,6 +367,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -374,6 +394,8 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -421,12 +443,159 @@ class TestLogsCommand:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
         exit_code = logs.handle(ctx)
 
         assert exit_code == 2
+
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
+    def test_logs_fetch_by_job_name(self, mock_subprocess, mock_config):
+        """Test filtering logs by job name."""
+        mock_subprocess.return_value = Mock(
+            returncode=0,
+            stdout=json.dumps([]),
+            stderr="",
+        )
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                exp_id=None,  # Not required when job_name is specified
+                run_id=None,
+                stage=None,
+                task_index=None,
+                follow=False,
+                tail=100,
+                since=None,
+                level=None,
+                job_name="stage-b-003a2da6",
+                execution_id=None,
+            ),
+        }
+
+        exit_code = logs.handle(ctx)
+
+        assert exit_code == 0
+        cmd = mock_subprocess.call_args[0][0]
+        filter_arg = cmd[3]
+        # Uses prefix match since job names become UIDs with suffixes
+        assert 'labels.job_uid=~"^stage-b-003a2da6"' in filter_arg
+        # exp_id should not be in filter when not provided
+        assert "labels.exp_id" not in filter_arg
+
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
+    def test_logs_fetch_by_execution_id(self, mock_subprocess, mock_config):
+        """Test filtering logs by execution ID."""
+        mock_subprocess.return_value = Mock(
+            returncode=0,
+            stdout=json.dumps([]),
+            stderr="",
+        )
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                exp_id="test-exp",
+                run_id=None,
+                stage=None,
+                task_index=None,
+                follow=False,
+                tail=100,
+                since=None,
+                level=None,
+                job_name=None,
+                execution_id="003a2da6-1234-5678-abcd-ef0123456789",
+            ),
+        }
+
+        exit_code = logs.handle(ctx)
+
+        assert exit_code == 0
+        cmd = mock_subprocess.call_args[0][0]
+        filter_arg = cmd[3]
+        # Execution ID uses regex pattern to match all stages (prefix match)
+        assert 'labels.job_uid=~"^stage-.-003a2da6"' in filter_arg
+
+    def test_logs_missing_required_filters(self, mock_config):
+        """Test error when none of exp_id, job_name, or execution_id is provided."""
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                exp_id=None,
+                run_id=None,
+                stage=None,
+                task_index=None,
+                follow=False,
+                tail=100,
+                since=None,
+                level=None,
+                job_name=None,
+                execution_id=None,
+            ),
+        }
+
+        exit_code = logs.handle(ctx)
+
+        assert exit_code == 1
+
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
+    def test_logs_fetch_by_execution_id_only(self, mock_subprocess, mock_config):
+        """Test filtering logs by execution ID without exp_id."""
+        mock_subprocess.return_value = Mock(
+            returncode=0,
+            stdout=json.dumps([]),
+            stderr="",
+        )
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                exp_id=None,  # Not required when execution_id is specified
+                run_id=None,
+                stage=None,
+                task_index=None,
+                follow=False,
+                tail=100,
+                since=None,
+                level=None,
+                job_name=None,
+                execution_id="afda7344-2190-4562-9ff5-56e47fdb159d",
+            ),
+        }
+
+        exit_code = logs.handle(ctx)
+
+        assert exit_code == 0
+        cmd = mock_subprocess.call_args[0][0]
+        filter_arg = cmd[3]
+        # Uses first 8 chars of execution ID
+        assert 'labels.job_uid=~"^stage-.-afda7344"' in filter_arg
+        # exp_id should not be in filter when not provided
+        assert "labels.exp_id" not in filter_arg
 
 
 class TestLogsNormalizeStage:
@@ -530,6 +699,8 @@ class TestLogsFollowMode:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 
@@ -586,6 +757,8 @@ class TestLogsFollowMode:
                 tail=100,
                 since=None,
                 level=None,
+                job_name=None,
+                execution_id=None,
             ),
         }
 

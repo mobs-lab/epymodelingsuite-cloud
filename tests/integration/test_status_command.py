@@ -237,7 +237,7 @@ class TestStatusShowCommand:
 class TestStatusFetchFunctions:
     """Test status fetch helper functions."""
 
-    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
     @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_success(self, mock_get, mock_token):
         """Test fetching active workflows from API."""
@@ -272,7 +272,7 @@ class TestStatusFetchFunctions:
         assert len(workflows) == 2
         mock_get.assert_called_once()
 
-    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
     @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_filter_by_exp_id(self, mock_get, mock_token):
         """Test filtering workflows by exp_id."""
@@ -305,7 +305,7 @@ class TestStatusFetchFunctions:
         assert len(workflows) == 1
         assert "test-flu" in workflows[0]["argument"]
 
-    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
     @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_empty(self, mock_get, mock_token):
         """Test empty workflow list."""
@@ -326,7 +326,7 @@ class TestStatusFetchFunctions:
 
         assert len(workflows) == 0
 
-    @patch("epycloud.lib.command_helpers.get_gcloud_access_token")
+    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
     @patch("epycloud.commands.status.operations.requests.get")
     def test_fetch_active_workflows_api_error(self, mock_get, mock_token):
         """Test API error resilience."""
