@@ -11,7 +11,7 @@ from epycloud.commands.status.operations import (
 )
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import get_google_cloud_config, require_config
-from epycloud.lib.formatters import format_timestamp_full
+from epycloud.lib.formatters import format_timestamp_local
 from epycloud.lib.output import error, info, warning
 
 
@@ -169,7 +169,7 @@ def _watch_status(
                 display_status(workflows, jobs, exp_id)
 
                 # Show refresh time
-                now = format_timestamp_full(datetime.now().isoformat())
+                now = format_timestamp_local(datetime.now().isoformat())
                 print(f"Last updated: {now} (refreshing every {interval}s)")
 
             except Exception as e:

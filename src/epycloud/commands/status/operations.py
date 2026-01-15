@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from epycloud.lib.command_helpers import get_gcloud_access_token
-from epycloud.lib.formatters import format_status, format_timestamp_full
+from epycloud.lib.formatters import format_status, format_timestamp_local
 from epycloud.lib.output import section_header, supports_color, warning
 
 
@@ -204,7 +204,7 @@ def display_status(
         section_header("Active workflows")
 
         print("-" * 135)
-        print(f"{'EXECUTION ID':<40} {'EXP_ID':<55} {'START TIME':<37}")
+        print(f"{'EXP_ID':<60} {'EXECUTION ID':<45} {'START TIME':<24}")
         print("-" * 135)
 
         for workflow in workflows:
@@ -227,18 +227,18 @@ def display_status(
                 labels = workflow.get("labels", {})
                 exp_id = labels.get("exp_id", "unknown")
 
-            # Truncate exp_id if too long (keep first 52 chars + "...")
-            if len(exp_id) > 55:
-                exp_id = exp_id[:52] + "..."
+            # Truncate exp_id if too long (keep first 57 chars + "...")
+            if len(exp_id) > 60:
+                exp_id = exp_id[:57] + "..."
 
-            # Format start time
+            # Format start time (local time with timezone)
             start_time = workflow.get("startTime", "")
             if start_time:
-                start_time_str = format_timestamp_full(start_time)
+                start_time_str = format_timestamp_local(start_time)
             else:
                 start_time_str = "unknown"
 
-            print(f"{execution_id:<40} {exp_id:<55} {start_time_str:<37}")
+            print(f"{exp_id:<60} {execution_id:<45} {start_time_str:<24}")
 
         print()
 
@@ -247,11 +247,14 @@ def display_status(
         section_header("Active batch jobs")
 
         print("-" * 135)
-        print(f"{'JOB NAME':<40} {'EXP_ID':<45} {'STAGE':<8} {'IMAGE TAG':<15} {'STATUS':<12} {'TASKS':<7}")
+        print(f"{'EXP_ID':<60} {'JOB NAME':<25} {'STAGE':<8} {'IMAGE TAG':<15} {'STATUS':<12} {'TASKS':<7}")
         print("-" * 135)
 
         for job in jobs:
             job_name = job.get("name", "").split("/")[-1]
+            # Truncate job_name if too long
+            if len(job_name) > 25:
+                job_name = job_name[:22] + "..."
             status = job.get("status", {})
             state = status.get("state", "UNKNOWN")
 
@@ -274,9 +277,9 @@ def display_status(
                     image_uri = runnables[0].get("container", {}).get("imageUri", "")
                     image_tag = extract_image_tag(image_uri)
 
-            # Truncate exp_id if too long (keep first 42 chars + "...")
-            if len(exp_id) > 45:
-                exp_id = exp_id[:42] + "..."
+            # Truncate exp_id if too long (keep first 57 chars + "...")
+            if len(exp_id) > 60:
+                exp_id = exp_id[:57] + "..."
 
             # Truncate image_tag if too long
             if len(image_tag) > 15:
@@ -310,7 +313,7 @@ def display_status(
             status_padded = f"{state:<12}"
             status_display = format_status(status_padded, "batch")
 
-            print(f"{job_name:<40} {exp_id:<45} {stage:<8} {image_tag:<15} {status_display} {tasks_str:<7}")
+            print(f"{exp_id:<60} {job_name:<25} {stage:<8} {image_tag:<15} {status_display} {tasks_str:<7}")
 
         print()
 
