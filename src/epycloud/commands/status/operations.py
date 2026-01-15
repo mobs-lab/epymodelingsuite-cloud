@@ -105,6 +105,16 @@ def fetch_active_workflows(
                 e for e in all_executions if exp_id in e.get("argument", "")
             ]
 
+        # Sort by exp_id
+        def get_workflow_exp_id(workflow: dict[str, Any]) -> str:
+            try:
+                arg = json.loads(workflow.get("argument", "{}"))
+                return arg.get("exp_id", "")
+            except json.JSONDecodeError:
+                return ""
+
+        all_executions.sort(key=get_workflow_exp_id)
+
         return all_executions
 
     except Exception as e:
@@ -174,6 +184,18 @@ def fetch_active_batch_jobs(
             return []
 
         jobs = json.loads(result.stdout)
+
+        # Sort by exp_id
+        def get_job_exp_id(job: dict[str, Any]) -> str:
+            task_groups = job.get("taskGroups", [])
+            if task_groups:
+                task_spec = task_groups[0].get("taskSpec", {})
+                env_vars = task_spec.get("environment", {}).get("variables", {})
+                return env_vars.get("EXP_ID", job.get("labels", {}).get("exp_id", ""))
+            return job.get("labels", {}).get("exp_id", "")
+
+        jobs.sort(key=get_job_exp_id)
+
         return jobs
 
     except Exception as e:
