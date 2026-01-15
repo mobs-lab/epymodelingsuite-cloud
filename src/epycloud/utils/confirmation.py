@@ -48,6 +48,8 @@ def _format_workflow_details(info: dict[str, Any], exp_id: str, run_id: str, mod
     if mode == "cloud":
         if "max_parallelism" in info:
             lines.append(f"  Max parallelism: {info['max_parallelism']}")
+        if "task_count_per_node" in info:
+            lines.append(f"  Tasks per node: {info['task_count_per_node']}")
         # Show machine type overrides for all stages
         if "stage_a_machine_type" in info and info["stage_a_machine_type"]:
             override_marker = " (override)" if info.get("stage_a_machine_type_override") else ""
