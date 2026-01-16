@@ -15,6 +15,7 @@ from epycloud.lib.formatters import (
     format_table,
     format_timestamp,
     format_timestamp_full,
+    format_timestamp_local,
     format_timestamp_time,
     parse_duration_string,
     parse_since_time,
@@ -143,6 +144,41 @@ class TestFormatTimestampFull:
     def test_format_timestamp_full_empty_string(self):
         """Test empty string input."""
         result = format_timestamp_full("")
+        assert result == ""
+
+
+class TestFormatTimestampLocal:
+    """Test format_timestamp_local function."""
+
+    def test_format_timestamp_local_basic(self):
+        """Test basic local time formatting with timezone."""
+        result = format_timestamp_local("2025-11-07T10:30:00Z")
+        # Result should be in format "YYYY-MM-DD HH:MM:SS TZ"
+        # The exact time depends on local timezone, but format should be correct
+        assert len(result) >= 23  # "YYYY-MM-DD HH:MM:SS TZ" minimum
+        assert result.count("-") == 2  # Date separators
+        assert result.count(":") == 2  # Time separators
+
+    def test_format_timestamp_local_with_microseconds(self):
+        """Test local time with microseconds."""
+        result = format_timestamp_local("2025-11-07T14:45:30.123456Z")
+        # Should have timezone at end
+        parts = result.split()
+        assert len(parts) == 3  # date, time, timezone
+
+    def test_format_timestamp_local_invalid_string(self):
+        """Test invalid timestamp string fallback."""
+        result = format_timestamp_local("invalid-timestamp")
+        assert result == "invalid-timestamp"
+
+    def test_format_timestamp_local_none(self):
+        """Test None input."""
+        result = format_timestamp_local(None)
+        assert result is None
+
+    def test_format_timestamp_local_empty_string(self):
+        """Test empty string input."""
+        result = format_timestamp_local("")
         assert result == ""
 
 

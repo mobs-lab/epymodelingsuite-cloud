@@ -10,6 +10,7 @@ from epycloud.commands.status.operations import (
     fetch_active_workflows,
     fetch_active_batch_jobs,
     display_status,
+    extract_image_tag,
 )
 
 
@@ -586,3 +587,41 @@ class TestStatusMissingConfig:
         exit_code = status.handle(ctx)
 
         assert exit_code == 2
+
+
+class TestExtractImageTag:
+    """Test extract_image_tag helper function."""
+
+    def test_extract_tag_explicit(self):
+        """Test extracting explicit tag."""
+        uri = "us-central1-docker.pkg.dev/project/repo/image:v1.2.3"
+        assert extract_image_tag(uri) == "v1.2.3"
+
+    def test_extract_tag_latest_explicit(self):
+        """Test extracting explicit latest tag."""
+        uri = "us-central1-docker.pkg.dev/project/repo/image:latest"
+        assert extract_image_tag(uri) == "latest"
+
+    def test_extract_tag_implicit_latest(self):
+        """Test implicit latest when no tag specified."""
+        uri = "us-central1-docker.pkg.dev/project/repo/image"
+        assert extract_image_tag(uri) == "latest"
+
+    def test_extract_tag_digest(self):
+        """Test extracting digest reference (7 chars like git)."""
+        uri = "us-central1-docker.pkg.dev/project/repo/image@sha256:abc1234def5678901234567890"
+        assert extract_image_tag(uri) == "sha256:abc1234"
+
+    def test_extract_tag_empty(self):
+        """Test empty image URI."""
+        assert extract_image_tag("") == "unknown"
+
+    def test_extract_tag_with_port(self):
+        """Test image URI with port number (should not confuse with tag)."""
+        uri = "localhost:5000/image:v1.0"
+        assert extract_image_tag(uri) == "v1.0"
+
+    def test_extract_tag_gcr(self):
+        """Test GCR image URI."""
+        uri = "gcr.io/project/image:prod"
+        assert extract_image_tag(uri) == "prod"

@@ -164,6 +164,38 @@ def format_timestamp_full(iso_string: str) -> str:
         return iso_string[:19] if iso_string and len(iso_string) >= 19 else iso_string
 
 
+def format_timestamp_local(iso_string: str) -> str:
+    """
+    Format ISO 8601 timestamp as YYYY-MM-DD HH:MM:SS in local time with timezone.
+
+    Parameters
+    ----------
+    iso_string : str
+        ISO 8601 timestamp string (e.g., "2025-11-07T10:30:00Z").
+
+    Returns
+    -------
+    str
+        Formatted timestamp in "YYYY-MM-DD HH:MM:SS TZ" format (local time).
+        If parsing fails, returns first 19 characters of input.
+
+    Examples
+    --------
+    >>> format_timestamp_local("2025-11-07T10:30:00Z")  # In EST timezone
+    '2025-11-07 05:30:00 EST'
+    """
+    try:
+        dt = datetime.fromisoformat(iso_string.replace("Z", "+00:00"))
+        # Convert to local time
+        local_dt = dt.astimezone()
+        # Get timezone abbreviation (e.g., EST, PST, JST)
+        tz_abbr = local_dt.strftime("%Z")
+        return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} {tz_abbr}"
+    except (ValueError, AttributeError, TypeError):
+        # Fallback: return first 19 chars (YYYY-MM-DDTHH:MM:SS)
+        return iso_string[:19] if iso_string and len(iso_string) >= 19 else iso_string
+
+
 def format_timestamp_time(iso_string: str) -> str:
     """
     Format ISO 8601 timestamp as HH:MM:SS only.
