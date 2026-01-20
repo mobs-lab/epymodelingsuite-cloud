@@ -39,8 +39,9 @@ resource "google_compute_router_nat" "batch_nat" {
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 
   # Dynamic port allocation to handle many concurrent VMs
+  # min=1024 ensures enough ports for GitHub cloning + GCS operations
   enable_dynamic_port_allocation = true
-  min_ports_per_vm               = 64
+  min_ports_per_vm               = 1024
   max_ports_per_vm               = 4096
 
   log_config {
