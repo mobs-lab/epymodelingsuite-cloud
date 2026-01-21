@@ -237,9 +237,7 @@ def resolve_output_config(
     if output_config_filename:
         output_config_path = exp_config_dir / output_config_filename
         if not output_config_path.exists():
-            raise FileNotFoundError(
-                f"Output config file not found: {output_config_path}"
-            )
+            raise FileNotFoundError(f"Output config file not found: {output_config_path}")
 
         # Validate it's a valid output config
         config_type = identify_config_type(str(output_config_path))
@@ -268,8 +266,7 @@ def resolve_output_config(
         return config_paths["output"]
 
     raise FileNotFoundError(
-        f"No output config found for exp_id '{exp_id}'. "
-        f"Searched in: {exp_config_dir}"
+        f"No output config found for exp_id '{exp_id}'. Searched in: {exp_config_dir}"
     )
 
 
@@ -334,3 +331,74 @@ def load_all_configs(
         validate_cross_config_consistency(basemodel_config, modelset_config, output_config)
 
     return basemodel_config, sampling_config, calibration_config, output_config
+
+
+def upload_model_configs(exp_id: str, config_dir: str = "/data/forecast/experiments") -> list[str]:
+    """Upload basemodel + modelset configs to storage (excludes output configs).
+
+    Uses identify_config_type() to determine config types by YAML structures. Only uploads in cloud mode.
+
+    Parameters
+    ----------
+    exp_id : str
+        Experiment ID (e.g., 'test-sim', 'flu_round05')
+    config_dir : str, optional
+        Base directory for experiments (default: '/data/forecast/experiments')
+
+    Returns
+    -------
+    list[str]
+        List of uploaded config filenames
+    """
+    from util.storage import save_bytes
+
+    # Find config directory
+    exp_config_dir = Path(config_dir) / exp_id / "config"
+
+    # If direct path doesn't exist, search for it (same logic as resolve_configs)
+    if not exp_config_dir.exists():
+        base_dir = Path(config_dir)
+        exp_name = exp_id.split("/")[-1] if "/" in exp_id else exp_id
+
+        found_paths = []
+        top_level_path = base_dir / exp_name / "config"
+        if top_level_path.exists():
+            found_paths.append(top_level_path)
+        found_paths.extend(base_dir.glob(f"*/{exp_name}/config"))
+
+        if not found_paths:
+            _logger.warning(f"Config directory not found: {exp_config_dir}")
+            return []
+
+        exp_config_dir = found_paths[0]
+
+    # Find all YAML files
+    yaml_files = list(exp_config_dir.glob("*.yaml")) + list(exp_config_dir.glob("*.yml"))
+
+    uploaded = []
+    for yaml_file in yaml_files:
+        try:
+            config_type = identify_config_type(str(yaml_file))
+        except Exception as e:
+            _logger.warning(f"Could not identify config type for {yaml_file.name}: {e}")
+            continue
+
+        # Skip output configs (handled by Stage C) and unknown types
+        if config_type == "output" or config_type is None:
+            continue
+
+        # Upload to storage: config/{filename}
+        with open(yaml_file, "rb") as f:
+            content = f.read()
+
+        from util.storage import get_path
+
+        config_path = get_path("config", yaml_file.name)
+        save_bytes(config_path, content, compress=False)
+        uploaded.append(yaml_file.name)
+        _logger.debug(f"Uploaded config: {yaml_file.name}")
+
+    if uploaded:
+        _logger.info(f"Model configs uploaded: {', '.join(uploaded)}")
+
+    return uploaded
