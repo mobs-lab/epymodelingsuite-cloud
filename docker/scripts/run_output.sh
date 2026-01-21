@@ -99,6 +99,21 @@ setup_github_auth() {
     echo "✓ GitHub PAT configured from Secret Manager"
 }
 
+# Function to cleanup repo tarball from GCS (no longer needed after Stage B)
+cleanup_repo_tarball() {
+    if [ -z "${GCS_BUCKET:-}" ] || [ -z "${DIR_PREFIX:-}" ] || [ -z "${EXP_ID:-}" ] || [ -z "${RUN_ID:-}" ]; then
+        return 0
+    fi
+
+    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/builder-artifacts/forecast-repo.tar.gz"
+
+    if gsutil -q stat "$gcs_path" 2>/dev/null; then
+        echo "Cleaning up forecast repo tarball from GCS..."
+        gsutil -q rm "$gcs_path"
+        echo "✓ Repo tarball removed from GCS"
+    fi
+}
+
 # Function to clone the forecast repository (cloud mode only)
 clone_forecast_repo() {
     if [ -z "$FORECAST_REPO" ]; then
@@ -146,6 +161,9 @@ main() {
     display_config
 
     if [ "$EXECUTION_MODE" = "cloud" ]; then
+        # Cleanup tarball from GCS (no longer needed after Stage B)
+        cleanup_repo_tarball
+
         echo "Cloud mode: Setting up forecast repository..."
 
         # Only clone forecast repo if FORECAST_REPO is set

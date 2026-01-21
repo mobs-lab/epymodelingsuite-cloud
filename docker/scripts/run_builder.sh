@@ -45,6 +45,31 @@ setup_github_auth() {
     echo "✓ GitHub PAT configured from Secret Manager"
 }
 
+# Function to upload repo tarball to GCS for Stage B (cloud mode only)
+# This avoids N parallel git clones from Stage B tasks
+upload_repo_tarball() {
+    if [ -z "${GCS_BUCKET:-}" ] || [ -z "${DIR_PREFIX:-}" ] || [ -z "${EXP_ID:-}" ] || [ -z "${RUN_ID:-}" ]; then
+        echo "Warning: Missing GCS config, skipping tarball upload"
+        return 0
+    fi
+
+    echo "Creating repo tarball for Stage B..."
+    local tarball_path="/tmp/forecast-repo.tar.gz"
+    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/builder-artifacts/forecast-repo.tar.gz"
+
+    # Create tarball from the cloned repo
+    tar -czf "$tarball_path" -C "$(dirname "$FORECAST_REPO_DIR")" "$(basename "$FORECAST_REPO_DIR")"
+
+    # Upload to GCS
+    echo "Uploading tarball to: $gcs_path"
+    gsutil -q cp "$tarball_path" "$gcs_path"
+
+    # Cleanup local tarball
+    rm -f "$tarball_path"
+
+    echo "✓ Repo tarball uploaded to GCS for Stage B"
+}
+
 # Function to clone the forecast repository (cloud mode only)
 clone_forecast_repo() {
     if [ -z "$FORECAST_REPO" ]; then
@@ -94,6 +119,8 @@ main() {
         if [ -n "$FORECAST_REPO" ]; then
             setup_github_auth
             clone_forecast_repo
+            # Upload tarball to GCS for Stage B to download (avoids N parallel git clones)
+            upload_repo_tarball
         else
             echo "GITHUB_FORECAST_REPO not set, skipping forecast repo clone"
         fi
