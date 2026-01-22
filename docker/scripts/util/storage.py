@@ -100,6 +100,8 @@ def _detect_content_type(path: str) -> str:
         ".csv": "text/csv",
         ".json": "application/json",
         ".txt": "text/plain",
+        ".yaml": "text/yaml",
+        ".yml": "text/yaml",
         ".png": "image/png",
         ".pdf": "application/pdf",
         ".svg": "image/svg+xml",
