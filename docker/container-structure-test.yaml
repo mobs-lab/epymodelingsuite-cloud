@@ -19,6 +19,22 @@ commandTests:
     command: "test"
     args: ["-x", "/scripts/run_dispatcher.sh"]
 
+  # Verify cloud-specific packages are importable in the venv.
+  - name: "import-google-cloud-storage"
+    command: "python3"
+    args: ["-c", "import google.cloud.storage; print('ok')"]
+    expectedOutput: ["ok"]
+
+  - name: "import-dill"
+    command: "python3"
+    args: ["-c", "import dill; print('ok')"]
+    expectedOutput: ["ok"]
+
+  - name: "import-python-json-logger"
+    command: "python3"
+    args: ["-c", "import pythonjsonlogger; print('ok')"]
+    expectedOutput: ["ok"]
+
 fileExistenceTests:
   # Entrypoint script should exist and be executable in the image.
   - name: "dispatcher-script-present"
