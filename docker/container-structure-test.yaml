@@ -14,9 +14,13 @@ commandTests:
       - "-c"
       - "import sys; assert sys.executable.startswith('/opt/epymodelingsuite/.venv/')"
 
+  # Entrypoint script should be executable.
+  - name: "dispatcher-script-executable"
+    command: "test"
+    args: ["-x", "/scripts/run_dispatcher.sh"]
+
 fileExistenceTests:
   # Entrypoint script should exist and be executable in the image.
   - name: "dispatcher-script-present"
     path: "/scripts/run_dispatcher.sh"
     shouldExist: true
-    isExecutable: true
