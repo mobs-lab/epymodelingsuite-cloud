@@ -26,13 +26,23 @@ ARG GITHUB_MODELING_SUITE_REPO
 ARG GITHUB_MODELING_SUITE_REF=main
 ARG GITHUB_PAT
 
-# Clone the epymodelingsuite repository and install it in editable mode
-# Using editable install (-e) to work around missing validation subpackage issue
+# Clone the epymodelingsuite repository and install it using uv.lock
 RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
     git clone --branch ${GITHUB_MODELING_SUITE_REF} \
         https://${GITHUB_PAT}@github.com/${GITHUB_MODELING_SUITE_REPO}.git /opt/epymodelingsuite && \
-    uv pip install --system -e /opt/epymodelingsuite; \
+    cd /opt/epymodelingsuite && \
+    if [ -f uv.lock ]; then \
+        uv sync --frozen; \
+    else \
+        # Fall back to non-frozen sync if uv.lock does not exist
+        echo "WARNING: uv.lock not found; running uv sync without --frozen"; \
+        uv sync; \
+    fi; \
     fi
+
+# Use the uv-managed venv for runtime Python
+ENV VIRTUAL_ENV="/opt/epymodelingsuite/.venv"
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 # Copy application scripts
 COPY docker/scripts/ /scripts/
