@@ -110,7 +110,9 @@ epymodelingsuite-cloud/
 │  └─ workflow.yaml              # Workflows orchestration definition
 ├─ docker/
 │  ├─ Dockerfile
-│  ├─ requirements.txt
+│  ├─ pyproject.toml             # Cloud-specific dependencies
+│  ├─ uv.lock                    # Locked dependency versions
+│  ├─ container-structure-test.yaml  # Container tests
 │  └─ scripts/                   # Docker runtime scripts
 │     ├─ main_builder.py         # Stage A: Generate N input files
 │     ├─ main_runner.py          # Stage B: Process individual tasks
@@ -486,7 +488,7 @@ epycloud terraform apply  # Deploy updated configuration
 
 ## 6) Docker image
 
-For production (cloud) and development/testing (local), all of the computation runs on a Docker container. See [docker/Dockerfile](docker/Dockerfile) and [docker/requirements.txt](docker/requirements.txt).
+For production (cloud) and development/testing (local), all of the computation runs on a Docker container. See [docker/Dockerfile](../docker/Dockerfile).
 
 ### Multi-stage build architecture
 
@@ -497,8 +499,8 @@ The Dockerfile uses multi-stage builds with three stages:
 1. **base** - Common dependencies shared by both local and cloud images
    - Base image: `python:3.11-slim`
    - Installs `uv` for fast dependency management
-   - Installs `google-cloud-storage` and other Python dependencies
-   - **Clones and installs epymodelingsuite package** from private GitHub repository (if configured)
+   - **Clones and installs epymodelingsuite package** from private GitHub repository (uses its `uv.lock`)
+   - **Installs cloud-specific dependencies** from this repo's `docker/pyproject.toml` + `docker/uv.lock`
    - Copies scripts from [scripts/](scripts/) directory
 
 2. **local** - Minimal image for local development
@@ -561,17 +563,56 @@ epycloud build dev
 - Passes `GITHUB_MODELING_SUITE_REPO` and `GITHUB_MODELING_SUITE_REF` as build arguments
 - Submits builds asynchronously via `epycloud build cloud` for non-blocking operation
 
-**How epymodelingsuite is installed:**
+**How dependencies are installed:**
 
-The epymodelingsuite package is installed during the Docker build in the `base` stage. The [Dockerfile](docker/Dockerfile) clones the private repository using GitHub PAT and installs it via `uv`:
+The Docker image installs dependencies from two sources, both using locked versions for reproducibility:
 
-- Installs at **build time** (baked into the Docker image, not at runtime)
+**1. epymodelingsuite dependencies** (from the `epymodelingsuite` repository):
+```dockerfile
+# Clone repo and install using its uv.lock
+git clone ... /opt/epymodelingsuite
+cd /opt/epymodelingsuite && uv sync --frozen
+```
+- Creates venv at `/opt/epymodelingsuite/.venv`
+- Uses `uv.lock` from the epymodelingsuite repository
+- Installs at **build time** (baked into the Docker image)
 - Uses GitHub PAT from Secret Manager (Cloud Build) or `secrets.yaml` (local builds)
 - Supports specific branch/commit via `github.modeling_suite_ref` config setting
-- Repository is cloned to `/tmp/epymodelingsuite`, installed, then removed to keep image clean
-- PAT is not persisted in image layers (security best practice)
 
-This approach ensures all containers have the same version of epymodelingsuite and eliminates runtime dependencies on GitHub.
+**2. Cloud-specific dependencies** (from this repo's `docker/` directory):
+```dockerfile
+# Export locked deps and install into the existing venv
+COPY docker/pyproject.toml docker/uv.lock /app/
+RUN uv export --frozen --no-dev | uv pip install --no-cache -r -
+```
+- Defined in `docker/pyproject.toml` (google-cloud-storage, dill, python-json-logger)
+- Locked versions in `docker/uv.lock`
+- Installed into the **same venv** as epymodelingsuite
+
+**Why this approach?**
+- `uv sync` is project-centric and creates its own `.venv` in the project directory
+- `uv pip install` respects the `VIRTUAL_ENV` environment variable
+- By using `uv export | uv pip install`, we install locked dependencies into the epymodelingsuite venv
+
+**Updating cloud dependencies:**
+```bash
+cd docker
+# Edit pyproject.toml to add/update dependencies
+uv lock                    # Regenerate uv.lock
+uv lock --upgrade          # Upgrade all deps to latest compatible versions
+```
+
+**Testing the container:**
+```bash
+# Run container structure tests
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v $(pwd)/docker/container-structure-test.yaml:/config.yaml \
+  gcr.io/gcp-runtimes/container-structure-test:latest test \
+  --image <image-name> --config /config.yaml
+```
+
+This approach ensures reproducible builds with locked dependencies from both repositories.
 
 ### Local execution with Docker Compose
 

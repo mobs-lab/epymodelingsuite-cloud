@@ -1,0 +1,10 @@
+[project]
+name = "epymodelingsuite-cloud-deps"
+version = "0.1.0"
+description = "Cloud-specific dependencies for epymodelingsuite-cloud Docker images"
+requires-python = ">=3.11"
+dependencies = [
+    "google-cloud-storage>=3.8.0",
+    "dill>=0.4.0",
+    "python-json-logger>=2.0.7",
+]
