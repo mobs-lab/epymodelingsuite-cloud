@@ -144,13 +144,14 @@ main:
               instances:
                 - %{~ if length(regexall("^c4d-", stage_a_machine_type)) > 0 ~}
                   # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
+                  # Disk cannot be smaller than the chosen image (30GB)
                   installGpuDrivers: false
                   policy:
                     machineType: $${machineTypeA}
                     provisioningModel: STANDARD
                     bootDisk:
                       type: hyperdisk-balanced
-                      sizeGb: 20
+                      sizeGb: 30
                   %{~ else ~}
                   policy:
                     machineType: $${machineTypeA}
