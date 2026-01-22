@@ -14,19 +14,14 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Copy dependency files
-COPY docker/requirements.txt .
-
-# Install dependencies with uv (much faster than pip)
-RUN uv pip install --system --no-cache -r requirements.txt
-
 # Clone and install epymodelingsuite package
 # Expects GITHUB_MODELING_SUITE_REPO, GITHUB_MODELING_SUITE_REF, and GITHUB_PAT to be passed as build args
 ARG GITHUB_MODELING_SUITE_REPO
 ARG GITHUB_MODELING_SUITE_REF=main
 ARG GITHUB_PAT
 
-# Clone the epymodelingsuite repository and install it using uv.lock
+# Install epymodelingsuite from GitHub source, using uv.lock
+# This creates a virtual environment at /opt/epymodelingsuite/.venv
 RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
     git clone --branch ${GITHUB_MODELING_SUITE_REF} \
         https://${GITHUB_PAT}@github.com/${GITHUB_MODELING_SUITE_REPO}.git /opt/epymodelingsuite && \
@@ -43,6 +38,11 @@ RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
 # Use the uv-managed venv for runtime Python
 ENV VIRTUAL_ENV="/opt/epymodelingsuite/.venv"
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+
+# Install locked cloud-specific dependencies into the same venv as epymodelingsuite
+# uv pip install respects VIRTUAL_ENV; export from lock and pipe to install
+COPY docker/pyproject.toml docker/uv.lock /app/
+RUN uv export --frozen --no-dev | uv pip install --no-cache -r -
 
 # Copy application scripts
 COPY docker/scripts/ /scripts/
