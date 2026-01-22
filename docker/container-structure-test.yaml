@@ -1,0 +1,22 @@
+schemaVersion: "2.0.0"
+
+commandTests:
+  # Verify the package is installed and importable.
+  - name: "import-epymodelingsuite"
+    command: "python3"
+    args: ["-c", "import epymodelingsuite; print('ok')"]
+    expectedOutput: ["ok"]
+
+  # Ensure runtime Python comes from the uv-managed venv.
+  - name: "python-from-uv-venv"
+    command: "python3"
+    args:
+      - "-c"
+      - "import sys; assert sys.executable.startswith('/opt/epymodelingsuite/.venv/')"
+
+fileExistenceTests:
+  # Entrypoint script should exist and be executable in the image.
+  - name: "dispatcher-script-present"
+    path: "/scripts/run_dispatcher.sh"
+    shouldExist: true
+    isExecutable: true

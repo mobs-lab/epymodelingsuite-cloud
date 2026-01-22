@@ -29,6 +29,14 @@ steps:
         fi
     secretEnv: ['GITHUB_PAT']
 
+  - name: 'gcr.io/gcp-runtimes/container-structure-test:latest'
+    args:
+      - 'test'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+      - '--config'
+      - 'docker/container-structure-test.yaml'
+
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
 
