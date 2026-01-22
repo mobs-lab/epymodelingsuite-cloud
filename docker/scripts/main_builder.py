@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from epymodelingsuite.dispatcher import dispatch_builder
 from epymodelingsuite.telemetry import ExecutionTelemetry
 from util import storage
-from util.config import load_all_configs, resolve_configs
+from util.config import load_all_configs, resolve_configs, upload_model_configs
 from util.error_handling import handle_stage_error
 from util.logger import setup_logger
 
@@ -164,6 +164,9 @@ def main() -> None:
         basemodel_config, sampling_config, calibration_config, output_config = load_all_configs(
             config_files
         )
+
+        # Upload model configs to storage (for reproducibility)
+        upload_model_configs(config["exp_id"])
 
         # Build dispatch and save input files
         num_files = build_and_save_dispatch_outputs(

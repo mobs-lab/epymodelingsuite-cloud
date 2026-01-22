@@ -45,7 +45,48 @@ setup_github_auth() {
     echo "✓ GitHub PAT configured from Secret Manager"
 }
 
-# Function to clone the forecast repository (cloud mode only)
+# Function to download repo tarball from GCS (uploaded by Stage A)
+# This avoids N parallel git clones through NAT
+download_repo_tarball() {
+    if [ -z "${GCS_BUCKET:-}" ] || [ -z "${DIR_PREFIX:-}" ] || [ -z "${EXP_ID:-}" ] || [ -z "${RUN_ID:-}" ]; then
+        echo "Missing GCS config for tarball download"
+        return 1
+    fi
+
+    local tarball_path="/tmp/forecast-repo.tar.gz"
+    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/repo-cache/forecast-repo.tar.gz"
+
+    echo "Downloading forecast repo tarball from GCS..."
+    echo "  Source: $gcs_path"
+
+    # Download from GCS (uses Private Google Access, no NAT needed)
+    if ! gsutil -q cp "$gcs_path" "$tarball_path" 2>/dev/null; then
+        echo "Tarball not found in GCS"
+        return 1
+    fi
+
+    # Remove existing directory if present
+    if [ -d "$FORECAST_REPO_DIR" ]; then
+        rm -rf "$FORECAST_REPO_DIR"
+    fi
+
+    # Extract tarball
+    mkdir -p "$FORECAST_REPO_DIR"
+    tar -xzf "$tarball_path" -C "$FORECAST_REPO_DIR" --strip-components=1
+
+    # Cleanup local tarball
+    rm -f "$tarball_path"
+
+    echo "✓ Repo extracted from tarball to: $FORECAST_REPO_DIR"
+
+    # Add to PYTHONPATH
+    export PYTHONPATH="${FORECAST_REPO_DIR}:${PYTHONPATH:-}"
+    echo "✓ Added to PYTHONPATH: $FORECAST_REPO_DIR"
+
+    return 0
+}
+
+# Function to clone the forecast repository (fallback if tarball not available)
 clone_forecast_repo() {
     if [ -z "$FORECAST_REPO" ]; then
         echo "ERROR: GITHUB_FORECAST_REPO environment variable not set"
@@ -90,12 +131,18 @@ main() {
     if [ "$EXECUTION_MODE" = "cloud" ]; then
         echo "Cloud mode: Setting up forecast repository..."
 
-        # Only clone forecast repo if FORECAST_REPO is set
+        # Only setup forecast repo if FORECAST_REPO is set
         if [ -n "$FORECAST_REPO" ]; then
-            setup_github_auth
-            clone_forecast_repo
+            # Try GCS tarball first (uploaded in Stage A), fall back to git clone
+            if download_repo_tarball; then
+                echo "Using cached repo from GCS tarball"
+            else
+                echo "Repo tarball not available, falling back to git clone..."
+                setup_github_auth
+                clone_forecast_repo
+            fi
         else
-            echo "GITHUB_FORECAST_REPO not set, skipping forecast repo clone"
+            echo "GITHUB_FORECAST_REPO not set, skipping forecast repo setup"
         fi
     else
         echo "Local mode: Skipping forecast repository clone"

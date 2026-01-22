@@ -54,7 +54,9 @@ def detect_result_type(result) -> str:
         raise ValueError(f"Unknown result type: {type_name}")
 
 
-def load_all_results(num_tasks: int, logger: logging.Logger, allow_partial: bool = False) -> tuple[list, str]:
+def load_all_results(
+    num_tasks: int, logger: logging.Logger, allow_partial: bool = False
+) -> tuple[list, str]:
     """Load all result pickle files from Stage B.
 
     Parameters
@@ -140,7 +142,9 @@ def load_all_results(num_tasks: int, logger: logging.Logger, allow_partial: bool
             # Strict mode: raise error
             error_msg += "\nPlease investigate Stage B failures before generating outputs."
             error_msg += "\nCheck logs for tasks that failed or did not complete."
-            error_msg += "\nTo generate outputs with partial results, set ALLOW_PARTIAL_RESULTS=true"
+            error_msg += (
+                "\nTo generate outputs with partial results, set ALLOW_PARTIAL_RESULTS=true"
+            )
             raise ValueError(error_msg)
 
     if successful == 0:
@@ -150,7 +154,7 @@ def load_all_results(num_tasks: int, logger: logging.Logger, allow_partial: bool
     return results, result_type
 
 
-def load_configuration(config: dict, logger: logging.Logger):
+def load_configuration(config: dict, logger: logging.Logger) -> tuple:
     """Load and validate output configuration for the experiment.
 
     Parameters
@@ -162,8 +166,10 @@ def load_configuration(config: dict, logger: logging.Logger):
 
     Returns
     -------
-    object
-        Loaded and validated output configuration object
+    tuple
+        Tuple of (output_config, output_config_path) where:
+        - output_config: Loaded and validated output configuration object
+        - output_config_path: Path to the output config file
 
     Raises
     ------
@@ -201,7 +207,7 @@ def load_configuration(config: dict, logger: logging.Logger):
 
     output_config = load_output_config_from_file(output_config_path)
     logger.info("Output config loaded successfully")
-    return output_config
+    return output_config, output_config_path
 
 
 def generate_outputs(
@@ -250,7 +256,9 @@ def generate_outputs(
 
     # Count total output objects
     total_outputs = sum(len(output_objects) for output_objects in output_dict.values())
-    logger.info(f"Output dictionary contains {len(output_dict)} keys with {total_outputs} OutputObject instances")
+    logger.info(
+        f"Output dictionary contains {len(output_dict)} keys with {total_outputs} OutputObject instances"
+    )
     for output_key, output_objects in output_dict.items():
         logger.debug(f"  - {output_key}: {len(output_objects)} files")
         for obj in output_objects:
@@ -276,7 +284,7 @@ def save_output_files(output_dict: dict, logger: logging.Logger, timestamp: str)
     Exception
         If any file save operation fails
     """
-    from epymodelingsuite.schema.output import TabularOutputTypeEnum, FigureOutputTypeEnum
+    from epymodelingsuite.schema.output import FigureOutputTypeEnum, TabularOutputTypeEnum
 
     logger.info(f"Saving output files to storage (outputs/{timestamp}/)")
 
@@ -320,7 +328,9 @@ def save_output_files(output_dict: dict, logger: logging.Logger, timestamp: str)
             logger.debug(f"Skipping in-memory output: {output_obj.name} ({output_obj.output_type})")
             files_skipped += 1
 
-    logger.info(f"Successfully saved {files_saved} output files to outputs/{timestamp}/ (skipped {files_skipped} in-memory objects)")
+    logger.info(
+        f"Successfully saved {files_saved} output files to outputs/{timestamp}/ (skipped {files_skipped} in-memory objects)"
+    )
 
 
 def aggregate_telemetry(num_tasks: int, logger: logging.Logger) -> None:
@@ -467,7 +477,7 @@ def main() -> None:
 
     try:
         # Load and validate configuration
-        output_config = load_configuration(config, logger)
+        output_config, output_config_path = load_configuration(config, logger)
 
         # Build output subdirectory name with optional meta.id suffix
         if output_config.output.meta and output_config.output.meta.id:
@@ -487,6 +497,14 @@ def main() -> None:
 
             # Save output files to storage in subdirectory
             save_output_files(output_dict, logger, output_subdir)
+
+            # Upload the output config used to the output directory
+            output_config_name = os.path.basename(output_config_path)
+            with open(output_config_path, "rb") as f:
+                config_bytes = f.read()
+            output_config_dest = storage.get_path("outputs", output_subdir, output_config_name)
+            storage.save_bytes(output_config_dest, config_bytes, compress=False)
+            logger.info(f"Output config saved to: outputs/{output_subdir}/{output_config_name}")
 
             # Save output telemetry summary
             storage.save_telemetry_summary(output_telemetry, "output_summary")
