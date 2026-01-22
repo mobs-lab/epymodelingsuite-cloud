@@ -54,7 +54,7 @@ download_repo_tarball() {
     fi
 
     local tarball_path="/tmp/forecast-repo.tar.gz"
-    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/builder-artifacts/forecast-repo.tar.gz"
+    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/repo-cache/forecast-repo.tar.gz"
 
     echo "Downloading forecast repo tarball from GCS..."
     echo "  Source: $gcs_path"

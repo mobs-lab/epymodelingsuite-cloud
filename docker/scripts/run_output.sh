@@ -105,7 +105,7 @@ cleanup_repo_tarball() {
         return 0
     fi
 
-    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/builder-artifacts/forecast-repo.tar.gz"
+    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/repo-cache/forecast-repo.tar.gz"
 
     if gsutil -q stat "$gcs_path" 2>/dev/null; then
         echo "Cleaning up forecast repo tarball from GCS..."

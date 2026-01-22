@@ -55,7 +55,7 @@ upload_repo_tarball() {
 
     echo "Creating repo tarball for Stage B..."
     local tarball_path="/tmp/forecast-repo.tar.gz"
-    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/builder-artifacts/forecast-repo.tar.gz"
+    local gcs_path="gs://${GCS_BUCKET}/${DIR_PREFIX}${EXP_ID}/${RUN_ID}/repo-cache/forecast-repo.tar.gz"
 
     # Create tarball from the cloned repo
     tar -czf "$tarball_path" -C "$(dirname "$FORECAST_REPO_DIR")" "$(basename "$FORECAST_REPO_DIR")"
