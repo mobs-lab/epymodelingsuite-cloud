@@ -50,16 +50,22 @@ def _format_workflow_details(info: dict[str, Any], exp_id: str, run_id: str, mod
             lines.append(f"  Max parallelism: {info['max_parallelism']}")
         if "task_count_per_node" in info:
             lines.append(f"  Tasks per node: {info['task_count_per_node']}")
-        # Show machine type overrides for all stages
-        if "stage_a_machine_type" in info and info["stage_a_machine_type"]:
-            override_marker = " (override)" if info.get("stage_a_machine_type_override") else ""
-            lines.append(f"  Stage A machine type: {info['stage_a_machine_type']}{override_marker}")
-        if "stage_b_machine_type" in info and info["stage_b_machine_type"]:
-            override_marker = " (override)" if info.get("stage_b_machine_type_override") else ""
-            lines.append(f"  Stage B machine type: {info['stage_b_machine_type']}{override_marker}")
-        if "stage_c_machine_type" in info and info["stage_c_machine_type"]:
-            override_marker = " (override)" if info.get("stage_c_machine_type_override") else ""
-            lines.append(f"  Stage C machine type: {info['stage_c_machine_type']}{override_marker}")
+        # Show per-stage resources
+        for stage_letter in ("A", "B", "C"):
+            prefix = f"stage_{stage_letter.lower()}"
+            cpu = info.get(f"{prefix}_cpu_milli")
+            if cpu is None:
+                continue
+            mem = info.get(f"{prefix}_memory_mib", "")
+            mt = info.get(f"{prefix}_machine_type", "")
+            mt_display = mt if mt else "auto"
+            override_marker = " *" if info.get(f"{prefix}_machine_type_override") else ""
+            duration_s = info.get(f"{prefix}_max_run_duration", 0)
+            duration_h = duration_s / 3600 if duration_s else 0
+            lines.append(
+                f"  Stage {stage_letter}: {cpu} mCPU, {mem} MiB, "
+                f"{mt_display}{override_marker}, max {duration_h:.1f}h"
+            )
 
     if "skip_output" in info:
         output_status = "disabled" if info["skip_output"] else "enabled"
@@ -199,8 +205,14 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
             if "machine_type" in info:
                 machine_type = info["machine_type"] if info["machine_type"] else "auto-select"
                 lines.append(f"  Machine type: {machine_type}")
+            if "cpu_milli" in info:
+                lines.append(f"  CPU: {info['cpu_milli']} mCPU")
+            if "memory_mib" in info:
+                lines.append(f"  Memory: {info['memory_mib']} MiB")
             if "max_duration_hours" in info:
                 lines.append(f"  Max duration: {info['max_duration_hours']} hours")
+            if "task_count_per_node" in info:
+                lines.append(f"  Tasks per node: {info['task_count_per_node']}")
             lines.append("")
 
         # [Docker Image]
