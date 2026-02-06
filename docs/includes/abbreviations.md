@@ -31,6 +31,8 @@
 *[VM]: Virtual Machine: a compute instance provisioned by Cloud Batch to run containers
 
 <!-- Google Cloud -->
+*[cpuMilli]: CPU allocation in millicores (1000 = 1 vCPU, 2000 = 2 vCPUs)
+*[memoryMib]: Memory allocation in mebibytes (1024 MiB = 1 GB)
 *[GCS]: Google Cloud Storage: object storage for pipeline artifacts and results
 *[Cloud Batch]: Google Cloud serverless compute service that provisions VMs and runs containers
 *[Cloud Workflows]: Google Cloud orchestration service that coordinates Stage A → B → C
