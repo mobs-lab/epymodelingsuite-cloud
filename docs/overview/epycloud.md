@@ -1,6 +1,6 @@
 # epycloud CLI
 
-**epycloud** is the command-line interface tool that provides a user-friendly way to interact with the entire epymodelingsuite-cloud system. It handles everything from configuration and infrastructure deployment to running workflows and monitoring execution.
+**epycloud** is the command-line interface tool that provides a user-friendly way to interact with the entire pipeline. It handles everything from configuration and infrastructure deployment to running workflows and monitoring execution.
 
 ## What It Does
 

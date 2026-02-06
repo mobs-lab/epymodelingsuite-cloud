@@ -1,6 +1,6 @@
 # Ecosystem
 
-To support scalable epidemic modeling and research, the ecosystem is built on four independent repositories that can each evolve independently:
+To support scalable epidemic modeling and research, the ecosystem is built on four independent repositories that can evolve independently:
 
 | Component | Role |
 |---|---|
