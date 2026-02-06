@@ -8,6 +8,7 @@ import yaml
 
 from epycloud.lib.output import error, info, success, warning
 from epycloud.lib.paths import (
+    _list_yaml_files,
     get_active_profile_file,
     get_config_dir,
     get_profile_file,
@@ -75,8 +76,8 @@ def handle_list(ctx: dict) -> int:
         error("Profiles directory not found. Run 'epycloud config init' first.")
         return 1
 
-    # Get all profile files
-    profile_files = sorted(profiles_dir.glob("*.yaml"))
+    # Get all profile files (.yaml and .yml, deduplicated)
+    profile_files = _list_yaml_files(profiles_dir)
     if not profile_files:
         warning("No profiles found")
         info("Create a profile with: epycloud profile create <name>")

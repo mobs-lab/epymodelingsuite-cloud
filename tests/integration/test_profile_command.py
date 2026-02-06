@@ -620,6 +620,134 @@ class TestProfileDeleteCommand:
         assert exit_code == 1
 
 
+class TestProfileYmlExtensionSupport:
+    """Test .yml extension support in profile commands."""
+
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_config_dir")
+    def test_profile_list_shows_yml_profiles(
+        self, mock_config_dir, mock_active_file, tmp_path
+    ):
+        """Test that .yml profiles appear in list."""
+        config_dir = tmp_path / ".config" / "epymodelingsuite-cloud"
+        profiles_dir = config_dir / "profiles"
+        profiles_dir.mkdir(parents=True)
+
+        (profiles_dir / "flu.yml").write_text("description: Flu modeling\n")
+        (profiles_dir / "covid.yaml").write_text("description: COVID modeling\n")
+
+        active_file = config_dir / "active_profile"
+        active_file.write_text("flu\n")
+
+        mock_config_dir.return_value = config_dir
+        mock_active_file.return_value = active_file
+
+        ctx = {
+            "config": None,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(profile_subcommand="list"),
+        }
+
+        exit_code = profile.handle(ctx)
+        assert exit_code == 0
+
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_profile_file")
+    def test_profile_use_yml_profile(
+        self, mock_get_profile, mock_active_file, tmp_path
+    ):
+        """Test that profile use finds .yml files."""
+        profile_file = tmp_path / "flu.yml"
+        profile_file.write_text("description: Flu\n")
+        active_file = tmp_path / "active_profile"
+
+        mock_get_profile.return_value = profile_file
+        mock_active_file.return_value = active_file
+
+        args = Mock(profile_subcommand="use")
+        args.name = "flu"
+
+        ctx = {
+            "config": None,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": args,
+        }
+
+        exit_code = profile.handle(ctx)
+        assert exit_code == 0
+        assert active_file.read_text().strip() == "flu"
+
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_config_dir")
+    def test_profile_list_yaml_preferred_over_yml(
+        self, mock_config_dir, mock_active_file, tmp_path
+    ):
+        """Test that when both .yaml and .yml exist, .yaml wins in list."""
+        config_dir = tmp_path / ".config" / "epymodelingsuite-cloud"
+        profiles_dir = config_dir / "profiles"
+        profiles_dir.mkdir(parents=True)
+
+        # Create both extensions for the same profile
+        (profiles_dir / "flu.yaml").write_text("description: Flu YAML\n")
+        (profiles_dir / "flu.yml").write_text("description: Flu YML\n")
+        (profiles_dir / "covid.yml").write_text("description: COVID\n")
+
+        active_file = config_dir / "active_profile"
+        mock_config_dir.return_value = config_dir
+        mock_active_file.return_value = active_file
+
+        ctx = {
+            "config": None,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(profile_subcommand="list"),
+        }
+
+        exit_code = profile.handle(ctx)
+        assert exit_code == 0
+
+    @patch("epycloud.commands.profile.handlers.get_active_profile_file")
+    @patch("epycloud.commands.profile.handlers.get_config_dir")
+    def test_profile_list_only_yml(
+        self, mock_config_dir, mock_active_file, tmp_path
+    ):
+        """Test listing when all profiles are .yml."""
+        config_dir = tmp_path / ".config" / "epymodelingsuite-cloud"
+        profiles_dir = config_dir / "profiles"
+        profiles_dir.mkdir(parents=True)
+
+        (profiles_dir / "flu.yml").write_text("description: Flu\n")
+        (profiles_dir / "covid.yml").write_text("description: COVID\n")
+
+        active_file = config_dir / "active_profile"
+        mock_config_dir.return_value = config_dir
+        mock_active_file.return_value = active_file
+
+        ctx = {
+            "config": None,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(profile_subcommand="list"),
+        }
+
+        exit_code = profile.handle(ctx)
+        assert exit_code == 0
+
+
 class TestProfileNoSubcommand:
     """Test profile command without subcommand."""
 
