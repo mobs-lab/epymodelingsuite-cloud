@@ -189,6 +189,7 @@ nav:
       - Storage Abstraction: architecture/storage-abstraction.md
 
     - Reference:
+      - Configuration Variables: reference/configuration-variables.md
       - Google Cloud:
         - reference/google-cloud/index.md
         - Cloud Build: reference/google-cloud/cloud-build.md
