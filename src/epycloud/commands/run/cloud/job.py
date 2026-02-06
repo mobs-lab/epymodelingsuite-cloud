@@ -148,6 +148,10 @@ def run_job_cloud(
     )
     add_stage_specific_info(confirmation_info, stage, task_index, num_tasks, output_config)
 
+    confirmation_info["cpu_milli"] = cpu_milli
+    confirmation_info["memory_mib"] = memory_mib
+    confirmation_info["task_count_per_node"] = task_count_per_node
+
     # Show confirmation and prompt
     if not prompt_user_confirmation(auto_confirm, confirmation_info, mode="cloud"):
         return 0
