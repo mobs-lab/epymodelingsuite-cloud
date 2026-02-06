@@ -188,6 +188,10 @@ nav:
       - Workflows Orchestration: architecture/workflows-orchestration.md
       - Storage Abstraction: architecture/storage-abstraction.md
 
+    - User Guide:
+      - Configuring epycloud:
+        - user-guide/configuration/index.md
+        - Base Configuration: user-guide/configuration/base.md
     - Reference:
       - Configuration Variables: reference/configuration-variables.md
       - Google Cloud:

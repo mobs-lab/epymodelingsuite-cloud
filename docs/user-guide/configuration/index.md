@@ -42,9 +42,22 @@ block-beta
 </div>
 
 
-## Directory Structure
+## Configuration components
 
-epycloud follows the XDG Base Directory specification:
+| File | Location | Purpose |
+|------|----------|---------|
+| [Base config](base.md) | `~/.config/epymodelingsuite-cloud/config.yaml` | Shared defaults that apply to all environments and profiles |
+| [Environments](environments.md) | `~/.config/epymodelingsuite-cloud/environments/{env}.yaml` | Infrastructure differences between dev, prod, and local |
+| [Profiles](profiles.md) | `~/.config/epymodelingsuite-cloud/profiles/{profile}.yaml` | Disease or project-specific settings (flu, covid, rsv) |
+| Project config | `./epycloud.yaml` | Repository-local overrides, checked into version control (optional) |
+| [Secrets](secrets.md) | `~/.config/epymodelingsuite-cloud/secrets.yaml` | Credentials such as GitHub PAT (0600 permissions) |
+
+For a complete listing of all configuration keys, see the [Configuration Variables Reference](../../reference/configuration-variables.md).
+
+
+## Directory structure
+
+epycloud follows the XDG Base Directory specification. All configuration files are saved at `XDG_CONFIG_HOME`.
 
 ```
 ~/.config/epymodelingsuite-cloud/      # XDG_CONFIG_HOME
@@ -67,15 +80,6 @@ epycloud follows the XDG Base Directory specification:
 ~/.cache/epymodelingsuite-cloud/       # XDG_CACHE_HOME
 └── build-cache/                       # Build artifacts cache
 ```
-
-
-## Configuration Components
-
-- **[Base Configuration](base.md)**: Core settings in config.yaml
-- **[Environments](environments.md)**: Environment-specific overrides (dev/prod/local)
-- **[Profiles](profiles.md)**: Project-specific settings (flu/covid/rsv)
-- **[Secrets](secrets.md)**: Sensitive credentials and environment variables
-
 
 ## Example
 
@@ -134,6 +138,22 @@ pipeline:
 ```
 
 
+## When each config is used
+
+Configuration is read at three different points: **infrastructure deployment**, **image building**, and **workflow execution**. Depending on what you change, you may need to redeploy infrastructure, rebuild the Docker image, or simply run a new workflow.
+
+For example:
+
+| Setting | Takes effect after |
+|-------------------|--------------------------|
+| Google Cloud project, region, bucket | `epycloud terraform apply` |
+| Batch resource defaults (CPU, memory, machine type) | `epycloud terraform apply` (but can be overridden per run) |
+| Modeling suite version (`github.modeling_suite_ref`) | `epycloud build` |
+| Docker image tag, experiment repo, parallelism | Next `epycloud run workflow` (no redeploy needed) |
+
+For the full breakdown of which keys are read at each point, see [When each config is used](../../reference/configuration-variables.md#when-each-config-is-used) in the reference.
+
+
 ## Best practices
 
 1. **Keep base config minimal**: Only common settings
@@ -149,3 +169,13 @@ pipeline:
 - Create [profiles](profiles.md) for your projects
 - Configure [secrets](secrets.md) securely
 - Learn about [environments](environments.md)
+
+<div class="grid cards" markdown>
+
+-   :material-format-list-bulleted:{ .lg .middle } **[Configuration Variables Reference](../../reference/configuration-variables.md)**
+
+    ---
+
+    Complete listing of all configuration keys, types, and default values
+
+</div>
