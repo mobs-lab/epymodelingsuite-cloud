@@ -188,6 +188,14 @@ nav:
       - Workflows Orchestration: architecture/workflows-orchestration.md
       - Storage Abstraction: architecture/storage-abstraction.md
 
+    - Reference:
+      - Google Cloud:
+        - reference/google-cloud/index.md
+        - Cloud Build: reference/google-cloud/cloud-build.md
+        - Cloud Workflows: reference/google-cloud/cloud-workflows.md
+        - Cloud Batch: reference/google-cloud/cloud-batch.md
+        - Machine Types: reference/google-cloud/machine-types.md
+        - Sizing Recommendations: reference/google-cloud/sizing-recommendations.md
   - epycloud Reference:
     - Overview: epycloud/index.md
     - Setup:
