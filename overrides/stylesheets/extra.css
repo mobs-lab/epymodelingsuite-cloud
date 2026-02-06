@@ -211,10 +211,6 @@
   color: #e5e7eb;
 }
 
-/* Hide language label in code blocks */
-.md-typeset .highlight > span.filename {
-  display: none;
-}
 
 /* Prevent selection of shell prompts ($ and output) */
 .highlight .gp,
