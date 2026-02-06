@@ -43,3 +43,6 @@ local/
 
 .claude/
 .coverage
+
+# MkDocs
+site/

@@ -1,0 +1,220 @@
+# Project information
+site_name: epymodelingsuite-cloud
+site_url: https://mobs-lab.github.io/epymodelingsuite-cloud
+site_author: MOBS Lab
+site_description: >-
+  Serverless, scalable pipeline for running epydemix simulations/calibrations
+  on Google Cloud using Cloud Batch + Workflows.
+
+# Repository
+repo_name: mobs-lab/epymodelingsuite-cloud
+repo_url: https://github.com/mobs-lab/epymodelingsuite-cloud
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2024-2026 MOBS Lab
+
+# Configuration
+theme:
+  name: material
+  language: en
+
+  # Color scheme
+  palette:
+    # Auto (system preference)
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: epycloud-light
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: epycloud-dark
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+  # Fonts (using system fonts for better performance)
+  font: false
+
+  # Icon
+  icon:
+    repo: fontawesome/brands/github
+
+  # Features
+  features:
+    # Navigation
+    - navigation.instant        # Instant loading
+    - navigation.instant.progress  # Progress indicator
+    - navigation.tracking       # URL automatically updated with active anchor
+    - navigation.tabs           # Top-level sections as tabs
+    - navigation.tabs.sticky    # Tabs always visible
+    - navigation.sections       # Sections in sidebar
+    - navigation.path           # Breadcrumbs
+    - navigation.indexes        # Section index pages
+    - navigation.top            # Back to top button
+    - navigation.footer         # Previous/next footer
+
+    # Search
+    - search.suggest            # Search suggestions
+    - search.highlight          # Highlight search terms
+    - search.share              # Share search results
+
+    # Header
+    - header.autohide           # Auto-hide header on scroll
+
+    # Table of contents
+    - toc.follow                # TOC follows scroll
+
+    # Content
+    - content.code.copy         # Copy button for code blocks
+    - content.code.annotate     # Code annotations
+    - content.tabs.link         # Link content tabs
+    - content.tooltips          # Improved tooltips
+
+  # Custom overrides
+  custom_dir: overrides
+
+# Plugins
+plugins:
+  - search:
+      lang: en
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+
+# Extensions
+markdown_extensions:
+  # Python Markdown
+  - abbr                        # Abbreviations
+  - admonition                  # Admonitions (notes, warnings, etc.)
+  - attr_list                   # HTML attributes for Markdown elements
+  - def_list                    # Definition lists
+  - footnotes                   # Footnotes
+  - md_in_html                  # Markdown inside HTML
+  - tables                      # Tables
+  - toc:
+      permalink: true           # Anchor links for headings
+      permalink_title: Anchor link to this section
+      toc_depth: 3
+      title: ""                 # Hide "Table of Contents" header
+
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:        # LaTeX math
+      generic: true
+  - pymdownx.betterem:          # Better emphasis handling
+      smart_enable: all
+  - pymdownx.caret              # Superscript and insert
+  - pymdownx.mark               # Highlighting
+  - pymdownx.tilde              # Subscript and delete
+  - pymdownx.critic             # Track changes
+  - pymdownx.details            # Collapsible admonitions
+  - pymdownx.emoji:             # Emojis
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:         # Code highlighting
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+      auto_title: false         # Disable language label in code blocks
+      linenums: false
+  - pymdownx.inlinehilite       # Inline code highlighting
+  - pymdownx.keys               # Keyboard keys
+  - pymdownx.magiclink:         # Auto-link URLs
+      repo_url_shorthand: true
+      user: mobs-lab
+      repo: epymodelingsuite-cloud
+  - pymdownx.smartsymbols       # Smart symbols
+  - pymdownx.snippets:          # Include external files
+      auto_append:
+        - includes/abbreviations.md
+      base_path:
+        - docs
+      check_paths: true
+  - pymdownx.superfences:       # Code blocks with syntax highlighting
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:            # Content tabs
+      alternate_style: true
+  - pymdownx.tasklist:          # Task lists
+      custom_checkbox: true
+
+# Navigation structure
+nav:
+  - Home: index.md
+
+  - Documentation:
+    - Overview:
+      - Introduction: overview/introduction.md
+      - Ecosystem: overview/ecosystem.md
+      - epycloud CLI: overview/epycloud.md
+
+    - Getting started:
+      - Installing epycloud: getting-started/installation.md
+      - Local Execution: getting-started/local.md
+      - Cloud Deployment:
+        - getting-started/cloud-deployment/index.md
+        - Prerequisites: getting-started/cloud-deployment/prerequisites.md
+        - Setup: getting-started/cloud-deployment/setup.md
+        - Running Workflows: getting-started/cloud-deployment/running.md
+
+    - Architecture:
+      - architecture/index.md
+      - Ecosystem Components: architecture/ecosystem-components.md
+      - Pipeline Stages: architecture/pipeline-stages.md
+      - Execution Modes: architecture/execution-modes.md
+      - Data and Artifacts:
+        - architecture/data-and-artifacts/index.md
+        - Experiment Data: architecture/data-and-artifacts/experiment-data.md
+        - Pipeline Artifacts: architecture/data-and-artifacts/pipeline-artifacts.md
+      - Docker Images: architecture/docker-images.md
+      - Cloud Infrastructure: architecture/cloud-infrastructure.md
+      - Workflows Orchestration: architecture/workflows-orchestration.md
+      - Storage Abstraction: architecture/storage-abstraction.md
+
+  - epycloud Reference:
+    - Overview: epycloud/index.md
+    - Setup:
+      - config: epycloud/config.md
+      - profile: epycloud/profile.md
+    - Infrastructure:
+      - terraform: epycloud/terraform.md
+    - Build & Run:
+      - build: epycloud/build.md
+      - validate: epycloud/validate.md
+      - run: epycloud/run.md
+    - Monitor:
+      - status: epycloud/status.md
+      - logs: epycloud/logs.md
+      - workflow: epycloud/workflow.md
+
+# Extra settings
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/mobs-lab
+      name: MOBS Lab on GitHub
+
+# Hooks
+hooks:
+  - hooks/link_card.py
+
+# Additional CSS
+extra_css:
+  - stylesheets/extra.css
