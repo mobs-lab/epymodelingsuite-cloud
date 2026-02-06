@@ -42,7 +42,7 @@ In local mode, the pipeline fully runs on the user's machine. Note that the stag
 Instead of cloning the experiment repo, local mode mounts `./local/forecast/` into containers. Copy experiment configs there before running:
 
 ```bash
-cp -r ~/Developer/flu-forecast-epydemix/experiments/{EXP_ID} ./local/forecast/experiments/
+cp -r ~/Developer/my-flu-experiment-repo/experiments/{EXP_ID} ./local/forecast/experiments/
 ```
 
 See **[Running Locally](../user-guide/running-experiments/local.md)** for step-by-step instructions.

@@ -1,6 +1,6 @@
 # Experiment Data
 
-Experiment data lives in a dedicated GitHub repository (e.g., `flu-forecast-epydemix`) and provides everything Stage A needs to build simulation tasks.
+Experiment data lives in a dedicated GitHub repository (e.g., `my-flu-experiment-repo`) and provides everything Stage A needs to build simulation tasks.
 
 ## Repository Structure
 
@@ -34,11 +34,11 @@ In cloud mode, the forecast repository is configured in the profile config:
 ```yaml
 # profiles/flu.yaml
 github:
-  forecast_repo: mobs-lab/flu-forecast-epydemix  # GitHub repo to clone
-  forecast_repo_ref: ""                           # Branch/tag/commit (empty = default branch)
+  forecast_repo: your-org/my-flu-experiment-repo  # GitHub repo to clone
+  forecast_repo_ref: ""                            # Branch/tag/commit (empty = default branch)
 ```
 
-In this case, Stage A clones `mobs-lab/flu-forecast-epydemix` from GitHub at the default branch into `/data/forecast/` inside the container. Experiment configs are then available at `/data/forecast/experiments/{EXP_ID}/config/`. Setting `forecast_repo_ref` to a branch, tag, or commit pins the clone to that specific version.
+In this case, Stage A clones `your-org/my-flu-experiment-repo` from GitHub at the default branch into `/data/forecast/` inside the container. Experiment configs are then available at `/data/forecast/experiments/{EXP_ID}/config/`. Setting `forecast_repo_ref` to a branch, tag, or commit pins the clone to that specific version.
 
 In local mode, experiment data must be placed in `./local/forecast/` before running. This can be done by writing configs directly or copying from an existing experiment repository. Docker Compose mounts `./local/forecast/` to `/data/forecast/` inside the container.
 

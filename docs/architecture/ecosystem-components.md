@@ -77,7 +77,7 @@ sequenceDiagram
     participant CLI as epycloud CLI
     participant Docker as Docker Image
     participant EPY as epymodelingsuite
-    participant FORECAST as flu-forecast-epydemix
+    participant FORECAST as Experiment Repo
 
     User->>CLI: epycloud run workflow --exp-id test
     CLI->>Docker: Start builder container

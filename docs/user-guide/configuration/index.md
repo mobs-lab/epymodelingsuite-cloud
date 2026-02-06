@@ -114,7 +114,7 @@ The flu profile adds project-specific settings like the experiment repository an
 
 ```yaml title="profiles/flu.yaml"
 github:
-  forecast_repo: "mobs-lab/flu-forecast-epydemix"
+  forecast_repo: "your-org/my-flu-experiment-repo"
 pipeline:
   dir_prefix: "pipeline/flu/"
 ```
@@ -130,8 +130,8 @@ docker:
   image_tag: "dev"                   # From dev environment ✓
   image_name: "epymodelingsuite"     # From base
 github:
-  modeling_suite_ref: "feature-branch"             # From dev environment ✓ (overrides "main")
-  forecast_repo: "mobs-lab/flu-forecast-epydemix"  # From flu profile ✓
+  modeling_suite_ref: "feature-branch"              # From dev environment ✓ (overrides "main")
+  forecast_repo: "your-org/my-flu-experiment-repo"  # From flu profile ✓
 pipeline:
   max_parallelism: 100               # From base
   dir_prefix: "pipeline/flu/"        # From flu profile ✓
