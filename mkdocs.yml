@@ -86,6 +86,10 @@ plugins:
       lang: en
       separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
 
+  - social:
+      cards_layout_dir: layouts
+      cards_layout: custom
+
   - minify:
       minify_html: true
       minify_js: true
