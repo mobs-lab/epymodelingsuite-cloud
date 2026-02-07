@@ -1,0 +1,103 @@
+# Custom social card layout
+
+# Definitions
+definitions:
+
+  # Site name with org prefix
+  - &site_name >-
+    mobs-lab/{{ config.site_name }}
+
+  # Section title (immediate parent in navigation)
+  - &section_title >-
+    {%- if page.parent and page.parent.title -%}
+      {{ page.parent.title }}
+    {%- endif -%}
+
+  # Page title
+  - &page_title >-
+    {{ page.meta.get("title", page.title) }}
+
+  # Page title with site name (for meta tags)
+  - &page_title_with_site_name >-
+    {%- if not page.is_homepage -%}
+      {{ page.meta.get("title", page.title) }} - {{ config.site_name }}
+    {%- else -%}
+      {{ config.site_name }}
+    {%- endif -%}
+
+  # Page description (for meta tags)
+  - &page_description >-
+    {{ page.meta.get("description", config.site_description) | x }}
+
+# Meta tags
+tags:
+  og:type: website
+  og:title: *page_title_with_site_name
+  og:description: *page_description
+  og:image: "{{ image.url }}"
+  og:image:type: "{{ image.type }}"
+  og:image:width: "{{ image.width }}"
+  og:image:height: "{{ image.height }}"
+  og:url: "{{ page.canonical_url }}"
+  twitter:card: summary_large_image
+  twitter:title: *page_title_with_site_name
+  twitter:description: *page_description
+  twitter:image: "{{ image.url }}"
+
+# Card size and layers
+size: { width: 1200, height: 630 }
+layers:
+
+  # Background (header navy color)
+  - background:
+      color: "#0c2246"
+
+  # SIR spaghetti plot overlay
+  - size: { width: 1200, height: 630 }
+    offset: { x: 0, y: 0 }
+    background:
+      image: layouts/spaghetti.png
+
+  # Section title (medium, vertically centered area)
+  - size: { width: 1076, height: 62 }
+    offset: { x: 82, y: 112 }
+    typography:
+      content: *section_title
+      align: start bottom
+      color: "#ffffffbb"
+      font:
+        family: Google Sans
+        style: Regular
+
+  # Page title (large, bold, below section)
+  - size: { width: 880, height: 290 }
+    offset: { x: 82, y: 180 }
+    typography:
+      content: *page_title
+      align: start top
+      color: "#ffffff"
+      overflow: shrink
+      line:
+        amount: 2
+        height: 1.05
+      font:
+        family: Google Sans
+        style: Bold
+
+  # GitHub icon (bottom-left, next to repo name)
+  - size: { width: 36, height: 36 }
+    offset: { x: 84, y: 516 }
+    icon:
+      value: fontawesome/brands/github
+      color: "#ffffffaa"
+
+  # Site name (small, bottom-left, after icon)
+  - size: { width: 832, height: 42 }
+    offset: { x: 132, y: 513 }
+    typography:
+      content: *site_name
+      align: start bottom
+      color: "#ffffffaa"
+      font:
+        family: Google Sans
+        style: Regular
