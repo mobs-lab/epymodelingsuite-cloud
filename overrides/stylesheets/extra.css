@@ -444,3 +444,103 @@
 .md-typeset .glossary p {
   margin-block-start: 0;
 }
+
+/* LLM-friendly dropdown button */
+.llm-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  float: right;
+  margin-top: 0.4rem;
+  font-size: 0.55rem;
+  font-family: var(--md-text-font);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 3px;
+  white-space: nowrap;
+  transition: border-color 0.2s;
+}
+
+.llm-dropdown:hover {
+  border-color: var(--md-accent-fg-color);
+}
+
+.llm-dropdown__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  cursor: pointer;
+}
+
+.llm-dropdown__sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--md-default-fg-color--lightest);
+  transition: background-color 0.2s;
+}
+
+.llm-dropdown:hover .llm-dropdown__sep {
+  background: var(--md-accent-fg-color);
+}
+
+.llm-dropdown__arrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.15rem;
+  cursor: pointer;
+}
+
+.llm-dropdown__menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.15rem);
+  padding: 0.2rem 0;
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 3px;
+  z-index: 2;
+}
+
+[data-md-color-scheme="epycloud-dark"] .llm-dropdown__menu {
+  border-color: #2b2b2b;
+}
+
+.llm-dropdown--open .llm-dropdown__menu {
+  display: block;
+}
+
+.llm-dropdown__item,
+.md-typeset .llm-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.55rem;
+  font-family: var(--md-text-font);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none !important;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.llm-dropdown__item:hover,
+.md-typeset .llm-dropdown__item:hover {
+  color: var(--md-default-fg-color);
+}
+
+.llm-icon {
+  width: 0.55rem;
+  height: 0.55rem;
+  fill: currentColor;
+  flex-shrink: 0;
+}

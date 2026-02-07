@@ -227,7 +227,12 @@ extra:
 # Hooks
 hooks:
   - hooks/link_card.py
+  - hooks/llms_txt.py
 
 # Additional CSS
 extra_css:
   - stylesheets/extra.css
+
+# Additional JavaScript
+extra_javascript:
+  - javascripts/llm-actions.js
