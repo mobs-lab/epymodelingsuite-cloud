@@ -2,9 +2,23 @@ name: Tests
 
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'mkdocs.yml'
+      - 'overrides/**'
+      - 'includes/**'
+      - 'hooks/**'
   push:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'mkdocs.yml'
+      - 'overrides/**'
+      - 'includes/**'
+      - 'hooks/**'
 
 jobs:
   test:

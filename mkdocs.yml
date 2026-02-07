@@ -204,18 +204,18 @@ nav:
   - epycloud Reference:
     - Overview: epycloud/index.md
     - Setup:
-      - config: epycloud/config.md
-      - profile: epycloud/profile.md
+      - "epycloud config": epycloud/config.md
+      - "epycloud profile": epycloud/profile.md
     - Infrastructure:
-      - terraform: epycloud/terraform.md
+      - "epycloud terraform": epycloud/terraform.md
     - Build & Run:
-      - build: epycloud/build.md
-      - validate: epycloud/validate.md
-      - run: epycloud/run.md
+      - "epycloud build": epycloud/build.md
+      - "epycloud validate": epycloud/validate.md
+      - "epycloud run": epycloud/run.md
     - Monitor:
-      - status: epycloud/status.md
-      - logs: epycloud/logs.md
-      - workflow: epycloud/workflow.md
+      - "epycloud status": epycloud/status.md
+      - "epycloud logs": epycloud/logs.md
+      - "epycloud workflow": epycloud/workflow.md
 
 # Extra settings
 extra:
@@ -227,7 +227,12 @@ extra:
 # Hooks
 hooks:
   - hooks/link_card.py
+  - hooks/llms_txt.py
 
 # Additional CSS
 extra_css:
   - stylesheets/extra.css
+
+# Additional JavaScript
+extra_javascript:
+  - javascripts/llm-actions.js

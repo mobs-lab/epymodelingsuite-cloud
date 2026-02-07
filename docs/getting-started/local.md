@@ -114,8 +114,8 @@ $ mkdir -p ./local/forecast/experiments/test-sim/config
 **Option A**: Copy from experiment repository (if you have access):
 
 ```console
-$ cp -r ~/Developer/flu-forecast-epydemix/experiments/test-sim ./local/forecast/experiments/
-$ cp -r ~/Developer/flu-forecast-epydemix/common-data ./local/forecast/ 2>/dev/null || true
+$ cp -r ~/Developer/my-flu-experiment-repo/experiments/test-sim ./local/forecast/experiments/
+$ cp -r ~/Developer/my-flu-experiment-repo/common-data ./local/forecast/ 2>/dev/null || true
 ```
 
 **Option B**: Create a minimal test configuration:

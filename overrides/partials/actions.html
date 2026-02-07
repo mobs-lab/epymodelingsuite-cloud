@@ -1,0 +1,56 @@
+{#-
+  Override of Material theme actions partial.
+  Adds LLM-friendly dropdown: Copy page with options for copy or open Markdown, open in LLM chats.
+-#}
+{% if page.edit_url %}
+  {% if "content.action.edit" in features %}
+    <a href="{{ page.edit_url }}" title="{{ lang.t('action.edit') }}" class="md-content__button md-icon" rel="edit">
+      {% set icon = config.theme.icon.edit or "material/file-edit-outline" %}
+      {% include ".icons/" ~ icon ~ ".svg" %}
+    </a>
+  {% endif %}
+  {% if "content.action.view" in features %}
+    {% if "/blob/" in page.edit_url %}
+      {% set part = "blob" %}
+    {% else %}
+      {% set part = "edit" %}
+    {% endif %}
+    <a href="{{ page.edit_url | replace(part, 'raw') }}" title="{{ lang.t('action.view') }}" class="md-content__button md-icon">
+      {% set icon = config.theme.icon.view or "material/file-eye-outline" %}
+      {% include ".icons/" ~ icon ~ ".svg" %}
+    </a>
+  {% endif %}
+{% endif %}
+
+{#- LLM-friendly dropdown -#}
+{% set md_rel = base_url ~ "/" ~ page.file.src_path %}
+{% set md_abs = config.site_url ~ page.file.src_path %}
+<div class="llm-dropdown">
+  <span class="llm-dropdown__copy" data-copy-md="{{ md_rel }}">
+    <svg class="llm-icon" viewBox="0 0 24 24"><path d="M19 21H8V7h11m0-2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m-3-4H4a2 2 0 0 0-2 2v14h2V3h12V1Z"/></svg>
+    <span class="llm-dropdown__label">Copy page</span>
+  </span>
+  <span class="llm-dropdown__sep"></span>
+  <span class="llm-dropdown__arrow" data-llm-toggle>
+    <svg class="llm-icon" viewBox="0 0 24 24"><path d="M7.41 8.58 12 13.17l4.59-4.59L18 10l-6 6-6-6 1.41-1.42Z"/></svg>
+  </span>
+  {% set chat_prompt = "I'd like to discuss the content from " ~ md_abs %}
+  <div class="llm-dropdown__menu">
+    <a class="llm-dropdown__item" href="{{ md_rel }}" target="_blank" rel="noopener">
+      <svg class="llm-icon" viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7Z"/></svg>
+      Open Markdown
+    </a>
+    <a class="llm-dropdown__item" href="https://claude.ai/new?q={{ chat_prompt | urlencode }}" target="_blank" rel="noopener">
+      <svg class="llm-icon" viewBox="0 0 24 24"><path d="M12 3c5.5 0 10 3.58 10 8s-4.5 8-10 8c-1.24 0-2.43-.18-3.53-.5C5.55 21 2 21 2 21c2.33-2.33 2.7-3.9 2.75-4.5C3.05 15.07 2 13.13 2 11c0-4.42 4.5-8 10-8Z"/></svg>
+      Chat in Claude
+    </a>
+    <a class="llm-dropdown__item" href="https://chatgpt.com/?q={{ chat_prompt | urlencode }}" target="_blank" rel="noopener">
+      <svg class="llm-icon" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 17.93V15h-2v4.93A8 8 0 0 1 4.07 13H9v-2H4.07A8 8 0 0 1 11 4.07V9h2V4.07A8 8 0 0 1 19.93 11H15v2h4.93A8 8 0 0 1 13 19.93Z"/></svg>
+      Chat in ChatGPT
+    </a>
+    <a class="llm-dropdown__item" href="https://gemini.google.com/app?q={{ chat_prompt | urlencode }}" target="_blank" rel="noopener">
+      <svg class="llm-icon" viewBox="0 0 24 24"><path d="M12 2L8.5 9.5 2 12l6.5 2.5L12 22l3.5-7.5L22 12l-6.5-2.5Z"/></svg>
+      Chat in Gemini
+    </a>
+  </div>
+</div>
