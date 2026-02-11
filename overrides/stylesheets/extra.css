@@ -1,0 +1,546 @@
+/**
+ * Custom styles for epycloud documentation
+ * Inspired by uv docs style
+ */
+
+/* Color palette */
+:root {
+  --epycloud-navy: #0c2246;
+  --epycloud-navy-dark: #091732;
+  --epycloud-blue: #5B8DEE;
+  --epycloud-blue-dark: #4A73C2;
+}
+
+/* Light theme */
+[data-md-color-scheme="epycloud-light"] {
+  --md-primary-fg-color: var(--epycloud-navy);
+  --md-primary-fg-color--dark: var(--epycloud-navy-dark);
+  --md-accent-fg-color: var(--epycloud-blue);
+  --md-typeset-a-color: #4A73C2; /* Darker blue for better contrast in light mode */
+
+  /* Use system fonts for better performance */
+  --md-text-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --md-code-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Monaco, "Courier New", monospace;
+}
+
+/* Dark theme - Claude docs inspired */
+[data-md-color-scheme="epycloud-dark"] {
+  --md-hue: 215;
+
+  /* Background colors - near-black with warm tint */
+  --md-default-fg-color: #e5e7eb;          /* gray-200, used for headings */
+  --md-default-fg-color--light: #8b8b8b;
+  --md-default-fg-color--lighter: #666663;
+  --md-default-fg-color--lightest: rgba(102, 102, 99, 0.12);
+  --md-default-bg-color: #09090B;
+  --md-default-bg-color--light: rgba(11, 12, 14, 0.54);
+  --md-default-bg-color--lighter: rgba(11, 12, 14, 0.26);
+  --md-default-bg-color--lightest: rgba(11, 12, 14, 0.07);
+
+  /* Code colors - VS Code Dark+ syntax */
+  --md-code-fg-color: #D4D4D4;
+  --md-code-bg-color: #09090B;
+  --md-code-hl-color: rgba(87, 139, 253, 0.15);
+  --md-code-hl-number-color: #B5CEA8;
+  --md-code-hl-special-color: #6796E6;
+  --md-code-hl-function-color: #DCDCAA;
+  --md-code-hl-constant-color: #569CD6;
+  --md-code-hl-keyword-color: #569CD6;
+  --md-code-hl-string-color: #CE9178;
+  --md-code-hl-name-color: #9CDCFE;
+  --md-code-hl-operator-color: #D4D4D4;
+  --md-code-hl-punctuation-color: #D4D4D4;
+  --md-code-hl-comment-color: #6A9955;
+  --md-code-hl-generic-color: #8b8b8b;
+  --md-code-hl-variable-color: #9CDCFE;
+
+  /* Typeset colors - body text dimmer than headings */
+  --md-typeset-color: #c4c4c4;             /* neutral-400, warm gray */
+  --md-typeset-a-color: #5ba3f5;
+  --md-typeset-mark-color: rgba(87, 139, 253, 0.3);
+  --md-typeset-kbd-color: rgba(102, 102, 99, 0.15);
+  --md-typeset-kbd-accent-color: rgba(102, 102, 99, 0.25);
+  --md-typeset-kbd-border-color: #2b2b2b;
+  --md-typeset-table-color: rgba(102, 102, 99, 0.12);
+  --md-typeset-table-color--light: rgba(102, 102, 99, 0.035);
+
+  /* Admonition colors */
+  --md-admonition-fg-color: #c4c4c4;
+  --md-admonition-bg-color: #09090B;
+
+  /* Header/primary - same as page bg */
+  --md-primary-fg-color: #09090B;
+  --md-accent-fg-color: #5ba3f5;
+
+  /* Footer */
+  --md-footer-bg-color: #09090B;
+  --md-footer-bg-color--dark: #09090B;
+
+  /* Use system fonts for better performance */
+  --md-text-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --md-code-font: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Monaco, "Courier New", monospace;
+}
+
+/* Typography - use Material's defaults with system fonts */
+.md-typeset {
+  font-family: var(--md-text-font);
+}
+
+.md-search__form {
+  border-radius: 6px;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-search__form {
+  background-color: #4d4d4d42;
+}
+
+/* Header/footer in dark mode - match page bg with subtle border */
+[data-md-color-scheme="epycloud-dark"] .md-header {
+  background-color: #09090B;
+  border-bottom: 1px solid #2b2b2b;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-footer {
+  background-color: #09090B;
+  border-top: 1px solid #2b2b2b;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-footer-meta {
+  background-color: #09090B;
+  border-top: 1px solid #2b2b2b;
+}
+
+/* No shadows on header/footer */
+.md-header,
+.md-footer {
+  box-shadow: none;
+}
+
+/* Hide logo icon completely */
+.md-header__button.md-logo {
+  display: none;
+}
+
+/* Adjust title margin since logo is hidden */
+[dir=ltr] .md-header__title {
+  margin-left: 0.5rem;
+}
+
+.md-main__inner {
+  margin-top: 0.5rem;
+}
+
+/* Source file metadata (last updated, created) */
+.md-source-file {
+  margin-top: 10rem;
+}
+
+/* Headings - Improved weight hierarchy */
+.md-typeset h1 {
+  font-weight: 500;  /* Was 300 - medium weight for better hierarchy */
+  color: var(--md-typeset-color);
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-typeset h1,
+[data-md-color-scheme="epycloud-dark"] .md-typeset h2,
+[data-md-color-scheme="epycloud-dark"] .md-typeset h3,
+[data-md-color-scheme="epycloud-dark"] .md-typeset h4 {
+  color: #e5e7eb;
+}
+
+.md-typeset h2 {
+  font-weight: 500;  /* Was 300 - medium weight for better hierarchy */
+  padding-bottom: 0.15em;
+  border-bottom: 1px solid #d1d9e0b3;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-typeset h2 {
+  border-bottom-color: #2b2b2b;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-typeset hr {
+  border-color: #2b2b2b;
+}
+
+.md-typeset h3 {
+  font-weight: 600;  /* Was 400 - semibold for better hierarchy */
+}
+
+/* h4 already has font-weight: 700, keep as is */
+
+/* Make bold text semibold instead of bold to not overpower headings */
+.md-typeset strong,
+.md-typeset b {
+  font-weight: 600;  /* Was 700 - semibold for better hierarchy */
+}
+
+/* Code blocks - styled like uv docs */
+.md-typeset code {
+  font-family: var(--md-code-font);
+  font-size: 0.85em;
+  background-color: var(--md-code-bg-color);
+  border-radius: 6px;
+  padding: 0.15em 0.4em;
+  word-break: break-word;
+}
+
+.md-typeset pre {
+  border-radius: 6px;
+}
+
+.md-typeset pre > code {
+  padding: 0.8em 1em;
+  font-size: 0.85em;
+  line-height: 1.5;
+  border-radius: 6px;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-typeset pre {
+  border: 1px solid #2b2b2b;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-code__nav {
+  background-color: transparent;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-code__button {
+  color: #666663;
+}
+
+[data-md-color-scheme="epycloud-dark"] .md-code__button:hover {
+  color: #e5e7eb;
+}
+
+
+/* Prevent selection of shell prompts ($ and output) */
+.highlight .gp,
+.highlight .go {
+  user-select: none;
+}
+
+/* Hide Table of Contents header */
+.md-sidebar--secondary .md-sidebar__scrollwrap .md-nav > .md-nav__title {
+  display: none;
+}
+
+/* Improved TOC styling - smaller font and compact spacing */
+.md-nav--secondary .md-nav__link {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  margin: 0;
+}
+
+/* Reduce spacing between TOC items */
+.md-nav--secondary .md-nav__item {
+  line-height: 1.5;
+  margin-top: 0.1rem;
+}
+
+/* Make nested TOC items even smaller with less indent */
+.md-nav--secondary .md-nav .md-nav .md-nav__link {
+  font-size: 0.65rem;
+  padding: 0.2rem 0.6rem 0.2rem 1.2rem;
+}
+
+/* Remove extra margin from nested items */
+.md-nav--secondary .md-nav .md-nav .md-nav__item {
+  margin-top: 0;
+}
+
+/* Bold the active TOC item */
+.md-nav--secondary .md-nav__link--active {
+  font-weight: 700;
+}
+
+/* Anchor link styling */
+.toclink {
+  color: unset !important;
+  text-decoration: none;
+}
+
+.toclink:hover {
+  color: var(--md-accent-fg-color) !important;
+}
+
+/* Abbreviation tooltip styling */
+.md-tooltip--inline {
+  font-weight: normal;
+}
+
+/* Disable abbreviation tooltips in headings */
+
+.md-typeset h1 abbr,
+.md-typeset h2 abbr,
+.md-typeset h3 abbr,
+.md-typeset h4 abbr,
+.md-typeset h5 abbr,
+.md-typeset h6 abbr {
+  text-decoration: none;
+  cursor: inherit;
+  border-bottom: none;
+}
+
+/* Links */
+.md-typeset a {
+  color: var(--md-typeset-a-color);
+  text-decoration: none;
+}
+
+.md-typeset a:hover {
+  text-decoration: underline;
+}
+
+/* Admonitions */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+/* Tables - full width like uv docs */
+.md-typeset__table {
+  min-width: 100%;
+}
+
+.md-typeset table:not([class]) {
+  display: table;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 4px;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-fg-color--lightest);
+  font-weight: 600;
+}
+
+/* Button styles */
+.md-button {
+  border-radius: 4px;
+}
+
+.md-button--primary {
+  background-color: var(--md-primary-fg-color);
+}
+
+.md-button--primary:hover {
+  background-color: var(--md-accent-fg-color);
+}
+
+/* Navigation improvements */
+.md-nav--primary .md-nav__link--active {
+  font-weight: 600;
+}
+
+/* Footer */
+.md-footer {
+  background-color: var(--md-primary-fg-color);
+}
+
+/* Scrollbar styling - use neutral gray instead of teal */
+::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--md-default-bg-color) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-default-fg-color--lighter) !important;
+  border-radius: 4px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-default-fg-color--lighter) !important;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--md-default-fg-color--lighter) var(--md-default-bg-color) !important;
+}
+
+/* Link cards */
+.link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 6px;
+  margin: 0.5rem 0;
+  text-decoration: none !important;
+  color: inherit !important;
+  background-color: var(--md-code-bg-color);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+[data-md-color-scheme="epycloud-light"] .link-card {
+  background-color: #ffffff;
+}
+
+[data-md-color-scheme="epycloud-dark"] .link-card,
+[data-md-color-scheme="epycloud-dark"] .md-typeset .grid.cards > ol > li,
+[data-md-color-scheme="epycloud-dark"] .md-typeset .grid.cards > ul > li,
+[data-md-color-scheme="epycloud-dark"] .md-typeset .grid > .card {
+  border-color: #2b2b2b;
+}
+
+[data-md-color-scheme="epycloud-dark"] .link-card:hover {
+  background-color: #111112;
+}
+
+.link-card:hover {
+  border-color: var(--md-accent-fg-color);
+}
+
+.link-card-title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--md-typeset-a-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-card-description {
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-card-origin {
+  display: flex;
+  align-items: center;
+  line-height: 1.5;
+  gap: 0.35rem;
+}
+
+.link-card-favicon {
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
+.link-card-domain {
+  font-size: 0.7rem;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Glossary page: style h3 as smaller definition terms */
+.md-typeset .glossary h3 {
+  font-size: 1em;
+  font-weight: 700;
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.md-typeset .glossary p {
+  margin-block-start: 0;
+}
+
+/* LLM-friendly dropdown button */
+.llm-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  float: right;
+  margin-top: 0.4rem;
+  font-size: 0.55rem;
+  font-family: var(--md-text-font);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 3px;
+  white-space: nowrap;
+  transition: border-color 0.2s;
+}
+
+.llm-dropdown:hover {
+  border-color: var(--md-accent-fg-color);
+}
+
+.llm-dropdown__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  cursor: pointer;
+}
+
+.llm-dropdown__sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--md-default-fg-color--lightest);
+  transition: background-color 0.2s;
+}
+
+.llm-dropdown:hover .llm-dropdown__sep {
+  background: var(--md-accent-fg-color);
+}
+
+.llm-dropdown__arrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.15rem;
+  cursor: pointer;
+}
+
+.llm-dropdown__menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.15rem);
+  padding: 0.2rem 0;
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 3px;
+  z-index: 2;
+}
+
+[data-md-color-scheme="epycloud-dark"] .llm-dropdown__menu {
+  border-color: #2b2b2b;
+}
+
+.llm-dropdown--open .llm-dropdown__menu {
+  display: block;
+}
+
+.llm-dropdown__item,
+.md-typeset .llm-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.55rem;
+  font-family: var(--md-text-font);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--md-default-fg-color--light);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none !important;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.llm-dropdown__item:hover,
+.md-typeset .llm-dropdown__item:hover {
+  color: var(--md-default-fg-color);
+}
+
+.llm-icon {
+  width: 0.55rem;
+  height: 0.55rem;
+  fill: currentColor;
+  flex-shrink: 0;
+}
