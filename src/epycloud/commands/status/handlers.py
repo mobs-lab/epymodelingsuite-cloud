@@ -8,10 +8,12 @@ from epycloud.commands.status.operations import (
     display_status,
     fetch_active_batch_jobs,
     fetch_active_workflows,
+    fetch_recent_batch_jobs,
+    fetch_recent_workflows,
 )
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import get_google_cloud_config, require_config
-from epycloud.lib.formatters import format_timestamp_local
+from epycloud.lib.formatters import format_timestamp_local, parse_since_time
 from epycloud.lib.output import error, info, warning
 
 
@@ -41,6 +43,16 @@ def handle(ctx: dict[str, Any]) -> int:
         error(str(e))
         return 2
 
+    # Parse --recent time window
+    recent_window = args.recent  # None, "1h", "30m", etc.
+    if recent_window is not None:
+        since = parse_since_time(recent_window)
+        if since is None:
+            error(f"Invalid time format for --recent: '{recent_window}' (try 30m, 1h, 2d)")
+            return 2
+    else:
+        since = None
+
     # Watch mode
     if args.watch:
         return _watch_status(
@@ -49,6 +61,7 @@ def handle(ctx: dict[str, Any]) -> int:
             exp_id=args.exp_id,
             interval=args.interval,
             verbose=verbose,
+            recent=recent_window,
         )
 
     # One-time status check
@@ -57,6 +70,7 @@ def handle(ctx: dict[str, Any]) -> int:
         region=region,
         exp_id=args.exp_id,
         verbose=verbose,
+        since=since,
     )
 
 
@@ -65,6 +79,7 @@ def _show_status(
     region: str,
     exp_id: str | None,
     verbose: bool,
+    since: datetime | None = None,
 ) -> int:
     """Show current status.
 
@@ -78,6 +93,8 @@ def _show_status(
         Optional experiment ID filter
     verbose : bool
         Verbose output
+    since : datetime | None
+        If set, also show recently completed items since this time
 
     Returns
     -------
@@ -101,8 +118,27 @@ def _show_status(
             verbose=verbose,
         )
 
+        # Fetch recent items if requested
+        recent_workflows = None
+        recent_jobs = None
+        if since is not None:
+            recent_workflows = fetch_recent_workflows(
+                project_id=project_id,
+                region=region,
+                exp_id=exp_id,
+                since=since,
+                verbose=verbose,
+            )
+            recent_jobs = fetch_recent_batch_jobs(
+                project_id=project_id,
+                region=region,
+                exp_id=exp_id,
+                since=since,
+                verbose=verbose,
+            )
+
         # Display status
-        display_status(workflows, jobs, exp_id)
+        display_status(workflows, jobs, exp_id, recent_workflows, recent_jobs)
 
         return 0
 
@@ -121,6 +157,7 @@ def _watch_status(
     exp_id: str | None,
     interval: int,
     verbose: bool,
+    recent: str | None = None,
 ) -> int:
     """Watch status with auto-refresh.
 
@@ -136,6 +173,8 @@ def _watch_status(
         Refresh interval in seconds
     verbose : bool
         Verbose output
+    recent : str | None
+        Recent time window string (e.g., "1h", "30m") — re-parsed each refresh
 
     Returns
     -------
@@ -166,7 +205,28 @@ def _watch_status(
                     verbose=verbose,
                 )
 
-                display_status(workflows, jobs, exp_id)
+                # Fetch recent items if requested (re-parse each refresh)
+                recent_workflows = None
+                recent_jobs = None
+                if recent is not None:
+                    since = parse_since_time(recent)
+                    if since is not None:
+                        recent_workflows = fetch_recent_workflows(
+                            project_id=project_id,
+                            region=region,
+                            exp_id=exp_id,
+                            since=since,
+                            verbose=verbose,
+                        )
+                        recent_jobs = fetch_recent_batch_jobs(
+                            project_id=project_id,
+                            region=region,
+                            exp_id=exp_id,
+                            since=since,
+                            verbose=verbose,
+                        )
+
+                display_status(workflows, jobs, exp_id, recent_workflows, recent_jobs)
 
                 # Show refresh time
                 now = format_timestamp_local(datetime.now().isoformat())

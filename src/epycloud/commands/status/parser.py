@@ -30,6 +30,16 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     parser.add_argument(
+        "-r",
+        "--recent",
+        nargs="?",
+        const="1h",
+        default=None,
+        metavar="TIME",
+        help="Show recently completed items (e.g., 30m, 2h, 1d; default: 1h)",
+    )
+
+    parser.add_argument(
         "-n",
         "--interval",
         type=int,
