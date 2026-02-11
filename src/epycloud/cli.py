@@ -88,6 +88,7 @@ def create_parser() -> argparse.ArgumentParser:
     from epycloud.commands import (
         build,
         config_cmd,
+        download,
         logs,
         profile,
         run,
@@ -106,6 +107,7 @@ def create_parser() -> argparse.ArgumentParser:
     validate.register_parser(subparsers)
     status.register_parser(subparsers)
     logs.register_parser(subparsers)
+    download.register_parser(subparsers)
 
     return parser
 
@@ -219,6 +221,10 @@ def main() -> int:
             from epycloud.commands import logs
 
             return logs.handle(ctx)
+        elif args.command == "download":
+            from epycloud.commands import download
+
+            return download.handle(ctx)
         else:
             error(f"Command '{args.command}' not yet implemented")
             return 1
