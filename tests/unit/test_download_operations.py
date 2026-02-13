@@ -2,6 +2,7 @@
 
 from unittest.mock import Mock
 
+from epycloud.commands.download.handlers import _extract_scan_prefix
 from epycloud.commands.download.operations import (
     build_local_filename,
     filter_experiments,
@@ -69,6 +70,22 @@ class TestFilterExperiments:
         result = filter_experiments(experiments, "*/ed_*")
         assert result == ["202605/ed_a", "202606/ed_b"]
 
+    def test_list_of_patterns(self):
+        experiments = ["202605/exp1", "202605/exp2", "202606/exp3"]
+        result = filter_experiments(experiments, ["202605/*", "202606/*"])
+        assert result == ["202605/exp1", "202605/exp2", "202606/exp3"]
+
+    def test_trailing_slash_exact_experiment(self):
+        """A list with both wildcard and exact match handles trailing slash cases."""
+        experiments = ["testdir/myexp01", "testdir/myexp02"]
+        result = filter_experiments(experiments, ["testdir/myexp01/*", "testdir/myexp01"])
+        assert result == ["testdir/myexp01"]
+
+    def test_single_string_backward_compat(self):
+        experiments = ["202605/exp1", "202605/exp2"]
+        result = filter_experiments(experiments, "202605/*")
+        assert result == ["202605/exp1", "202605/exp2"]
+
 
 class TestBuildLocalFilename:
     """Test build_local_filename function."""
@@ -107,7 +124,8 @@ class TestBuildLocalFilename:
 class TestListExperiments:
     """Test list_experiments function."""
 
-    def test_two_level_listing(self):
+    def test_two_level_standard_structure(self):
+        """Standard week/exp structure with run_id children."""
         mock_client = Mock()
         mock_bucket = Mock()
         mock_client.bucket.return_value = mock_bucket
@@ -121,19 +139,67 @@ class TestListExperiments:
                 return _make_blob_iterator(
                     prefixes=["pipeline/flu/202605/exp_a/", "pipeline/flu/202605/exp_b/"]
                 )
+            elif prefix == "pipeline/flu/202605/exp_a/":
+                return _make_blob_iterator(
+                    prefixes=["pipeline/flu/202605/exp_a/20250101-120000-abc12345/"]
+                )
+            elif prefix == "pipeline/flu/202605/exp_b/":
+                return _make_blob_iterator(
+                    prefixes=["pipeline/flu/202605/exp_b/20250102-130000-def45678/"]
+                )
             elif prefix == "pipeline/flu/202606/":
                 return _make_blob_iterator(
                     prefixes=["pipeline/flu/202606/exp_c/"]
+                )
+            elif prefix == "pipeline/flu/202606/exp_c/":
+                return _make_blob_iterator(
+                    prefixes=["pipeline/flu/202606/exp_c/20250103-140000-aabb7890/"]
                 )
             return _make_blob_iterator()
 
         mock_bucket.list_blobs.side_effect = list_blobs_side_effect
 
         result = list_experiments(mock_client, "test-bucket", "pipeline/flu/")
-
         assert result == ["202605/exp_a", "202605/exp_b", "202606/exp_c"]
 
-    def test_no_weeks(self):
+    def test_three_level_nested_experiments(self):
+        """Nested experiments like test/myexperiments/exp1."""
+        mock_client = Mock()
+        mock_bucket = Mock()
+        mock_client.bucket.return_value = mock_bucket
+
+        def list_blobs_side_effect(prefix, delimiter="/"):
+            if prefix == "pipeline/flu/":
+                return _make_blob_iterator(
+                    prefixes=["pipeline/flu/test/"]
+                )
+            elif prefix == "pipeline/flu/test/":
+                return _make_blob_iterator(
+                    prefixes=["pipeline/flu/test/myexperiments/"]
+                )
+            elif prefix == "pipeline/flu/test/myexperiments/":
+                return _make_blob_iterator(
+                    prefixes=[
+                        "pipeline/flu/test/myexperiments/exp1/",
+                        "pipeline/flu/test/myexperiments/exp2/",
+                    ]
+                )
+            elif prefix == "pipeline/flu/test/myexperiments/exp1/":
+                return _make_blob_iterator(
+                    prefixes=["pipeline/flu/test/myexperiments/exp1/20250101-120000-abc12345/"]
+                )
+            elif prefix == "pipeline/flu/test/myexperiments/exp2/":
+                return _make_blob_iterator(
+                    prefixes=["pipeline/flu/test/myexperiments/exp2/20250102-130000-def45678/"]
+                )
+            return _make_blob_iterator()
+
+        mock_bucket.list_blobs.side_effect = list_blobs_side_effect
+
+        result = list_experiments(mock_client, "test-bucket", "pipeline/flu/")
+        assert result == ["test/myexperiments/exp1", "test/myexperiments/exp2"]
+
+    def test_no_children(self):
         mock_client = Mock()
         mock_bucket = Mock()
         mock_client.bucket.return_value = mock_bucket
@@ -142,7 +208,8 @@ class TestListExperiments:
         result = list_experiments(mock_client, "test-bucket", "pipeline/flu/")
         assert result == []
 
-    def test_week_with_no_experiments(self):
+    def test_directory_with_no_run_ids(self):
+        """Directory with children that don't match run_id pattern recurses."""
         mock_client = Mock()
         mock_bucket = Mock()
         mock_client.bucket.return_value = mock_bucket
@@ -150,6 +217,9 @@ class TestListExperiments:
         def list_blobs_side_effect(prefix, delimiter="/"):
             if prefix == "pipeline/flu/":
                 return _make_blob_iterator(prefixes=["pipeline/flu/202605/"])
+            elif prefix == "pipeline/flu/202605/":
+                # No children at all
+                return _make_blob_iterator()
             return _make_blob_iterator()
 
         mock_bucket.list_blobs.side_effect = list_blobs_side_effect
@@ -247,3 +317,32 @@ class TestFindMatchingBlobs:
             mock_client, "bucket", "path", ["posterior_grid.pdf"]
         )
         assert len(result) == 2
+
+
+class TestExtractScanPrefix:
+    """Test _extract_scan_prefix function."""
+
+    def test_exact_pattern(self):
+        assert _extract_scan_prefix(["test/reff_resimm_beta"]) == "test/reff_resimm_beta"
+
+    def test_wildcard_after_slash(self):
+        assert _extract_scan_prefix(["202605/*"]) == "202605"
+
+    def test_wildcard_in_middle(self):
+        assert _extract_scan_prefix(["202605/hosp_*"]) == "202605"
+
+    def test_star_only(self):
+        assert _extract_scan_prefix(["*"]) == ""
+
+    def test_trailing_slash_patterns(self):
+        # Patterns generated from "testdir/myexp01/"
+        assert _extract_scan_prefix(["testdir/myexp01/*", "testdir/myexp01"]) == "testdir/myexp01"
+
+    def test_nested_wildcard(self):
+        assert _extract_scan_prefix(["test/myexperiments/*"]) == "test/myexperiments"
+
+    def test_empty_patterns(self):
+        assert _extract_scan_prefix([]) == ""
+
+    def test_question_mark_wildcard(self):
+        assert _extract_scan_prefix(["202605/exp?"]) == "202605"
