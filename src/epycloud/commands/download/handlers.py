@@ -28,6 +28,50 @@ from .operations import (
 )
 
 
+def _extract_scan_prefix(patterns: list[str]) -> str:
+    """Extract the common literal directory prefix from patterns.
+
+    For each pattern, finds the longest path component that contains no
+    wildcard characters. Returns the shortest such prefix across all
+    patterns so the scan covers all of them.
+
+    Examples
+    --------
+    >>> _extract_scan_prefix(["202605/*"])
+    '202605'
+    >>> _extract_scan_prefix(["test/reff_resimm_beta"])
+    'test/reff_resimm_beta'
+    >>> _extract_scan_prefix(["test/myexp/*", "test/myexp"])
+    'test/myexp'
+    >>> _extract_scan_prefix(["*"])
+    ''
+    """
+    if not patterns:
+        return ""
+
+    prefixes: list[str] = []
+    for p in patterns:
+        # Find position of first wildcard character
+        wildcard_pos = len(p)
+        for i, ch in enumerate(p):
+            if ch in ("*", "?", "["):
+                wildcard_pos = i
+                break
+
+        literal = p[:wildcard_pos]
+
+        if wildcard_pos < len(p):
+            # Has wildcards: truncate to last / to get a directory boundary
+            slash_pos = literal.rfind("/")
+            prefixes.append(literal[:slash_pos] if slash_pos >= 0 else "")
+        else:
+            # No wildcards: entire string is the prefix
+            prefixes.append(literal)
+
+    # Return shortest prefix (covers all patterns)
+    return min(prefixes, key=len)
+
+
 @dataclass
 class DownloadItem:
     """A single experiment's download plan."""
@@ -73,10 +117,17 @@ def handle(ctx: dict[str, Any]) -> int:
     if not dir_prefix.endswith("/"):
         dir_prefix += "/"
 
-    # Parse pattern: auto-append * if ends with /
-    pattern = args.exp_filter
-    if pattern.endswith("/"):
-        pattern += "*"
+    # Parse pattern into one or more fnmatch patterns.
+    # - Trailing slash: "foo/" → match children and exact ("foo/*", "foo")
+    # - No wildcards:   "foo"  → match exact and children ("foo", "foo/*")
+    # - Has wildcards:  "foo*" → use as-is
+    raw_pattern = args.exp_filter
+    if raw_pattern.endswith("/"):
+        patterns = [raw_pattern + "*", raw_pattern.rstrip("/")]
+    elif any(ch in raw_pattern for ch in ("*", "?", "[")):
+        patterns = [raw_pattern]
+    else:
+        patterns = [raw_pattern, raw_pattern + "/*"]
 
     output_dir = Path(args.output_dir)
     name_format = args.name_format
@@ -87,7 +138,7 @@ def handle(ctx: dict[str, Any]) -> int:
     if verbose:
         info(f"Bucket: {bucket_name}")
         info(f"Prefix: {dir_prefix}")
-        info(f"Pattern: {pattern}")
+        info(f"Pattern: {raw_pattern}")
         print()
 
     # Create GCS client
@@ -98,9 +149,13 @@ def handle(ctx: dict[str, Any]) -> int:
         info("Ensure you are authenticated: gcloud auth application-default login")
         return 1
 
-    # List all experiments under prefix
+    # List experiments (narrowed by scan_prefix extracted from patterns)
+    scan_prefix = _extract_scan_prefix(patterns)
+    info(f"Searching for experiments matching '{raw_pattern}'...")
     try:
-        all_experiments = list_experiments(client, bucket_name, dir_prefix)
+        all_experiments = list_experiments(
+            client, bucket_name, dir_prefix, scan_prefix=scan_prefix
+        )
     except Exception as e:
         error(f"Failed to list experiments: {e}")
         return 1
@@ -110,10 +165,10 @@ def handle(ctx: dict[str, Any]) -> int:
         return 0
 
     # Filter experiments with pattern
-    matched = filter_experiments(all_experiments, pattern)
+    matched = filter_experiments(all_experiments, patterns)
 
     if not matched:
-        warning(f"No experiments match pattern: {pattern}")
+        warning(f"No experiments match pattern: {raw_pattern}")
         if verbose:
             info(f"Available experiments ({len(all_experiments)}):")
             for exp in all_experiments[:20]:
@@ -121,6 +176,8 @@ def handle(ctx: dict[str, Any]) -> int:
             if len(all_experiments) > 20:
                 info(f"  ... and {len(all_experiments) - 20} more")
         return 0
+
+    info(f"Found {len(matched)} experiment(s), resolving runs...")
 
     # Pass 1: Build download plan (always auto-select latest run)
     plan: list[DownloadItem] = []
@@ -206,7 +263,7 @@ def handle(ctx: dict[str, Any]) -> int:
                 run_path=item.run_path,
                 target_files=item.target_files,
                 output_dir=output_dir,
-                exp_name=item.exp_name,
+                exp_name=item.exp_path_rel,
                 run_id=item.run_id,
                 long_names=long_names,
                 nest_runs=nest_runs,
