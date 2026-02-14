@@ -520,8 +520,8 @@ requires-dist = [
     { name = "cairosvg", specifier = ">=2.8.2" },
     { name = "dill", specifier = ">=0.4.0" },
     { name = "epydemix", specifier = ">=1.0.1" },
-    { name = "epymodelingsuite", git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git?rev=dev" },
-    { name = "epymodelingsuite", marker = "extra == 'dev'", git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git?rev=dev" },
+    { name = "epymodelingsuite", git = "https://github.com/mobs-lab/epymodelingsuite.git?rev=dev" },
+    { name = "epymodelingsuite", marker = "extra == 'dev'", git = "https://github.com/mobs-lab/epymodelingsuite.git?rev=dev" },
     { name = "google-cloud-storage", specifier = ">=2.18.2" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
@@ -549,7 +549,7 @@ docs = [
 [[package]]
 name = "epydemix"
 version = "1.0.2"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/mobs-lab/epydemix.git#2ab3d6c30050e6ee247c6684d5cf1ae07c942a5b" }
 dependencies = [
     { name = "evalidate" },
     { name = "matplotlib" },
@@ -559,15 +559,11 @@ dependencies = [
     { name = "seaborn" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/9c/597ece0120b4a41585b49f9c0c7888da97276b484182b2e6301e74da9900/epydemix-1.0.2.tar.gz", hash = "sha256:90633fa5b3329fef9db7d62361108cc5771c9b5d035b7a9253f50275b5b70684", size = 97939, upload-time = "2025-10-30T13:45:04.915Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/19/73c7ba741aec09b1b4608035144f4c61a1ccd417708a5266ea12d430964e/epydemix-1.0.2-py3-none-any.whl", hash = "sha256:09a67c7478723ce27d903b0ac4acee5a6834bda5ef6166e6e2848e2aaa66aee9", size = 102611, upload-time = "2025-10-30T13:45:03.929Z" },
-]
 
 [[package]]
 name = "epymodelingsuite"
 version = "0.2.0"
-source = { git = "ssh://git@github.com/mobs-lab/epymodelingsuite.git?rev=dev#f9fdff1487db5dff1d6269ef0449ffd64e8527bb" }
+source = { git = "https://github.com/mobs-lab/epymodelingsuite.git?rev=dev#8e92665171cd7f0eaf88c6c7e52fb27c8292820d" }
 dependencies = [
     { name = "epiweeks" },
     { name = "epydemix" },
