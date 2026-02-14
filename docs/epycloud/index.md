@@ -38,7 +38,7 @@ These options can be used with any command:
 ### Examples
 
 ```console
-$ epycloud --env=prod workflow list
+$ epycloud --env prod workflow list
 
 $ epycloud --profile=covid build cloud
 
@@ -107,11 +107,11 @@ $ epycloud logs --exp-id test-sim
 ### Production Workflow
 
 ```console
-$ epycloud --env=prod build cloud
+$ epycloud --env prod build cloud
 
 $ epycloud build status
 
-$ epycloud --env=prod run workflow --exp-id prod-study
+$ epycloud --env prod run workflow --exp-id prod-study
 
 $ epycloud workflow list --exp-id prod-study
 

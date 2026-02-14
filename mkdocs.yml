@@ -86,6 +86,10 @@ plugins:
       lang: en
       separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
 
+  - social:
+      cards_layout_dir: layouts
+      cards_layout: custom
+
   - minify:
       minify_html: true
       minify_js: true
@@ -192,6 +196,9 @@ nav:
       - Configuring epycloud:
         - user-guide/configuration/index.md
         - Base Configuration: user-guide/configuration/base.md
+        - Environments: user-guide/configuration/environments.md
+        - Profiles: user-guide/configuration/profiles.md
+        - Secrets: user-guide/configuration/secrets.md
     - Reference:
       - Configuration Variables: reference/configuration-variables.md
       - Google Cloud:

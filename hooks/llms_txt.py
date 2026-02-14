@@ -60,6 +60,37 @@ def _extract_llms_txt(nav: list, base_url: str, depth: int = 0) -> list[str]:
     return lines
 
 
+def _resolve_relative_links(content: str, md_rel: Path, site_url: str) -> str:
+    """Rewrite relative markdown links to absolute URLs.
+
+    Skips links inside fenced code blocks and inline code spans.
+    """
+    import re
+    from posixpath import normpath
+
+    base_dir = str(md_rel.parent)
+
+    def _replace_link(m: re.Match) -> str:
+        text, url = m.group(1), m.group(2)
+        if url.startswith(("http://", "https://", "#", "mailto:")):
+            return m.group(0)
+        anchor = ""
+        if "#" in url:
+            url, anchor = url.rsplit("#", 1)
+            anchor = "#" + anchor
+        if url:
+            resolved = normpath(f"{base_dir}/{url}") if base_dir != "." else normpath(url)
+            return f"[{text}]({site_url}/{resolved}{anchor})"
+        return f"[{text}](#{anchor[1:]})"
+
+    # Split on fenced code blocks only, then rewrite links in non-code segments
+    parts = re.split(r"(```[\s\S]*?```|~~~[\s\S]*?~~~)", content)
+    for i, part in enumerate(parts):
+        if i % 2 == 0:  # non-code segment
+            parts[i] = re.sub(r"\[([^\]]*)\]\(([^)]+)\)", _replace_link, part)
+    return "".join(parts)
+
+
 def on_post_build(config, **kwargs) -> None:
     docs_dir = Path(config["docs_dir"])
     site_dir = Path(config["site_dir"])
@@ -83,6 +114,7 @@ def on_post_build(config, **kwargs) -> None:
         dest = site_dir / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         content = md_file.read_text(encoding="utf-8")
+        content = _resolve_relative_links(content, rel, site_url)
         dest.write_text(llms_comment + content, encoding="utf-8")
 
     # 2. Generate llms.txt from nav structure

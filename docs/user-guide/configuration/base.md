@@ -92,7 +92,7 @@ Always validate before running workflows:
 
 ```console
 $ epycloud config validate              # Validate current config
-$ epycloud --env=prod config validate   # Validate with a specific environment
+$ epycloud --env prod config validate   # Validate with a specific environment
 $ epycloud config show                  # Show fully resolved config
 $ epycloud config get google_cloud.project_id  # Get a specific value
 ```
