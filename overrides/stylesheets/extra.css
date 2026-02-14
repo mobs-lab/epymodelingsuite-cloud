@@ -544,3 +544,31 @@
   fill: currentColor;
   flex-shrink: 0;
 }
+
+/* Mobile: larger tap targets */
+@media (max-width: 76.25em) {
+  .llm-dropdown {
+    font-size: 0.7rem;
+  }
+
+  .llm-dropdown__copy {
+    gap: 0.3rem;
+    padding: 0.25rem 0.45rem;
+  }
+
+  .llm-dropdown__arrow {
+    padding: 0.25rem 0.3rem;
+  }
+
+  .llm-dropdown__item,
+  .md-typeset .llm-dropdown__item {
+    font-size: 0.7rem;
+    padding: 0.4rem 0.65rem;
+    gap: 0.4rem;
+  }
+
+  .llm-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+  }
+}
