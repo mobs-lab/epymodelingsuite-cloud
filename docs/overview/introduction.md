@@ -14,16 +14,6 @@ epycloud run workflow --exp-id myexperiment
 
 This project is built on [epydemix](https://github.com/epistorm/epydemix), a Python package for epidemic modeling. See [Ecosystem](ecosystem.md) for how the components fit together.
 
-## Pipeline design
-
-The pipeline is consisted of three stages:
-
-1. **Builder**: Reads your YAML configs, constructs epidemic models for each population, and packages them into N task inputs
-2. **Runner**: Executes N simulations in parallel (this is where the compute happens)
-3. **Output**: Aggregates all results into formatted outputs (CSV files, plots)
-
-For a detailed look at each stage, see [Architecture: Pipeline Stages](../architecture/pipeline-stages.md).
-
 ## Local and cloud support
 
 The pipeline is designed to run both **locally** and on the **cloud**. All stages run inside Docker containers, so switching between local and cloud is transparent; just add `--local` option to run on your machine.
