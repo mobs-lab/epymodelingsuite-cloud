@@ -166,6 +166,7 @@ nav:
   - Documentation:
     - Overview:
       - Introduction: overview/introduction.md
+      - Concepts: overview/concepts.md
       - Ecosystem: overview/ecosystem.md
       - epycloud CLI: overview/epycloud.md
 
