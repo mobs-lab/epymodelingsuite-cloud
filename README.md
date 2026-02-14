@@ -6,6 +6,7 @@ Serverless, scalable pipeline for running epydemix simulations/calibration on Go
 
 - [Overview](#overview)
 - [Quick Start](#quick-start)
+- [Documentation](#documentation)
 - [Glossary](#glossary)
   - [Core Concepts](#core-concepts)
   - [Pipeline Stages](#pipeline-stages)
@@ -34,6 +35,24 @@ This pipeline orchestrates two-stage job runs on Google Cloud with [Workflows](h
 **Routine Operations:**
 - See [docs/operations.md](docs/operations.md) for running workflows, monitoring, and troubleshooting
 - Quick commands for building, deploying, and running experiments
+
+
+## Documentation
+
+Available online:
+https://mobs-lab.github.io/epymodelingsuite-cloud/
+
+Docs are built with [MkDocs Material](https://squidfun.github.io/mkdocs-material/). To serve locally:
+
+```bash
+uv run mkdocs serve
+```
+
+This starts a dev server at `http://127.0.0.1:8000` with live reload. To build the static site:
+
+```bash
+uv run mkdocs build
+```
 
 
 ## Glossary
