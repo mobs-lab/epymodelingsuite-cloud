@@ -1,118 +1,27 @@
 """GCS listing and downloading operations for download command."""
 
-import re
-from fnmatch import fnmatch
 from pathlib import Path
 
 from google.cloud import storage
 
-_RUN_ID_RE = re.compile(r"^\d{8}-\d{6}-[a-f0-9]{8}$")
+# Re-export shared GCS operations for backward compatibility
+from epycloud.lib.gcs import (
+    _RUN_ID_RE,
+    filter_experiments,
+    list_experiments,
+    list_run_ids,
+)
 
-
-def list_experiments(
-    client: storage.Client,
-    bucket_name: str,
-    prefix: str,
-    scan_prefix: str = "",
-    max_depth: int = 10,
-) -> list[str]:
-    """List experiment directories under a GCS prefix.
-
-    Recursively scans directories under prefix. A directory is identified as
-    an experiment when its children match the run_id pattern
-    (YYYYMMDD-HHMMSS-xxxxxxxx).
-
-    Parameters
-    ----------
-    client : storage.Client
-        GCS client
-    bucket_name : str
-        GCS bucket name
-    prefix : str
-        GCS prefix to list under (e.g. "pipeline/flu/")
-    scan_prefix : str
-        Narrowing prefix relative to ``prefix`` (e.g. "202605" or
-        "test/myexp"). When set, scanning starts at
-        ``prefix + scan_prefix + "/"`` instead of ``prefix``, reducing
-        the number of GCS API calls for specific patterns.
-    max_depth : int
-        Maximum recursion depth (default: 10)
-
-    Returns
-    -------
-    list[str]
-        List of experiment paths relative to prefix
-        (e.g. "202605/exp1", "test/myexperiments/exp1")
-    """
-    bucket = client.bucket(bucket_name)
-    experiments: list[str] = []
-
-    start_prefix = prefix
-    if scan_prefix:
-        start_prefix = prefix + scan_prefix
-        if not start_prefix.endswith("/"):
-            start_prefix += "/"
-
-    def _scan(current_prefix: str, depth: int) -> None:
-        if depth >= max_depth:
-            return
-        blobs = bucket.list_blobs(prefix=current_prefix, delimiter="/")
-        for _ in blobs:
-            pass
-        child_prefixes = list(blobs.prefixes)
-        if not child_prefixes:
-            return
-
-        child_names = [p[len(current_prefix) :].rstrip("/") for p in child_prefixes]
-
-        if any(_RUN_ID_RE.match(name) for name in child_names):
-            exp_rel = current_prefix[len(prefix) :].rstrip("/")
-            if exp_rel:
-                experiments.append(exp_rel)
-            return
-
-        for child in child_prefixes:
-            _scan(child, depth + 1)
-
-    _scan(start_prefix, 0)
-    return sorted(experiments)
-
-
-def list_run_ids(
-    client: storage.Client,
-    bucket_name: str,
-    exp_path: str,
-) -> list[str]:
-    """List run_id directories under an experiment path.
-
-    Parameters
-    ----------
-    client : storage.Client
-        GCS client
-    bucket_name : str
-        GCS bucket name
-    exp_path : str
-        Full experiment path (e.g. "pipeline/flu/202606/ed_smc_rmse_...")
-
-    Returns
-    -------
-    list[str]
-        List of run_id directory names, sorted lexicographically
-    """
-    bucket = client.bucket(bucket_name)
-    prefix = exp_path if exp_path.endswith("/") else exp_path + "/"
-    blobs = bucket.list_blobs(prefix=prefix, delimiter="/")
-
-    for _ in blobs:
-        pass
-
-    run_ids = []
-    for run_prefix in blobs.prefixes:
-        run_id = run_prefix[len(prefix) :].rstrip("/")
-        if run_id:
-            run_ids.append(run_id)
-
-    return sorted(run_ids)
+__all__ = [
+    "_RUN_ID_RE",
+    "build_local_filename",
+    "download_plots",
+    "filter_experiments",
+    "find_matching_blobs",
+    "get_target_files",
+    "list_experiments",
+    "list_run_ids",
+]
 
 
 def get_target_files(exp_path: str) -> list[str]:
@@ -141,26 +50,6 @@ def get_target_files(exp_path: str) -> list[str]:
         return base_files + ["categorical_rate_trends.pdf"]
 
     return base_files
-
-
-def filter_experiments(experiments: list[str], patterns: str | list[str]) -> list[str]:
-    """Filter experiment names using fnmatch pattern(s).
-
-    Parameters
-    ----------
-    experiments : list[str]
-        List of experiment names
-    patterns : str or list[str]
-        Glob pattern or list of patterns (fnmatch-compatible)
-
-    Returns
-    -------
-    list[str]
-        Filtered list of experiment names matching any of the patterns
-    """
-    if isinstance(patterns, str):
-        patterns = [patterns]
-    return [exp for exp in experiments if any(fnmatch(exp, p) for p in patterns)]
 
 
 def find_matching_blobs(

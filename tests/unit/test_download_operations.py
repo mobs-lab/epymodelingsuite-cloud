@@ -2,7 +2,6 @@
 
 from unittest.mock import Mock
 
-from epycloud.commands.download.handlers import _extract_scan_prefix
 from epycloud.commands.download.operations import (
     build_local_filename,
     filter_experiments,
@@ -11,6 +10,7 @@ from epycloud.commands.download.operations import (
     list_experiments,
     list_run_ids,
 )
+from epycloud.lib.gcs import extract_scan_prefix
 
 
 def _make_blob_iterator(prefixes=None):
@@ -320,29 +320,29 @@ class TestFindMatchingBlobs:
 
 
 class TestExtractScanPrefix:
-    """Test _extract_scan_prefix function."""
+    """Test extract_scan_prefix function."""
 
     def test_exact_pattern(self):
-        assert _extract_scan_prefix(["test/reff_resimm_beta"]) == "test/reff_resimm_beta"
+        assert extract_scan_prefix(["test/reff_resimm_beta"]) == "test/reff_resimm_beta"
 
     def test_wildcard_after_slash(self):
-        assert _extract_scan_prefix(["202605/*"]) == "202605"
+        assert extract_scan_prefix(["202605/*"]) == "202605"
 
     def test_wildcard_in_middle(self):
-        assert _extract_scan_prefix(["202605/hosp_*"]) == "202605"
+        assert extract_scan_prefix(["202605/hosp_*"]) == "202605"
 
     def test_star_only(self):
-        assert _extract_scan_prefix(["*"]) == ""
+        assert extract_scan_prefix(["*"]) == ""
 
     def test_trailing_slash_patterns(self):
         # Patterns generated from "testdir/myexp01/"
-        assert _extract_scan_prefix(["testdir/myexp01/*", "testdir/myexp01"]) == "testdir/myexp01"
+        assert extract_scan_prefix(["testdir/myexp01/*", "testdir/myexp01"]) == "testdir/myexp01"
 
     def test_nested_wildcard(self):
-        assert _extract_scan_prefix(["test/myexperiments/*"]) == "test/myexperiments"
+        assert extract_scan_prefix(["test/myexperiments/*"]) == "test/myexperiments"
 
     def test_empty_patterns(self):
-        assert _extract_scan_prefix([]) == ""
+        assert extract_scan_prefix([]) == ""
 
     def test_question_mark_wildcard(self):
-        assert _extract_scan_prefix(["202605/exp?"]) == "202605"
+        assert extract_scan_prefix(["202605/exp?"]) == "202605"
