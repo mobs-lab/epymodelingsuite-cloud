@@ -13,7 +13,7 @@ from epycloud.lib.command_helpers import (
     require_config,
 )
 from epycloud.lib.formatters import parse_since_time
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import error, info, status, success, warning
 
 from . import api, display, streaming
 
@@ -115,7 +115,7 @@ def handle_list(ctx: dict[str, Any]) -> int:
                 ]
 
         if not executions:
-            info("No workflow executions found")
+            status("No workflow executions found")
             return 0
 
         # Enrich executions with arguments (list endpoint doesn't include them)
@@ -130,7 +130,7 @@ def handle_list(ctx: dict[str, Any]) -> int:
             ]
 
         if not executions:
-            info("No workflow executions found")
+            status("No workflow executions found")
             return 0
 
         # Display executions
@@ -245,7 +245,7 @@ def handle_logs(ctx: dict[str, Any]) -> int:
         # Extract just the ID from full path
         execution_id = execution_id.split("/")[-1]
 
-    info(f"Fetching logs for execution: {execution_id}")
+    status(f"Fetching logs for execution: {execution_id}")
 
     workflow_name = "epymodelingsuite-pipeline"
 
@@ -263,7 +263,7 @@ def handle_logs(ctx: dict[str, Any]) -> int:
 
     if not logs:
         warning("No logs found for this execution")
-        info("Note: Workflow logs may not be available immediately after submission")
+        status("Note: Workflow logs may not be available immediately after submission")
         return 0
 
     # Display logs
@@ -303,10 +303,10 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
         args.execution_id, project_id, region, "epymodelingsuite-pipeline"
     )
 
-    info(f"Cancelling execution: {args.execution_id}")
+    status(f"Cancelling execution: {args.execution_id}")
 
     if dry_run:
-        info(f"Would cancel: {execution_name}")
+        status(f"Would cancel: {execution_name}")
         return 0
 
     # Get auth token
@@ -347,7 +347,7 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
 
                 try:
                     api.cancel_batch_job(job_name, token)
-                    info(f"Cancelled job: {job_id}")
+                    status(f"Cancelled job: {job_id}")
                     cancelled_count += 1
                 except requests.HTTPError as e:
                     if e.response:
@@ -355,11 +355,11 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
                         if status_code == 404:
                             # Job doesn't exist (workflow may not have reached this stage)
                             if verbose:
-                                info(f"Job not found: {job_id}")
+                                status(f"Job not found: {job_id}")
                             not_found_count += 1
                         elif status_code == 400:
                             # Job already completed/cancelled
-                            info(f"Job already completed: {job_id}")
+                            status(f"Job already completed: {job_id}")
                         else:
                             # Other errors - log but continue
                             warning(f"Failed to cancel job {job_id}: HTTP {status_code}")
@@ -433,7 +433,7 @@ def handle_retry(ctx: dict[str, Any]) -> int:
         args.execution_id, project_id, region, "epymodelingsuite-pipeline"
     )
 
-    info(f"Fetching execution details: {args.execution_id}")
+    status(f"Fetching execution details: {args.execution_id}")
 
     try:
         token = get_gcloud_access_token(verbose)
@@ -452,11 +452,11 @@ def handle_retry(ctx: dict[str, Any]) -> int:
         except json.JSONDecodeError:
             original_arg = {}
 
-        info("Retrying execution with same parameters:")
+        status("Retrying execution with same parameters:")
         print(json.dumps(original_arg, indent=2))
 
         if dry_run:
-            info("Would resubmit workflow with above parameters")
+            status("Would resubmit workflow with above parameters")
             return 0
 
         # Submit new execution with same arguments

@@ -5,7 +5,7 @@ from typing import Any
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import get_project_root, require_config, validate_inputs
-from epycloud.lib.output import error, info
+from epycloud.lib.output import error, status
 
 from .cloud.job import run_job_cloud
 from .cloud.workflow import run_workflow_cloud
@@ -34,8 +34,8 @@ def handle(ctx: dict[str, Any]) -> int:
             args._run_parser.print_help()
         else:
             error("Please specify a subcommand: 'workflow' or 'job'")
-            info("Usage: epycloud run workflow --exp-id ID")
-            info("       epycloud run job --stage STAGE --exp-id ID")
+            status("Usage: epycloud run workflow --exp-id ID")
+            status("       epycloud run job --stage STAGE --exp-id ID")
         return 1
 
     if args.run_subcommand == "workflow":

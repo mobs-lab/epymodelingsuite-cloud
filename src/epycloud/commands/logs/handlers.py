@@ -8,7 +8,7 @@ from typing import Any
 from epycloud.exceptions import ConfigError, ValidationError
 from epycloud.lib.command_helpers import get_google_cloud_config, require_config
 from epycloud.lib.formatters import parse_since_time
-from epycloud.lib.output import error, info, warning
+from epycloud.lib.output import error, status, warning
 from epycloud.lib.validation import sanitize_label_value, validate_exp_id, validate_run_id, validate_stage_name
 
 from .display import display_logs
@@ -73,8 +73,8 @@ def handle(ctx: dict[str, Any]) -> int:
     )
 
     if verbose:
-        info(f"Log filter: {log_filter}")
-        print()
+        status(f"Log filter: {log_filter}")
+        status("")
 
     # Follow mode
     if args.follow:
@@ -199,10 +199,10 @@ def fetch_logs(
         Exit code
     """
     if tail == 0:
-        info("Fetching all available log entries...")
+        status("Fetching all available log entries...")
     else:
-        info(f"Fetching last {tail} log entries...")
-    print()
+        status(f"Fetching last {tail} log entries...")
+    status("")
 
     try:
         # Build gcloud command
@@ -229,8 +229,8 @@ def fetch_logs(
 
         if not result.stdout.strip():
             warning("No logs found")
-            info("Note: Logs may not be available immediately after job submission")
-            info("      Logs are retained for 30 days in Cloud Logging")
+            status("Note: Logs may not be available immediately after job submission")
+            status("      Logs are retained for 30 days in Cloud Logging")
             return 0
 
         # Parse and display logs

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from epycloud.lib.output import error, info, success
+from epycloud.lib.output import error, info, status, success
 from epycloud.lib.validation import get_machine_type_specs, validate_machine_type
 from epycloud.exceptions import ValidationError
 from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
@@ -118,13 +118,13 @@ def validate_and_get_machine_specs(
     tuple[int, int] | None
         (cpu_milli, memory_mib) if valid, None if invalid
     """
-    info(f"Validating {stage_name} machine type '{machine_type}'...")
+    status(f"Validating {stage_name} machine type '{machine_type}'...")
     try:
         validate_machine_type(machine_type, project_id, region)
         success(f"{stage_name} machine type '{machine_type}' is valid")
-        info(f"Querying machine type specs...")
+        status(f"Querying machine type specs...")
         cpu_milli, memory_mib = get_machine_type_specs(machine_type, project_id, region)
-        info(f"{stage_name}: CPU={cpu_milli} milliCPU, Memory={memory_mib} MiB")
+        status(f"{stage_name}: CPU={cpu_milli} milliCPU, Memory={memory_mib} MiB")
         return cpu_milli, memory_mib
     except ValidationError as e:
         error(str(e))
