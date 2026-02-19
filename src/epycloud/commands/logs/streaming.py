@@ -2,7 +2,6 @@
 
 import json
 import subprocess
-import sys
 import time
 
 from epycloud.lib.output import error, status

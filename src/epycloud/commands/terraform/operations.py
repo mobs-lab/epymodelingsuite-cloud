@@ -5,8 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from epycloud.lib.command_helpers import find_terraform_dir, handle_dry_run
-from epycloud.lib.output import error, info, success
+from epycloud.lib.command_helpers import find_terraform_dir
+from epycloud.lib.output import error, info
 
 
 def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:

@@ -1,6 +1,6 @@
 """Handler functions for experiment subcommands."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from fnmatch import fnmatch
 from typing import Any
 
@@ -175,14 +175,14 @@ def handle_list(ctx: dict[str, Any]) -> int:
 
     # Table format
     # Get local timezone abbreviation for header
-    tz_abbr = datetime.now(timezone.utc).astimezone().strftime("%Z")
+    tz_abbr = datetime.now(UTC).astimezone().strftime("%Z")
 
     table_rows: list[list[str]] = []
     for exp, run_id in all_runs:
         dt = parse_run_id_datetime(run_id)
         if dt:
             # Convert to local time for display
-            local_dt = dt.replace(tzinfo=timezone.utc).astimezone()
+            local_dt = dt.replace(tzinfo=UTC).astimezone()
             timestamp_str = local_dt.strftime("%Y-%m-%d %H:%M:%S")
         else:
             timestamp_str = ""

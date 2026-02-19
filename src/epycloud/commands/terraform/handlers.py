@@ -4,7 +4,7 @@ from typing import Any
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import handle_dry_run, require_config
-from epycloud.lib.output import ask_confirmation, error, info, status, success, warning
+from epycloud.lib.output import ask_confirmation, error, status, success, warning
 
 from .operations import get_terraform_directory, get_terraform_env_vars, run_terraform_command
 

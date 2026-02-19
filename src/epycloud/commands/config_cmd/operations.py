@@ -6,7 +6,12 @@ import subprocess
 from pathlib import Path
 
 from epycloud.lib.output import ask_confirmation, error, info, status, success, warning
-from epycloud.lib.paths import get_config_dir, get_config_file, get_environment_file, get_secrets_file
+from epycloud.lib.paths import (
+    get_config_dir,
+    get_config_file,
+    get_environment_file,
+    get_secrets_file,
+)
 
 
 def initialize_config_dir() -> int:
