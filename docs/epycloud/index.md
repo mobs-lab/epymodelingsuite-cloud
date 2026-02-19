@@ -78,6 +78,13 @@ $ epycloud --verbose logs --exp-id test
 | [`status`](status.md) | Monitor active workflows and batch jobs | [→](status.md) |
 | [`logs`](logs.md) | View and stream logs from pipeline runs | [→](logs.md) |
 
+### Data & Results
+
+| Command | Description | Page |
+|---------|-------------|------|
+| [`experiment`](experiment.md) | Browse experiments and runs on GCS | [→](experiment.md) |
+| [`download`](download.md) | Download output plots from GCS | [→](download.md) |
+
 ## Common Workflows
 
 ### First-Time Setup

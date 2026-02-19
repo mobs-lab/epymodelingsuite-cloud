@@ -216,6 +216,9 @@ nav:
       - "epycloud status": epycloud/status.md
       - "epycloud logs": epycloud/logs.md
       - "epycloud workflow": epycloud/workflow.md
+    - Data & Results:
+      - "epycloud experiment": epycloud/experiment.md
+      - "epycloud download": epycloud/download.md
 
 # Extra settings
 extra:
