@@ -58,9 +58,9 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser.add_argument(
         "--format",
         dest="output_format",
-        choices=["table", "uri"],
+        choices=["table", "uri", "args"],
         default="table",
-        help="Output format: table (default) or uri (gs:// paths, one per line)",
+        help="Output format: table (default), uri (gs:// paths), or args (--exp-id/--run-id flags)",
     )
 
     list_parser.add_argument(

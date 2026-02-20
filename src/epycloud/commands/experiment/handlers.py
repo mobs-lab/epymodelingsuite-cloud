@@ -173,6 +173,11 @@ def handle_list(ctx: dict[str, Any]) -> int:
             print(f"gs://{bucket_name}/{dir_prefix}{exp}/{run_id}/")
         return 0
 
+    if args.output_format == "args":
+        for exp, run_id in all_runs:
+            print(f"--exp-id {exp} --run-id {run_id}")
+        return 0
+
     # Table format
     # Get local timezone abbreviation for header
     tz_abbr = datetime.now(UTC).astimezone().strftime("%Z")
