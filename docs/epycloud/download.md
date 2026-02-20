@@ -51,6 +51,44 @@ epycloud download -e "202607/" -y
 epycloud download -e "202607/" 2>/dev/null
 ```
 
+## Output Directory Structure
+
+**Default** (`--name-format long`):
+
+```
+downloads/
+├── 202607/exp1/
+│   ├── 202607_exp1_20260218-..._outputs_..._posterior_grid.pdf
+│   └── 202607_exp1_20260218-..._outputs_..._quantiles_grid_sidebyside.pdf
+└── 202607/hosp_exp2/
+    ├── 202607_hosp_exp2_20260217-..._outputs_..._posterior_grid.pdf
+    ├── 202607_hosp_exp2_20260217-..._outputs_..._quantiles_grid_sidebyside.pdf
+    └── 202607_hosp_exp2_20260217-..._outputs_..._categorical_rate_trends.pdf
+```
+
+Long names flatten the GCS path (with `dir_prefix` stripped) into the filename using `_`, so each file is unique even if multiple experiments share the same output filenames.
+
+**`--name-format short`**:
+
+```
+downloads/
+└── 202607/exp1/
+    ├── posterior_grid.pdf
+    └── quantiles_grid_sidebyside.pdf
+```
+
+**`--name-format short --nest-runs`**:
+
+```
+downloads/
+└── 202607/exp1/
+    └── 20260218-143015-a1b2c3d4/
+        ├── posterior_grid.pdf
+        └── quantiles_grid_sidebyside.pdf
+```
+
+Experiments starting with `hosp_` also download `categorical_rate_trends.pdf`.
+
 ## Workflow
 
 1. **Search**: Scans GCS for experiments matching the pattern
