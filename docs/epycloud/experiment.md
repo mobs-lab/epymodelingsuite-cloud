@@ -68,6 +68,10 @@ epycloud -q experiment list --format uri
 
 **`--format table`** (default):
 
+```bash
+epycloud experiment list
+```
+
 ```
  TIMESTAMP (EST)      EXPERIMENT ID    RUN ID
  2026-02-18 09:30:15  202607/exp1      20260218-143015-a1b2c3d4       *
@@ -79,6 +83,10 @@ Experiments with multiple runs are marked with `*`.
 
 **`--format uri`**:
 
+```bash
+epycloud experiment list --format uri
+```
+
 ```
 gs://my-bucket/pipeline/flu/202607/exp1/20260218-143015-a1b2c3d4/
 gs://my-bucket/pipeline/flu/202607/exp2/20260217-190000-def67890/
@@ -86,6 +94,10 @@ gs://my-bucket/pipeline/flu/202607/exp1/20260216-154522-ghi11111/
 ```
 
 **`--format args`**:
+
+```bash
+epycloud experiment list --format args
+```
 
 ```
 --exp-id 202607/exp1 --run-id 20260218-143015-a1b2c3d4
