@@ -118,12 +118,18 @@ class TestExperimentListCommand:
         ctx = _make_ctx(mock_config)
         assert experiment.handle(ctx) == 0
 
+    @patch("epycloud.commands.experiment.handlers.storage.Client")
+    def test_gcs_client_failure(self, mock_client, mock_config):
+        mock_client.side_effect = Exception("auth fail")
+        ctx = _make_ctx(mock_config)
+        assert experiment.handle(ctx) == 1
+
     @patch(
         "epycloud.commands.experiment.handlers.list_experiment_runs",
         side_effect=Exception("GCS error"),
     )
     @patch("epycloud.commands.experiment.handlers.storage.Client")
-    def test_gcs_client_failure(self, mock_client, mock_list_runs, mock_config):
+    def test_list_experiments_failure(self, mock_client, mock_list_runs, mock_config):
         ctx = _make_ctx(mock_config)
         assert experiment.handle(ctx) == 1
 
