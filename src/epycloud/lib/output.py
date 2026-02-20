@@ -6,6 +6,21 @@ import sys
 # Global color state
 _color_enabled = None  # None = auto-detect, "auto", "always", or "never"
 
+# Global quiet state
+_quiet_mode = False
+
+
+def set_quiet_mode(enabled: bool) -> None:
+    """Set quiet mode to suppress status messages.
+
+    Parameters
+    ----------
+    enabled : bool
+        True to suppress status messages, False to show them.
+    """
+    global _quiet_mode
+    _quiet_mode = enabled
+
 
 def set_color_enabled(mode: str) -> None:
     """
@@ -131,6 +146,18 @@ def error(message: str) -> None:
     """
     symbol = colorize("✗", Colors.RED)
     print(f"{symbol} {message}", file=sys.stderr)
+
+
+def status(message: str) -> None:
+    """Print status/progress message to stderr. Suppressed by --quiet.
+
+    Parameters
+    ----------
+    message : str
+        Status message to display.
+    """
+    if not _quiet_mode:
+        print(f"  {message}", file=sys.stderr)
 
 
 def warning(message: str) -> None:

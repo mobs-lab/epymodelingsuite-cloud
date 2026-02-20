@@ -7,7 +7,7 @@ from pathlib import Path
 from epycloud import __version__
 from epycloud.config.loader import ConfigLoader
 from epycloud.lib.formatters import CapitalizedHelpFormatter
-from epycloud.lib.output import error, info, set_color_enabled
+from epycloud.lib.output import error, info, set_color_enabled, set_quiet_mode
 from epycloud.lib.paths import ensure_config_dir, list_environments
 
 
@@ -89,6 +89,7 @@ def create_parser() -> argparse.ArgumentParser:
         build,
         config_cmd,
         download,
+        experiment,
         logs,
         profile,
         run,
@@ -108,6 +109,7 @@ def create_parser() -> argparse.ArgumentParser:
     status.register_parser(subparsers)
     logs.register_parser(subparsers)
     download.register_parser(subparsers)
+    experiment.register_parser(subparsers)
 
     return parser
 
@@ -132,8 +134,9 @@ def main() -> int:
     if args.env is None:
         args.env = "dev"
 
-    # Set color mode
+    # Set color mode and quiet mode
     set_color_enabled(args.color)
+    set_quiet_mode(args.quiet)
 
     # If no command provided, show help
     if not args.command:
@@ -225,6 +228,10 @@ def main() -> int:
             from epycloud.commands import download
 
             return download.handle(ctx)
+        elif args.command == "experiment":
+            from epycloud.commands import experiment
+
+            return experiment.handle(ctx)
         else:
             error(f"Command '{args.command}' not yet implemented")
             return 1

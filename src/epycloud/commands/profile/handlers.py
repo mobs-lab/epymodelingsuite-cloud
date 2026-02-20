@@ -6,7 +6,7 @@ import sys
 
 import yaml
 
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import error, info, status, success, warning
 from epycloud.lib.paths import (
     _list_yaml_files,
     get_active_profile_file,
@@ -80,7 +80,7 @@ def handle_list(ctx: dict) -> int:
     profile_files = _list_yaml_files(profiles_dir)
     if not profile_files:
         warning("No profiles found")
-        info("Create a profile with: epycloud profile create <name>")
+        status("Create a profile with: epycloud profile create <name>")
         return 0
 
     # Get active profile
@@ -111,7 +111,7 @@ def handle_list(ctx: dict) -> int:
         info(f"Active: {active_profile} (*)")
     else:
         warning("No active profile set")
-        info("Activate a profile with: epycloud profile use <name>")
+        status("Activate a profile with: epycloud profile use <name>")
 
     return 0
 
@@ -136,7 +136,7 @@ def handle_use(ctx: dict) -> int:
     profile_file = get_profile_file(profile_name)
     if not profile_file.exists():
         error(f"Profile not found: {profile_name}")
-        info("List available profiles with: epycloud profile list")
+        status("List available profiles with: epycloud profile list")
         return 1
 
     # Set active profile
@@ -164,7 +164,7 @@ def handle_current(ctx: dict) -> int:
 
     if not active_profile_file.exists():
         warning("No active profile set")
-        info("Activate a profile with: epycloud profile use <name>")
+        status("Activate a profile with: epycloud profile use <name>")
         return 1
 
     active_profile = active_profile_file.read_text().strip()
@@ -268,7 +268,7 @@ def handle_edit(ctx: dict) -> int:
         return 1
     except FileNotFoundError:
         error(f"Editor not found: {editor}")
-        info("Set EDITOR environment variable")
+        status("Set EDITOR environment variable")
         return 1
 
 
@@ -332,7 +332,7 @@ def handle_delete(ctx: dict) -> int:
         active_profile = active_profile_file.read_text().strip()
         if active_profile == profile_name:
             warning(f"Cannot delete active profile: {profile_name}")
-            info("Switch to another profile first with: epycloud profile use <name>")
+            status("Switch to another profile first with: epycloud profile use <name>")
             return 1
 
     # Delete profile file

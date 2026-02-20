@@ -8,6 +8,13 @@ from google.cloud import storage
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import get_google_cloud_config, require_config
+from epycloud.lib.gcs import (
+    extract_scan_prefix,
+    filter_experiments,
+    list_experiments,
+    list_run_ids,
+    normalize_filter_patterns,
+)
 from epycloud.lib.output import (
     Colors,
     ask_confirmation,
@@ -15,61 +22,15 @@ from epycloud.lib.output import (
     error,
     info,
     section_header,
+    status,
     success,
     warning,
 )
 
 from .operations import (
     download_plots,
-    filter_experiments,
     get_target_files,
-    list_experiments,
-    list_run_ids,
 )
-
-
-def _extract_scan_prefix(patterns: list[str]) -> str:
-    """Extract the common literal directory prefix from patterns.
-
-    For each pattern, finds the longest path component that contains no
-    wildcard characters. Returns the shortest such prefix across all
-    patterns so the scan covers all of them.
-
-    Examples
-    --------
-    >>> _extract_scan_prefix(["202605/*"])
-    '202605'
-    >>> _extract_scan_prefix(["test/reff_resimm_beta"])
-    'test/reff_resimm_beta'
-    >>> _extract_scan_prefix(["test/myexp/*", "test/myexp"])
-    'test/myexp'
-    >>> _extract_scan_prefix(["*"])
-    ''
-    """
-    if not patterns:
-        return ""
-
-    prefixes: list[str] = []
-    for p in patterns:
-        # Find position of first wildcard character
-        wildcard_pos = len(p)
-        for i, ch in enumerate(p):
-            if ch in ("*", "?", "["):
-                wildcard_pos = i
-                break
-
-        literal = p[:wildcard_pos]
-
-        if wildcard_pos < len(p):
-            # Has wildcards: truncate to last / to get a directory boundary
-            slash_pos = literal.rfind("/")
-            prefixes.append(literal[:slash_pos] if slash_pos >= 0 else "")
-        else:
-            # No wildcards: entire string is the prefix
-            prefixes.append(literal)
-
-    # Return shortest prefix (covers all patterns)
-    return min(prefixes, key=len)
 
 
 @dataclass
@@ -117,17 +78,8 @@ def handle(ctx: dict[str, Any]) -> int:
     if not dir_prefix.endswith("/"):
         dir_prefix += "/"
 
-    # Parse pattern into one or more fnmatch patterns.
-    # - Trailing slash: "foo/" → match children and exact ("foo/*", "foo")
-    # - No wildcards:   "foo"  → match exact and children ("foo", "foo/*")
-    # - Has wildcards:  "foo*" → use as-is
     raw_pattern = args.exp_filter
-    if raw_pattern.endswith("/"):
-        patterns = [raw_pattern + "*", raw_pattern.rstrip("/")]
-    elif any(ch in raw_pattern for ch in ("*", "?", "[")):
-        patterns = [raw_pattern]
-    else:
-        patterns = [raw_pattern, raw_pattern + "/*"]
+    patterns = normalize_filter_patterns(raw_pattern)
 
     output_dir = Path(args.output_dir)
     name_format = args.name_format
@@ -136,22 +88,22 @@ def handle(ctx: dict[str, Any]) -> int:
     auto_confirm = args.yes
 
     if verbose:
-        info(f"Bucket: {bucket_name}")
-        info(f"Prefix: {dir_prefix}")
-        info(f"Pattern: {raw_pattern}")
-        print()
+        status(f"Bucket: {bucket_name}")
+        status(f"Prefix: {dir_prefix}")
+        status(f"Pattern: {raw_pattern}")
+        status("")
 
     # Create GCS client
     try:
         client = storage.Client()
     except Exception as e:
         error(f"Failed to create GCS client: {e}")
-        info("Ensure you are authenticated: gcloud auth application-default login")
+        status("Ensure you are authenticated: gcloud auth application-default login")
         return 1
 
     # List experiments (narrowed by scan_prefix extracted from patterns)
-    scan_prefix = _extract_scan_prefix(patterns)
-    info(f"Searching for experiments matching '{raw_pattern}'...")
+    scan_prefix = extract_scan_prefix(patterns)
+    status(f"Searching for experiments matching '{raw_pattern}'...")
     try:
         all_experiments = list_experiments(
             client, bucket_name, dir_prefix, scan_prefix=scan_prefix
@@ -177,7 +129,7 @@ def handle(ctx: dict[str, Any]) -> int:
                 info(f"  ... and {len(all_experiments) - 20} more")
         return 0
 
-    info(f"Found {len(matched)} experiment(s), resolving runs...")
+    status(f"Found {len(matched)} experiment(s), resolving runs...")
 
     # Pass 1: Build download plan (always auto-select latest run)
     plan: list[DownloadItem] = []

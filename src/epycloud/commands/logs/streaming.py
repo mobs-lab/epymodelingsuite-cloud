@@ -2,10 +2,9 @@
 
 import json
 import subprocess
-import sys
 import time
 
-from epycloud.lib.output import error, info
+from epycloud.lib.output import error, status
 
 from .display import display_streaming_log_entry
 
@@ -31,8 +30,8 @@ def stream_logs(
     int
         Exit code
     """
-    info("Streaming logs (Ctrl+C to stop)...")
-    print()
+    status("Streaming logs (Ctrl+C to stop)...")
+    status("")
 
     last_timestamp = None
     poll_interval = 5  # seconds
@@ -77,7 +76,7 @@ def stream_logs(
 
     except KeyboardInterrupt:
         print()
-        info("Stopped streaming logs")
+        status("Stopped streaming logs")
         return 0
     except Exception as e:
         error(f"Failed to stream logs: {e}")

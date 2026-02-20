@@ -15,7 +15,7 @@ from epycloud.lib.command_helpers import (
     get_project_root,
     require_config,
 )
-from epycloud.lib.output import error, info
+from epycloud.lib.output import error, status
 
 from . import cloud, dev, display, local
 
@@ -93,7 +93,7 @@ def handle_cloud(ctx: dict[str, Any]) -> int:
     # Validate required config
     if not project_id:
         error("google_cloud.project_id not configured")
-        info("Set it with: epycloud config set google_cloud.project_id YOUR_PROJECT_ID")
+        status("Set it with: epycloud config set google_cloud.project_id YOUR_PROJECT_ID")
         return 2
 
     # Construct image path
@@ -169,7 +169,7 @@ def handle_local(ctx: dict[str, Any]) -> int:
     # Validate required config
     if not project_id:
         error("google_cloud.project_id not configured")
-        info("Set it with: epycloud config set google_cloud.project_id YOUR_PROJECT_ID")
+        status("Set it with: epycloud config set google_cloud.project_id YOUR_PROJECT_ID")
         return 2
 
     # Construct image path
@@ -310,7 +310,7 @@ def handle_status(ctx: dict[str, Any]) -> int:
     # Validate required config
     if not project_id:
         error("google_cloud.project_id not configured")
-        info("Set it with: epycloud config set google_cloud.project_id YOUR_PROJECT_ID")
+        status("Set it with: epycloud config set google_cloud.project_id YOUR_PROJECT_ID")
         return 2
 
     # Build gcloud command
@@ -328,7 +328,7 @@ def handle_status(ctx: dict[str, Any]) -> int:
         cmd.append("--ongoing")
 
     if verbose:
-        info(f"Executing: {' '.join(cmd)}")
+        status(f"Executing: {' '.join(cmd)}")
 
     # Execute command
     try:

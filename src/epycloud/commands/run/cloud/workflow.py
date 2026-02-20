@@ -15,7 +15,7 @@ from epycloud.lib.command_helpers import (
     get_image_uri,
     handle_dry_run,
 )
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import error, info, status, success, warning
 
 from ..validation import (
     build_base_confirmation_info,
@@ -212,7 +212,7 @@ def run_workflow_cloud(
     if not prompt_user_confirmation(auto_confirm, confirmation_info, mode="cloud"):
         return 0
 
-    info("Submitting workflow to Cloud Workflows...")
+    status("Submitting workflow to Cloud Workflows...")
 
     # Build workflow argument
     workflow_arg = {

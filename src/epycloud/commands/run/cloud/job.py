@@ -15,7 +15,7 @@ from epycloud.lib.command_helpers import (
     get_image_uri,
     handle_dry_run,
 )
-from epycloud.lib.output import error, info, success, warning
+from epycloud.lib.output import error, info, status, success, warning
 
 from ..validation import (
     add_stage_specific_info,
@@ -156,7 +156,7 @@ def run_job_cloud(
     if not prompt_user_confirmation(auto_confirm, confirmation_info, mode="cloud"):
         return 0
 
-    info(f"Submitting Stage {stage} job to Cloud Batch...")
+    status(f"Submitting Stage {stage} job to Cloud Batch...")
 
     # Build job configuration
     job_config = build_batch_job_config(

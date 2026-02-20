@@ -4,7 +4,7 @@ from typing import Any
 
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import handle_dry_run, require_config
-from epycloud.lib.output import ask_confirmation, error, info, success, warning
+from epycloud.lib.output import ask_confirmation, error, status, success, warning
 
 from .operations import get_terraform_directory, get_terraform_env_vars, run_terraform_command
 
@@ -71,7 +71,7 @@ def handle_init(ctx: dict[str, Any]) -> int:
     config = ctx["config"]
     verbose = ctx["verbose"]
 
-    info("Initializing Terraform...")
+    status("Initializing Terraform...")
 
     # Get terraform directory
     terraform_dir_arg = getattr(args, "terraform_dir", None)
@@ -79,7 +79,7 @@ def handle_init(ctx: dict[str, Any]) -> int:
     if not terraform_dir:
         return 1
 
-    info(f"Using terraform directory: {terraform_dir}")
+    status(f"Using terraform directory: {terraform_dir}")
 
     # Get environment variables from config
     env_vars = get_terraform_env_vars(config)
@@ -118,7 +118,7 @@ def handle_plan(ctx: dict[str, Any]) -> int:
     config = ctx["config"]
     verbose = ctx["verbose"]
 
-    info("Planning infrastructure changes...")
+    status("Planning infrastructure changes...")
 
     # Get terraform directory
     terraform_dir_arg = getattr(args, "terraform_dir", None)
@@ -126,7 +126,7 @@ def handle_plan(ctx: dict[str, Any]) -> int:
     if not terraform_dir:
         return 1
 
-    info(f"Using terraform directory: {terraform_dir}")
+    status(f"Using terraform directory: {terraform_dir}")
 
     # Get environment variables from config
     env_vars = get_terraform_env_vars(config)
@@ -136,7 +136,7 @@ def handle_plan(ctx: dict[str, Any]) -> int:
 
     if hasattr(args, "target") and args.target:
         cmd.extend(["-target", args.target])
-        info(f"Targeting: {args.target}")
+        status(f"Targeting: {args.target}")
 
     if handle_dry_run(
         ctx,
@@ -175,14 +175,14 @@ def handle_apply(ctx: dict[str, Any]) -> int:
     verbose = ctx["verbose"]
     dry_run = ctx["dry_run"]
 
-    info("Applying infrastructure changes...")
-    info(f"Environment: {environment}")
+    status("Applying infrastructure changes...")
+    status(f"Environment: {environment}")
 
     # Confirmation for production
     if environment == "prod" and not args.auto_approve and not dry_run:
         warning("You are about to apply changes to PRODUCTION infrastructure")
         if not ask_confirmation("Are you sure you want to continue?", default=False):
-            info("Apply cancelled")
+            status("Apply cancelled")
             return 0
 
     # Get terraform directory
@@ -191,7 +191,7 @@ def handle_apply(ctx: dict[str, Any]) -> int:
     if not terraform_dir:
         return 1
 
-    info(f"Using terraform directory: {terraform_dir}")
+    status(f"Using terraform directory: {terraform_dir}")
 
     # Get environment variables from config
     env_vars = get_terraform_env_vars(config)
@@ -204,7 +204,7 @@ def handle_apply(ctx: dict[str, Any]) -> int:
 
     if hasattr(args, "target") and args.target:
         cmd.extend(["-target", args.target])
-        info(f"Targeting: {args.target}")
+        status(f"Targeting: {args.target}")
 
     if handle_dry_run(
         ctx,
@@ -244,7 +244,7 @@ def handle_destroy(ctx: dict[str, Any]) -> int:
     dry_run = ctx["dry_run"]
 
     warning("Destroying infrastructure...")
-    info(f"Environment: {environment}")
+    status(f"Environment: {environment}")
 
     # Always require confirmation for destroy (unless auto-approve or dry-run)
     if not args.auto_approve and not dry_run:
@@ -255,7 +255,7 @@ def handle_destroy(ctx: dict[str, Any]) -> int:
             warning(f"This will DELETE all infrastructure resources in {environment}")
 
         if not ask_confirmation("Are you ABSOLUTELY SURE you want to destroy?", default=False):
-            info("Destroy cancelled")
+            status("Destroy cancelled")
             return 0
 
     # Get terraform directory
@@ -264,7 +264,7 @@ def handle_destroy(ctx: dict[str, Any]) -> int:
     if not terraform_dir:
         return 1
 
-    info(f"Using terraform directory: {terraform_dir}")
+    status(f"Using terraform directory: {terraform_dir}")
 
     # Get environment variables from config
     env_vars = get_terraform_env_vars(config)
@@ -277,7 +277,7 @@ def handle_destroy(ctx: dict[str, Any]) -> int:
 
     if hasattr(args, "target") and args.target:
         cmd.extend(["-target", args.target])
-        info(f"Targeting: {args.target}")
+        status(f"Targeting: {args.target}")
 
     if handle_dry_run(
         ctx,
@@ -328,9 +328,9 @@ def handle_output(ctx: dict[str, Any]) -> int:
 
     if hasattr(args, "name") and args.name:
         cmd.append(args.name)
-        info(f"Getting output: {args.name}")
+        status(f"Getting output: {args.name}")
     else:
-        info("Getting all outputs...")
+        status("Getting all outputs...")
 
     if handle_dry_run(
         ctx,

@@ -5,8 +5,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from epycloud.lib.output import ask_confirmation, error, info, success, warning
-from epycloud.lib.paths import get_config_dir, get_config_file, get_environment_file, get_secrets_file
+from epycloud.lib.output import ask_confirmation, error, info, status, success, warning
+from epycloud.lib.paths import (
+    get_config_dir,
+    get_config_file,
+    get_environment_file,
+    get_secrets_file,
+)
 
 
 def initialize_config_dir() -> int:
@@ -20,7 +25,7 @@ def initialize_config_dir() -> int:
     config_dir = get_config_dir()
     template_dir = Path(__file__).parent.parent.parent / "config" / "templates"
 
-    info(f"Initializing config directory: {config_dir}")
+    status(f"Initializing config directory: {config_dir}")
 
     # Create directories
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -50,7 +55,7 @@ def initialize_config_dir() -> int:
         # Set secrets file permissions
         if dest_path.name == "secrets.yaml":
             os.chmod(dest_path, 0o600)
-            info("  Set permissions to 0600")
+            status("  Set permissions to 0600")
 
     # Set default profile
     active_profile_file = config_dir / "active_profile"
@@ -180,7 +185,7 @@ def edit_secrets_file() -> int:
             '# Secrets configuration\n# Store sensitive credentials here\n\ngithub:\n  personal_access_token: ""\n'
         )
         os.chmod(file_path, 0o600)
-        info(f"Created {file_path} with secure permissions (0600)")
+        status(f"Created {file_path} with secure permissions (0600)")
 
     result = _open_file_in_editor(file_path, "secrets file")
 
@@ -189,7 +194,7 @@ def edit_secrets_file() -> int:
         current_perms = file_path.stat().st_mode & 0o777
         if current_perms != 0o600:
             warning(f"Secrets file has insecure permissions: {oct(current_perms)}")
-            info("Setting permissions to 0600...")
+            status("Setting permissions to 0600...")
             os.chmod(file_path, 0o600)
             success("Permissions fixed")
 

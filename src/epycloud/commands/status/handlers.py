@@ -14,7 +14,7 @@ from epycloud.commands.status.operations import (
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import get_google_cloud_config, require_config
 from epycloud.lib.formatters import format_timestamp_local, parse_since_time
-from epycloud.lib.output import error, info, warning
+from epycloud.lib.output import error, status, warning
 
 
 def handle(ctx: dict[str, Any]) -> int:
@@ -181,8 +181,8 @@ def _watch_status(
     int
         Exit code
     """
-    info(f"Watching pipeline status (refreshing every {interval}s, Ctrl+C to stop)...")
-    print()
+    status(f"Watching pipeline status (refreshing every {interval}s, Ctrl+C to stop)...")
+    status("")
 
     try:
         while True:
@@ -240,5 +240,5 @@ def _watch_status(
 
     except KeyboardInterrupt:
         print()
-        info("Stopped watching")
+        status("Stopped watching")
         return 0
