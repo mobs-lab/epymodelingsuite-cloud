@@ -55,6 +55,10 @@ epycloud download -e "202607/" 2>/dev/null
 
 **Default** (`--name-format long`):
 
+```bash
+epycloud download -e "202607/"
+```
+
 ```
 downloads/
 ├── 202607/exp1/
@@ -70,6 +74,10 @@ Long names flatten the GCS path (with `dir_prefix` stripped) into the filename u
 
 **`--name-format short`**:
 
+```bash
+epycloud download -e "202607/" --name-format short
+```
+
 ```
 downloads/
 └── 202607/exp1/
@@ -78,6 +86,10 @@ downloads/
 ```
 
 **`--name-format short --nest-runs`**:
+
+```bash
+epycloud download -e "202607/" --name-format short --nest-runs
+```
 
 ```
 downloads/
