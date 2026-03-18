@@ -269,7 +269,7 @@ class TestRunJobCommand:
             "args": Namespace(
                 run_subcommand="job",
                 stage="A",
-                exp_id="test/invalid",  # Invalid character (slashes allowed, but not trailing/leading)
+                exp_id="test/invalid",  # Slashes allowed but not trailing/leading
                 run_id=None,
                 task_index=0,
                 num_tasks=None,

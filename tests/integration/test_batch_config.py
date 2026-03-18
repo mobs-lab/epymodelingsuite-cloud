@@ -72,7 +72,8 @@ class TestBatchConfigStageA:
         assert config["logsPolicy"]["destination"] == "CLOUD_LOGGING"
 
         # Verify allocation policy (no machine type)
-        assert config["allocationPolicy"]["serviceAccount"]["email"] == "batch-sa@test-project.iam.gserviceaccount.com"
+        sa_email = "batch-sa@test-project.iam.gserviceaccount.com"
+        assert config["allocationPolicy"]["serviceAccount"]["email"] == sa_email
         assert "instances" not in config["allocationPolicy"]
 
     def test_stage_a_with_machine_type(self):
