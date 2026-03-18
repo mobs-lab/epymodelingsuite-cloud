@@ -6,13 +6,17 @@
 # Values here take highest precedence, overriding both config.yaml and environment files.
 
 profile:
-  name: flu
-  description: Influenza 2025-2026 season forecasting
-  version: "1.0"
+    name: flu
+    description: Influenza 2025-2026 season forecasting
+    version: "1.0"
 
 # Flu-specific forecast repository
 github:
-  forecast_repo: mobs-lab/flu-forecast-epydemix
+    forecast_repo: mobs-lab/flu-forecast-epydemix
+
+# Billing project
+# google_cloud:
+#   billing_project: "my-billing-project"
 
 # Flu-specific resource requirements
 # google_cloud:
@@ -22,4 +26,3 @@ github:
 #       memory_mib: 7168
 #       machine_type: c4d-standard-2
 #     max_parallelism: 100
-

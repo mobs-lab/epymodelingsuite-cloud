@@ -23,6 +23,8 @@ def build_batch_job_config(
     max_run_duration: int,
     task_count_per_node: int,
     batch_sa_email: str,
+    profile: str = "",
+    billing_project: str = "",
 ) -> dict[str, Any]:
     """Build Cloud Batch job configuration.
 
@@ -62,6 +64,10 @@ def build_batch_job_config(
         Max tasks per VM node (1 = dedicated VM per task)
     batch_sa_email : str
         Batch service account email
+    profile : str
+        Profile name (e.g., "flu", "covid")
+    billing_project : str
+        Billing project label (contract/org-level grouping)
 
     Returns
     -------
@@ -138,15 +144,32 @@ def build_batch_job_config(
 
         allocation_policy["instances"] = [instances]
 
+    # Build labels
+    labels = {
+        "component": "epymodelingsuite",
+        "stage": stage_name,
+        "exp_id": exp_id_label,
+        "run_id": run_id_label,
+        "managed-by": "manual",
+    }
+    if profile:
+        labels["profile"] = sanitize_label_value(profile)
+    if billing_project:
+        labels["billing_project"] = sanitize_label_value(billing_project)
+
+    # Build allocation policy labels
+    alloc_labels = {}
+    if profile:
+        alloc_labels["profile"] = sanitize_label_value(profile)
+    if billing_project:
+        alloc_labels["billing_project"] = sanitize_label_value(billing_project)
+
+    if alloc_labels:
+        allocation_policy["labels"] = alloc_labels
+
     # Build complete job config
     job_config = {
-        "labels": {
-            "component": "epymodelingsuite",
-            "stage": stage_name,
-            "exp_id": exp_id_label,
-            "run_id": run_id_label,
-            "managed-by": "manual",
-        },
+        "labels": labels,
         "taskGroups": [
             {"taskCount": 1, "taskSpec": task_spec, "taskCountPerNode": task_count_per_node}
         ],

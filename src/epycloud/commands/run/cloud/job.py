@@ -156,6 +156,13 @@ def run_job_cloud(
     if not prompt_user_confirmation(auto_confirm, confirmation_info, mode="cloud"):
         return 0
 
+    # Profile name
+    profile_meta = config.get("_meta", {}).get("profile") or {}
+    profile_name = profile_meta.get("name", "") if isinstance(profile_meta, dict) else ""
+
+    # Extract billing labels
+    billing_project = google_cloud.get("billing_project", "")
+
     status(f"Submitting Stage {stage} job to Cloud Batch...")
 
     # Build job configuration
@@ -177,6 +184,8 @@ def run_job_cloud(
         max_run_duration=max_run_duration,
         task_count_per_node=task_count_per_node,
         batch_sa_email=batch_sa_email,
+        profile=profile_name,
+        billing_project=billing_project,
     )
 
     if handle_dry_run(

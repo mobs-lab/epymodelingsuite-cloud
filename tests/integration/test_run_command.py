@@ -504,3 +504,216 @@ class TestRunIdGeneration:
 
         # Should be different (UUID part ensures uniqueness)
         assert run_id_1 != run_id_2
+
+
+class TestWorkflowBillingLabels:
+    """Test profile and billing_project labels flow through to workflow args."""
+
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
+    def test_workflow_includes_profile_from_meta(self, mock_post, mock_subprocess, mock_config):
+        """Test workflow args include profile from _meta."""
+        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/abc123"
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        # mock_config already has _meta.profile.name = "test"
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="workflow",
+                exp_id="test-sim",
+                run_id=None,
+                local=False,
+                skip_output=False,
+                max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
+                stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        exit_code = run.handle(ctx)
+
+        assert exit_code == 0
+        assert mock_post.called
+        call_kwargs = mock_post.call_args[1]
+        import json
+
+        parsed_arg = json.loads(call_kwargs["json"]["argument"])
+        assert parsed_arg["profile"] == "test"
+
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
+    def test_workflow_includes_billing_project(self, mock_post, mock_subprocess, mock_config):
+        """Test workflow args include billing_project when configured."""
+        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/abc123"
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        # Set billing_project in config
+        mock_config["google_cloud"]["billing_project"] = "flu-forecasting"
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="workflow",
+                exp_id="test-sim",
+                run_id=None,
+                local=False,
+                skip_output=False,
+                max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
+                stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        exit_code = run.handle(ctx)
+
+        assert exit_code == 0
+        assert mock_post.called
+        call_kwargs = mock_post.call_args[1]
+        import json
+
+        parsed_arg = json.loads(call_kwargs["json"]["argument"])
+        assert parsed_arg["billingProject"] == "flu-forecasting"
+
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
+    def test_workflow_handles_none_profile_metadata(self, mock_post, mock_subprocess, mock_config):
+        """Test workflow handles None profile metadata without crashing."""
+        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/abc123"
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        # Set profile metadata to None (no profile active)
+        mock_config["_meta"]["profile"] = None
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="workflow",
+                exp_id="test-sim",
+                run_id=None,
+                local=False,
+                skip_output=False,
+                max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
+                stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        exit_code = run.handle(ctx)
+
+        assert exit_code == 0
+        assert mock_post.called
+        call_kwargs = mock_post.call_args[1]
+        import json
+
+        parsed_arg = json.loads(call_kwargs["json"]["argument"])
+        # Profile should be omitted when metadata is None
+        assert "profile" not in parsed_arg
+
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
+    def test_workflow_omits_empty_billing_project(self, mock_post, mock_subprocess, mock_config):
+        """Test workflow args omit billingProject when empty."""
+        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/abc123"
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        # billing_project is empty in mock_config by default
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="workflow",
+                exp_id="test-sim",
+                run_id=None,
+                local=False,
+                skip_output=False,
+                max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
+                stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        exit_code = run.handle(ctx)
+
+        assert exit_code == 0
+        assert mock_post.called
+        call_kwargs = mock_post.call_args[1]
+        import json
+
+        parsed_arg = json.loads(call_kwargs["json"]["argument"])
+        assert "billingProject" not in parsed_arg

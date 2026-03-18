@@ -97,10 +97,14 @@ def mock_config():
         Test configuration dictionary.
     """
     return {
+        "_meta": {
+            "profile": {"name": "test"},
+        },
         "google_cloud": {
             "project_id": "test-project",
             "region": "us-central1",
             "bucket_name": "test-bucket",
+            "billing_project": "",
         },
         "docker": {
             "registry": "us-central1-docker.pkg.dev",
