@@ -46,6 +46,7 @@ These keys are read each time you run `epycloud run workflow`. Changes **take ef
 | `docker.image_tag` | Which image tag to use for this run | Yes |
 | `github.forecast_repo` | Experiment repo to clone | N/A (runtime only) |
 | `github.forecast_repo_ref` | Branch/tag to checkout | N/A (runtime only) |
+| `google_cloud.billing_project` | Cost grouping label for billing reports | N/A (runtime only) |
 | `google_cloud.batch.max_parallelism` | Max parallel tasks | Yes |
 | `google_cloud.batch.task_count_per_node` | Tasks per VM | Yes |
 | `google_cloud.batch.stage_*/machine_type` | Machine type per stage (empty = auto-select based on CPU/memory) | Yes (via CLI flags) |
@@ -89,6 +90,7 @@ Google Cloud Platform project and region settings.
 | `google_cloud.project_id` | string | _(required)_ | Google Cloud project ID (e.g., `my-gcp-project`). |
 | `google_cloud.region` | string | `us-central1` | Google Cloud region for all resources (Batch jobs, GCS, Artifact Registry). |
 | `google_cloud.bucket_name` | string | _(required)_ | GCS bucket for pipeline input/output data. Must already exist. |
+| `google_cloud.billing_project` | string | `""` | User-defined label for cost grouping in GCP billing reports. Applied to all Cloud Batch jobs. Can be overridden per run with `--billing-project`. |
 
 ## google_cloud.batch
 
@@ -232,6 +234,7 @@ google_cloud:
   project_id: your-gcp-project-id
   region: us-central1
   bucket_name: your-bucket-name
+  billing_project: ""
 
   batch:
     max_parallelism: 100
