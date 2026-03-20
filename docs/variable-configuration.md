@@ -28,6 +28,7 @@ google_cloud:
   project_id: your-project-id         # GCP project ID
   region: us-central1                 # GCP region for resources
   bucket_name: your-bucket-name       # GCS bucket (must exist)
+  billing_project: ""                   # Cost grouping label (optional, user-defined)
 
   # Cloud Batch Configuration
   batch:
@@ -369,6 +370,7 @@ If you have existing `.env` files, migrate to the unified config system:
 | `PROJECT_ID` | `google_cloud.project_id` |
 | `REGION` | `google_cloud.region` |
 | `BUCKET_NAME` | `google_cloud.bucket_name` |
+| `BILLING_PROJECT` | `google_cloud.billing_project` |
 | `REPO_NAME` | `docker.repo_name` |
 | `IMAGE_NAME` | `docker.image_name` |
 | `IMAGE_TAG` | `docker.image_tag` |
