@@ -93,6 +93,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     workflow_parser.add_argument(
+        "--billing-project",
+        help="Override billing project label (default: from config)",
+    )
+
+    workflow_parser.add_argument(
         "--wait",
         action="store_true",
         help="Wait for completion and stream logs",
@@ -160,6 +165,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     job_parser.add_argument(
         "--machine-type",
         help="Override machine type for this job (auto-sets CPU/memory to machine max)",
+    )
+
+    job_parser.add_argument(
+        "--billing-project",
+        help="Override billing project label (default: from config)",
     )
 
     job_parser.add_argument(
