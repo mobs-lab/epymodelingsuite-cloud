@@ -910,6 +910,30 @@ All resources are labeled with `component=epymodelingsuite` for billing tracking
 
 **Note:** Cloud Storage costs are not tracked by labels since the bucket is shared with other projects. Track storage by prefix (`DIR_PREFIX`) if needed.
 
+### Billing Project Label
+
+Cloud Batch jobs can be labeled with a user-defined `billing_project` for cost grouping in GCP billing reports. Use this to categorize costs however makes sense for you (by contract, client, funding source, team, etc.).
+
+**Configuration (persistent):**
+
+Set in `config.yaml` or a profile file:
+```yaml
+google_cloud:
+  billing_project: "my-project-name"
+```
+
+**CLI override (per-run):**
+```bash
+epycloud run workflow --exp-id my-exp --billing-project my-project-name
+epycloud run job --stage A --exp-id my-exp --billing-project my-project-name
+```
+
+The CLI flag overrides the config file value for that run.
+
+**Filtering costs by billing project:**
+1. Go to **Billing → Reports**
+2. Add filter: **Labels → billing_project = my-project-name**
+
 ## 12) Implementation Summary
 
 
