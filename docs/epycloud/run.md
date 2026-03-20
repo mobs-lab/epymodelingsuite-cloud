@@ -42,6 +42,7 @@ epycloud run workflow --exp-id EXP_ID [OPTIONS]
 - `--stage-c-machine-type TYPE` - Override Stage C machine type (auto-sets CPU/memory to machine max)
 - `--task-count-per-node N` - Max tasks per VM node (1 = dedicated VM per task)
 - `--forecast-repo-ref REF` - Override experiment repo branch/tag/commit
+- `--billing-project NAME` - Override billing project label for cost grouping
 - `--wait` - Wait for completion and stream logs
 - `--yes` - Auto-confirm without prompting
 - `--dry-run` - Show what would happen without executing
@@ -73,6 +74,7 @@ epycloud run job --stage STAGE [OPTIONS]
 - `--task-index N` - Task index for Stage B (default: 0)
 - `--num-tasks N` - Number of tasks (required for Stage C)
 - `--machine-type TYPE` - Override machine type for this job (auto-sets CPU/memory to machine max)
+- `--billing-project NAME` - Override billing project label for cost grouping
 - `--task-count-per-node N` - Max tasks per VM node (1 = dedicated VM per task)
 - `--local` - Run locally with Docker Compose
 - `--wait` - Wait for completion and stream logs
