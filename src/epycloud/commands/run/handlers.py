@@ -85,6 +85,7 @@ def handle_workflow(ctx: dict[str, Any]) -> int:
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
     stage_c_machine_type_override = getattr(args, "stage_c_machine_type", None)
     forecast_repo_ref_override = getattr(args, "forecast_repo_ref", None)
+    billing_project_override = getattr(args, "billing_project", None)
     output_config = getattr(args, "output_config", None)
     wait = args.wait
     auto_confirm = args.yes
@@ -123,6 +124,7 @@ def handle_workflow(ctx: dict[str, Any]) -> int:
             stage_b_machine_type_override=stage_b_machine_type_override,
             stage_c_machine_type_override=stage_c_machine_type_override,
             forecast_repo_ref_override=forecast_repo_ref_override,
+            billing_project_override=billing_project_override,
             wait=wait,
             auto_confirm=auto_confirm,
             verbose=verbose,
@@ -175,6 +177,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
     wait = args.wait
     auto_confirm = args.yes
     machine_type_override = getattr(args, "machine_type", None)
+    billing_project_override = getattr(args, "billing_project", None)
     task_count_per_node = getattr(args, "task_count_per_node", None)
     project_directory = getattr(args, "project_directory", None)
     output_config = getattr(args, "output_config", None)
@@ -220,6 +223,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
             num_tasks=num_tasks,
             output_config=output_config,
             machine_type_override=machine_type_override,
+            billing_project_override=billing_project_override,
             task_count_per_node=task_count_per_node,
             wait=wait,
             auto_confirm=auto_confirm,

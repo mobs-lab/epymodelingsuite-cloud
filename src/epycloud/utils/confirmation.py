@@ -163,6 +163,8 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
         else:
             profile_name = profile
         lines.append(f"  Profile: {profile_name}")
+    if "billing_project" in info:
+        lines.append(f"  Billing project: {info['billing_project']}")
     lines.append("")
 
     if mode == "cloud":

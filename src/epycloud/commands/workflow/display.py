@@ -104,14 +104,26 @@ def display_execution_details(execution: dict[str, Any]) -> None:
     if workflow_revision_id:
         print(f"Workflow Revision: {workflow_revision_id}")
 
-    # Arguments
+    # Extract and display billing labels from arguments
     argument_str = execution.get("argument", "{}")
-    print()
-    print("Arguments:")
     try:
         arg = json.loads(argument_str)
-        print(json.dumps(arg, indent=2))
     except json.JSONDecodeError:
+        arg = {}
+
+    profile = arg.get("profile", "") if isinstance(arg, dict) else ""
+    billing_project = arg.get("billingProject", "") if isinstance(arg, dict) else ""
+    if profile:
+        print(f"Profile: {profile}")
+    if billing_project:
+        print(f"Billing Project: {billing_project}")
+
+    # Arguments
+    print()
+    print("Arguments:")
+    if isinstance(arg, dict):
+        print(json.dumps(arg, indent=2))
+    else:
         print(argument_str)
 
     # Result (if completed)
