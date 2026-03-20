@@ -16,6 +16,7 @@ from epycloud.lib.command_helpers import (
     handle_dry_run,
 )
 from epycloud.lib.output import error, info, status, success, warning
+from epycloud.lib.validation import sanitize_label_value
 
 from ..validation import (
     build_base_confirmation_info,
@@ -214,6 +215,11 @@ def run_workflow_cloud(
 
     status("Submitting workflow to Cloud Workflows...")
 
+    # Extract labels
+    profile_meta = config.get("_meta", {}).get("profile") or {}
+    profile_name = profile_meta.get("name", "") if isinstance(profile_meta, dict) else ""
+    billing_project = google_cloud.get("billing_project", "")
+
     # Build workflow argument
     workflow_arg = {
         "bucket": bucket_name,
@@ -223,6 +229,12 @@ def run_workflow_cloud(
         "batchSaEmail": batch_sa_email,
         "imageTag": image_tag,
     }
+
+    if profile_name:
+        workflow_arg["profile"] = sanitize_label_value(profile_name)
+
+    if billing_project:
+        workflow_arg["billingProject"] = sanitize_label_value(billing_project)
 
     if run_id:
         workflow_arg["runId"] = run_id
@@ -308,8 +320,7 @@ def run_workflow_cloud(
                 f"--workflow=epymodelingsuite-pipeline --location={region}"
             )
             info(
-                f"  gcloud workflows executions list epymodelingsuite-pipeline "
-                f"--location={region}"
+                f"  gcloud workflows executions list epymodelingsuite-pipeline --location={region}"
             )
             print()
             info("Or use:")

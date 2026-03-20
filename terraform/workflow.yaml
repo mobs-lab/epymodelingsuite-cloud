@@ -34,6 +34,12 @@ main:
           # Sanitize exp_id for use in labels (replace / with - for GCP label compliance)
           - expIdLabel: $${text.replace_all(input.exp_id, "/", "-")}
 
+          # Additional labels (passed from CLI, empty string if not set)
+          - profileRaw: $${default(map.get(input, "profile"), "")}
+          - profileLabel: $${text.to_lower(text.replace_all(profileRaw, "/", "-"))}
+          - billingProjectRaw: $${default(map.get(input, "billingProject"), "")}
+          - billingProjectLabel: $${text.to_lower(text.replace_all(billingProjectRaw, "/", "-"))}
+
           # Build GCS paths
           - dirPrefixRaw: $${default(map.get(input, "dirPrefix"), "")}
           - dirPrefix: $${if(dirPrefixRaw == "", "", if(text.substring(dirPrefixRaw, len(dirPrefixRaw) - 1, len(dirPrefixRaw)) == "/", dirPrefixRaw, dirPrefixRaw + "/"))}
@@ -102,6 +108,8 @@ main:
               exp_id: $${expIdLabel}
               run_id: $${runId}
               managed-by: workflows
+              profile: $${profileLabel}
+              billing_project: $${billingProjectLabel}
             taskGroups:
               - taskCount: 1
                 taskSpec:
@@ -166,6 +174,8 @@ main:
                 environment: production
                 stage: builder
                 managed-by: workflows
+                profile: $${profileLabel}
+                billing_project: $${billingProjectLabel}
           query:
             jobId: $${"stage-a-" + uniqueId}
         result: jobA
@@ -224,6 +234,8 @@ main:
               exp_id: $${expIdLabel}
               run_id: $${runId}
               managed-by: workflows
+              profile: $${profileLabel}
+              billing_project: $${billingProjectLabel}
             taskGroups:
               - taskCount: $${N}
                 parallelism: $${parallelism}
@@ -290,6 +302,8 @@ main:
                 environment: production
                 stage: runner
                 managed-by: workflows
+                profile: $${profileLabel}
+                billing_project: $${billingProjectLabel}
           query:
             jobId: $${"stage-b-" + uniqueId}
         result: jobB
@@ -325,6 +339,8 @@ main:
                         exp_id: $${expIdLabel}
                         run_id: $${runId}
                         managed-by: workflows
+                        profile: $${profileLabel}
+                        billing_project: $${billingProjectLabel}
                       taskGroups:
                         - taskCount: 1
                           taskSpec:
@@ -390,6 +406,8 @@ main:
                           environment: production
                           stage: output
                           managed-by: workflows
+                          profile: $${profileLabel}
+                          billing_project: $${billingProjectLabel}
                     query:
                       jobId: $${"stage-c-" + uniqueId}
                   result: jobC

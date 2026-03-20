@@ -72,7 +72,8 @@ class TestBatchConfigStageA:
         assert config["logsPolicy"]["destination"] == "CLOUD_LOGGING"
 
         # Verify allocation policy (no machine type)
-        assert config["allocationPolicy"]["serviceAccount"]["email"] == "batch-sa@test-project.iam.gserviceaccount.com"
+        sa_email = "batch-sa@test-project.iam.gserviceaccount.com"
+        assert config["allocationPolicy"]["serviceAccount"]["email"] == sa_email
         assert "instances" not in config["allocationPolicy"]
 
     def test_stage_a_with_machine_type(self):
@@ -445,3 +446,154 @@ class TestBatchConfigResourceVariations:
         # Verify custom dir_prefix
         env_vars = config["taskGroups"][0]["taskSpec"]["environment"]["variables"]
         assert env_vars["DIR_PREFIX"] == "custom/path/to/pipeline/"
+
+
+class TestBatchConfigBillingLabels:
+    """Test profile and billing_project labels in batch config."""
+
+    def test_labels_with_profile_and_billing_project(self):
+        """Test both profile and billing_project labels are added."""
+        config = build_batch_job_config(
+            stage="A",
+            exp_id="test-sim",
+            run_id="20251107-100000-abc12345",
+            task_index=0,
+            num_tasks=None,
+            output_config=None,
+            image_uri="us-central1-docker.pkg.dev/test-project/repo/image:latest",
+            bucket_name="test-bucket",
+            dir_prefix="pipeline/flu/",
+            github_forecast_repo="owner/forecast-repo",
+            project_id="test-project",
+            cpu_milli=2000,
+            memory_mib=8192,
+            machine_type="",
+            max_run_duration=3600,
+            task_count_per_node=1,
+            batch_sa_email="batch-sa@test-project.iam.gserviceaccount.com",
+            profile="flu",
+            billing_project="flu-forecasting",
+        )
+
+        # Verify job labels
+        assert config["labels"]["profile"] == "flu"
+        assert config["labels"]["billing_project"] == "flu-forecasting"
+
+        # Verify allocation policy labels
+        assert config["allocationPolicy"]["labels"]["profile"] == "flu"
+        assert config["allocationPolicy"]["labels"]["billing_project"] == "flu-forecasting"
+
+    def test_labels_omitted_when_empty(self):
+        """Test labels are omitted when profile and billing_project are empty."""
+        config = build_batch_job_config(
+            stage="B",
+            exp_id="test-sim",
+            run_id="20251107-100000-abc12345",
+            task_index=0,
+            num_tasks=None,
+            output_config=None,
+            image_uri="us-central1-docker.pkg.dev/test-project/repo/image:latest",
+            bucket_name="test-bucket",
+            dir_prefix="pipeline/flu/",
+            github_forecast_repo="owner/forecast-repo",
+            project_id="test-project",
+            cpu_milli=2000,
+            memory_mib=8192,
+            machine_type="",
+            max_run_duration=3600,
+            task_count_per_node=1,
+            batch_sa_email="batch-sa@test-project.iam.gserviceaccount.com",
+            profile="",
+            billing_project="",
+        )
+
+        # Labels should not include profile or billing_project
+        assert "profile" not in config["labels"]
+        assert "billing_project" not in config["labels"]
+
+        # Allocation policy should not have labels key
+        assert "labels" not in config["allocationPolicy"]
+
+    def test_labels_only_profile(self):
+        """Test only profile label when billing_project is empty."""
+        config = build_batch_job_config(
+            stage="C",
+            exp_id="test-sim",
+            run_id="20251107-100000-abc12345",
+            task_index=0,
+            num_tasks=10,
+            output_config=None,
+            image_uri="us-central1-docker.pkg.dev/test-project/repo/image:latest",
+            bucket_name="test-bucket",
+            dir_prefix="pipeline/flu/",
+            github_forecast_repo="owner/forecast-repo",
+            project_id="test-project",
+            cpu_milli=2000,
+            memory_mib=8192,
+            machine_type="",
+            max_run_duration=3600,
+            task_count_per_node=1,
+            batch_sa_email="batch-sa@test-project.iam.gserviceaccount.com",
+            profile="covid",
+            billing_project="",
+        )
+
+        assert config["labels"]["profile"] == "covid"
+        assert "billing_project" not in config["labels"]
+        assert config["allocationPolicy"]["labels"]["profile"] == "covid"
+        assert "billing_project" not in config["allocationPolicy"]["labels"]
+
+    def test_labels_default_params_omitted(self):
+        """Test labels omitted when using default empty string params."""
+        config = build_batch_job_config(
+            stage="A",
+            exp_id="test-sim",
+            run_id="20251107-100000-abc12345",
+            task_index=0,
+            num_tasks=None,
+            output_config=None,
+            image_uri="us-central1-docker.pkg.dev/test-project/repo/image:latest",
+            bucket_name="test-bucket",
+            dir_prefix="pipeline/flu/",
+            github_forecast_repo="owner/forecast-repo",
+            project_id="test-project",
+            cpu_milli=2000,
+            memory_mib=8192,
+            machine_type="",
+            max_run_duration=3600,
+            task_count_per_node=1,
+            batch_sa_email="batch-sa@test-project.iam.gserviceaccount.com",
+            # profile and billing_project use defaults (empty string)
+        )
+
+        # Labels should not include profile or billing_project
+        assert "profile" not in config["labels"]
+        assert "billing_project" not in config["labels"]
+
+    def test_profile_label_sanitized(self):
+        """Test profile label is sanitized for GCP compliance."""
+        config = build_batch_job_config(
+            stage="A",
+            exp_id="test-sim",
+            run_id="20251107-100000-abc12345",
+            task_index=0,
+            num_tasks=None,
+            output_config=None,
+            image_uri="us-central1-docker.pkg.dev/test-project/repo/image:latest",
+            bucket_name="test-bucket",
+            dir_prefix="pipeline/flu/",
+            github_forecast_repo="owner/forecast-repo",
+            project_id="test-project",
+            cpu_milli=2000,
+            memory_mib=8192,
+            machine_type="",
+            max_run_duration=3600,
+            task_count_per_node=1,
+            batch_sa_email="batch-sa@test-project.iam.gserviceaccount.com",
+            profile="Flu/Season-2025",
+            billing_project="My Project",
+        )
+
+        # Labels should be sanitized (lowercase, no slashes)
+        assert "/" not in config["labels"]["profile"]
+        assert config["labels"]["profile"] == config["labels"]["profile"].lower()
