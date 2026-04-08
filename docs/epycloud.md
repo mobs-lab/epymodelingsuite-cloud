@@ -326,8 +326,8 @@ resources:
 - The `docker.image_tag` and `github.modeling_suite_ref` are set to `dev` by the dev environment
 - This means: `epycloud --env dev build cloud` will build the dev branch into a Docker image tagged as `dev`
 - Similarly: `epycloud --env dev run workflow --exp-id test` will use dev environment settings
-- The flu profile adds `github.forecast_repo` and `pipeline.dir_prefix` specific to flu forecasting
-- Values not specified in higher layers (like `pipeline.max_parallelism`) are inherited from base
+- The flu profile adds `github.forecast_repo` and `storage.dir_prefix` specific to flu forecasting
+- Values not specified in higher layers (like `google_cloud.batch.max_parallelism`) are inherited from base
 - Deep merge preserves unspecified nested values
 
 ### Example Configuration Files
