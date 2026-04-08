@@ -71,8 +71,8 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Resolve bucket and dir_prefix (CLI overrides take precedence)
     bucket_name = args.bucket or gcloud_config["bucket_name"]
-    pipeline_config = config.get("pipeline", {})
-    dir_prefix = args.dir_prefix or pipeline_config.get("dir_prefix", "pipeline/flu/")
+    storage_config = config.get("storage", {})
+    dir_prefix = args.dir_prefix or storage_config.get("dir_prefix", "pipeline/flu/")
 
     # Ensure dir_prefix ends with /
     if not dir_prefix.endswith("/"):

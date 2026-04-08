@@ -69,8 +69,8 @@ def run_job_local(
     image_tag = docker.get("image_tag") or "local"
     if image_tag == "latest":
         image_tag = "local"
-    pipeline = config.get("pipeline", {})
-    dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
+    storage = config.get("storage", {})
+    dir_prefix = storage.get("dir_prefix", "pipeline/flu/")
 
     # Auto-generate run_id for stage A if not provided
     if stage == "A" and not run_id:

@@ -117,9 +117,8 @@ def mock_config():
             "modeling_suite_repo": "test-org/modeling-suite",
             "modeling_suite_ref": "main",
         },
-        "pipeline": {
+        "storage": {
             "dir_prefix": "pipeline/test/",
-            "max_parallelism": 100,
         },
         "resources": {
             "stage_a": {

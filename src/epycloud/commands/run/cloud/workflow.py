@@ -93,8 +93,8 @@ def run_workflow_cloud(
     project_id = google_cloud.get("project_id")
     region = google_cloud.get("region", "us-central1")
     bucket_name = google_cloud.get("bucket_name")
-    pipeline = config.get("pipeline", {})
-    dir_prefix = pipeline.get("dir_prefix", "pipeline/flu/")
+    storage = config.get("storage", {})
+    dir_prefix = storage.get("dir_prefix", "pipeline/flu/")
     github = get_github_config(config)
     github_forecast_repo = github["forecast_repo"]
     github_forecast_repo_ref = github["forecast_repo_ref"]
@@ -105,7 +105,7 @@ def run_workflow_cloud(
         github_forecast_repo_ref = forecast_repo_ref_override
 
     if not max_parallelism:
-        max_parallelism = pipeline.get("max_parallelism", 100)
+        max_parallelism = batch_config.get("max_parallelism", 100)
 
     if not task_count_per_node:
         task_count_per_node = batch_config.get("task_count_per_node", 1)
