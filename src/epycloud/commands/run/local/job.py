@@ -71,6 +71,8 @@ def run_job_local(
         image_tag = "local"
     storage = config.get("storage", {})
     dir_prefix = storage.get("dir_prefix", "pipeline/flu/")
+    if dir_prefix and not dir_prefix.endswith("/"):
+        dir_prefix += "/"
 
     # Auto-generate run_id for stage A if not provided
     if stage == "A" and not run_id:

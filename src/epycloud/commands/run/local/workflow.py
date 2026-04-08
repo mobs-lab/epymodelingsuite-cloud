@@ -58,6 +58,8 @@ def run_workflow_local(
     image_tag = docker["image_tag"]
     storage = config.get("storage", {})
     dir_prefix = storage.get("dir_prefix", "pipeline/flu/")
+    if dir_prefix and not dir_prefix.endswith("/"):
+        dir_prefix += "/"
 
     # Generate run ID if not provided
     if not run_id:

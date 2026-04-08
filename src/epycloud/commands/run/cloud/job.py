@@ -90,6 +90,8 @@ def run_job_cloud(
     bucket_name = google_cloud.get("bucket_name")
     storage = config.get("storage", {})
     dir_prefix = storage.get("dir_prefix", "pipeline/flu/")
+    if dir_prefix and not dir_prefix.endswith("/"):
+        dir_prefix += "/"
     batch_config = get_batch_config(config)
     github = get_github_config(config)
     github_forecast_repo = github["forecast_repo"]
