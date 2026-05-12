@@ -256,18 +256,20 @@ def run_workflow_cloud(
     if task_count_per_node:
         workflow_arg["taskCountPerNode"] = task_count_per_node
 
-    if stage_a_machine_type_override:
-        workflow_arg["stageAMachineType"] = stage_a_machine_type_override
+    # Forward each stage's machine_type/cpu_milli/memory_mib to the workflow when
+    # the resolved machine_type (CLI override OR config) is non-empty.
+    if stage_a_machine_type:
+        workflow_arg["stageAMachineType"] = stage_a_machine_type
         workflow_arg["stageACpuMilli"] = stage_a_cpu_milli
         workflow_arg["stageAMemoryMib"] = stage_a_memory_mib
 
-    if stage_b_machine_type_override:
-        workflow_arg["stageBMachineType"] = stage_b_machine_type_override
+    if stage_b_machine_type:
+        workflow_arg["stageBMachineType"] = stage_b_machine_type
         workflow_arg["stageBCpuMilli"] = stage_b_cpu_milli
         workflow_arg["stageBMemoryMib"] = stage_b_memory_mib
 
-    if stage_c_machine_type_override:
-        workflow_arg["stageCMachineType"] = stage_c_machine_type_override
+    if stage_c_machine_type:
+        workflow_arg["stageCMachineType"] = stage_c_machine_type
         workflow_arg["stageCCpuMilli"] = stage_c_cpu_milli
         workflow_arg["stageCMemoryMib"] = stage_c_memory_mib
 

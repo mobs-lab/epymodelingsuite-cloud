@@ -105,6 +105,28 @@ def mock_config():
             "region": "us-central1",
             "bucket_name": "test-bucket",
             "billing_project": "",
+            "batch": {
+                "max_parallelism": 100,
+                "task_count_per_node": 1,
+                "stage_a": {
+                    "machine_type": "c4d-standard-2",
+                    "cpu_milli": 2000,
+                    "memory_mib": 8192,
+                    "max_run_duration": 3600,
+                },
+                "stage_b": {
+                    "machine_type": "c4d-standard-4",
+                    "cpu_milli": 4000,
+                    "memory_mib": 16384,
+                    "max_run_duration": 7200,
+                },
+                "stage_c": {
+                    "machine_type": "c4d-standard-8",
+                    "cpu_milli": 8000,
+                    "memory_mib": 31744,
+                    "max_run_duration": 1800,
+                },
+            },
         },
         "docker": {
             "registry": "us-central1-docker.pkg.dev",
@@ -119,23 +141,6 @@ def mock_config():
         },
         "storage": {
             "dir_prefix": "pipeline/test/",
-        },
-        "resources": {
-            "stage_a": {
-                "cpu_milli": 2000,
-                "memory_mib": 8192,
-                "max_run_duration": 3600,
-            },
-            "stage_b": {
-                "cpu_milli": 4000,
-                "memory_mib": 16384,
-                "max_run_duration": 7200,
-            },
-            "stage_c": {
-                "cpu_milli": 2000,
-                "memory_mib": 8192,
-                "max_run_duration": 1800,
-            },
         },
     }
 

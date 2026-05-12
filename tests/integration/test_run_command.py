@@ -63,6 +63,22 @@ class TestRunWorkflowCommand:
         assert mock_post.called
         assert mock_subprocess.called
 
+        # Confirm all 9 stage resource keys were forwarded with the fixture's
+        # google_cloud.batch.stage_* values (regression guard for the bug where
+        # config-resolved stage resources were dropped from the workflow input).
+        import json
+
+        parsed_arg = json.loads(mock_post.call_args[1]["json"]["argument"])
+        assert parsed_arg["stageAMachineType"] == "c4d-standard-2"
+        assert parsed_arg["stageACpuMilli"] == 2000
+        assert parsed_arg["stageAMemoryMib"] == 8192
+        assert parsed_arg["stageBMachineType"] == "c4d-standard-4"
+        assert parsed_arg["stageBCpuMilli"] == 4000
+        assert parsed_arg["stageBMemoryMib"] == 16384
+        assert parsed_arg["stageCMachineType"] == "c4d-standard-8"
+        assert parsed_arg["stageCCpuMilli"] == 8000
+        assert parsed_arg["stageCMemoryMib"] == 31744
+
     def test_run_workflow_missing_config(self):
         """Test error handling when config is missing."""
         ctx = {
@@ -379,6 +395,8 @@ class TestRunWorkflowMachineTypeOverride:
 
         parsed_arg = json.loads(workflow_arg)
         assert "stageBMachineType" in parsed_arg
+        # CLI override takes precedence over the fixture's profile value
+        # (mock_config sets stage_b.machine_type = "c4d-standard-4").
         assert parsed_arg["stageBMachineType"] == "c2-standard-8"
 
     @patch("epycloud.lib.validation.subprocess.run")
@@ -424,14 +442,18 @@ class TestRunWorkflowMachineTypeOverride:
 
     @patch("epycloud.lib.command_helpers.subprocess.run")
     @patch("epycloud.commands.run.cloud.workflow.requests.post")
-    def test_workflow_without_override_uses_default(
+    def test_workflow_forwards_profile_stage_resources_without_cli_override(
         self, mock_post, mock_subprocess, mock_config
     ):
-        """Test workflow without override doesn't include stageBMachineType."""
-        # Mock gcloud token fetch
+        """Stage resources from config (no CLI override) reach the workflow input.
+
+        Regression test for the bug where ``epycloud run workflow`` only forwarded
+        stage machine types when ``--stage-*-machine-type`` was passed on the CLI,
+        causing profile-set resources (e.g. flu's ``c4d-standard-8`` for Stage C)
+        to be silently replaced with the workflow YAML's terraform defaults.
+        """
         mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
 
-        # Mock API response
         mock_response = Mock()
         mock_response.json.return_value = {
             "name": "projects/test-project/locations/us-central1/"
@@ -456,7 +478,7 @@ class TestRunWorkflowMachineTypeOverride:
                 max_parallelism=None,
                 task_count_per_node=None,
                 stage_a_machine_type=None,
-                stage_b_machine_type=None,  # No override
+                stage_b_machine_type=None,  # No CLI override
                 stage_c_machine_type=None,
                 forecast_repo_ref=None,
                 output_config=None,
@@ -468,16 +490,90 @@ class TestRunWorkflowMachineTypeOverride:
 
         exit_code = run.handle(ctx)
 
-        # Should succeed
         assert exit_code == 0
-        # API call should NOT include stageBMachineType
         assert mock_post.called
-        call_kwargs = mock_post.call_args[1]
-        workflow_arg = call_kwargs["json"]["argument"]
         import json
 
-        parsed_arg = json.loads(workflow_arg)
-        assert "stageBMachineType" not in parsed_arg
+        parsed_arg = json.loads(mock_post.call_args[1]["json"]["argument"])
+        # All three stages should now appear with the fixture's profile values.
+        assert parsed_arg["stageAMachineType"] == "c4d-standard-2"
+        assert parsed_arg["stageBMachineType"] == "c4d-standard-4"
+        assert parsed_arg["stageCMachineType"] == "c4d-standard-8"
+        assert parsed_arg["stageACpuMilli"] == 2000
+        assert parsed_arg["stageBCpuMilli"] == 4000
+        assert parsed_arg["stageCCpuMilli"] == 8000
+        assert parsed_arg["stageAMemoryMib"] == 8192
+        assert parsed_arg["stageBMemoryMib"] == 16384
+        assert parsed_arg["stageCMemoryMib"] == 31744
+
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
+    def test_workflow_omits_stage_keys_when_config_absent(
+        self, mock_post, mock_subprocess, mock_config
+    ):
+        """When google_cloud.batch is unset, no stage keys are forwarded.
+
+        Preserves the original "absent → omitted" guarantee so the workflow
+        falls back to its terraform-baked defaults.
+        """
+        mock_subprocess.return_value = Mock(returncode=0, stdout="mock-token\n", stderr="")
+
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/abc123"
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        # Strip the batch section so no stage_* machine_type can be resolved.
+        mock_config["google_cloud"].pop("batch", None)
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="workflow",
+                exp_id="test-sim",
+                run_id=None,
+                local=False,
+                skip_output=False,
+                max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
+                stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        exit_code = run.handle(ctx)
+
+        assert exit_code == 0
+        assert mock_post.called
+        import json
+
+        parsed_arg = json.loads(mock_post.call_args[1]["json"]["argument"])
+        for key in (
+            "stageAMachineType",
+            "stageACpuMilli",
+            "stageAMemoryMib",
+            "stageBMachineType",
+            "stageBCpuMilli",
+            "stageBMemoryMib",
+            "stageCMachineType",
+            "stageCCpuMilli",
+            "stageCMemoryMib",
+        ):
+            assert key not in parsed_arg
 
 
 class TestRunIdGeneration:
