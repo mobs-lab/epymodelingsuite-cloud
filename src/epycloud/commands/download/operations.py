@@ -1,5 +1,6 @@
 """GCS listing and downloading operations for download command."""
 
+import fnmatch
 from pathlib import Path
 
 from google.cloud import storage
@@ -85,7 +86,7 @@ def find_matching_blobs(
     matching = []
     for blob in blobs:
         blob_filename = blob.name.rsplit("/", 1)[-1]
-        if blob_filename in target_files:
+        if any(fnmatch.fnmatch(blob_filename, pat) for pat in target_files):
             matching.append(blob)
 
     return matching
