@@ -59,6 +59,15 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     parser.add_argument(
+        "--files",
+        metavar="PATTERN",
+        help=(
+            "Comma-separated filenames/globs to download, replacing the defaults. "
+            'Examples: "quantiles_grid_sidebyside.pdf" or "*.pdf,*.csv.gz"'
+        ),
+    )
+
+    parser.add_argument(
         "-y",
         "--yes",
         action="store_true",

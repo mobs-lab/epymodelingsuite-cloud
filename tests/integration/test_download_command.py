@@ -22,6 +22,7 @@ def _make_ctx(mock_config, tmp_path, **overrides):
         "nest_runs": False,
         "bucket": None,
         "dir_prefix": None,
+        "files": None,
         "yes": True,
     }
     args_defaults.update(overrides)
@@ -330,6 +331,30 @@ class TestDownloadCommand:
         assert blob1.download_to_filename.called
         assert blob2.download_to_filename.called
         assert blob3.download_to_filename.called
+
+    @patch("epycloud.commands.download.handlers.storage.Client")
+    def test_files_override(self, mock_storage_client, mock_config, tmp_path):
+        """--files replaces defaults and matches by glob."""
+        run_id = "20250101-120000-abc12345"
+        pdf = Mock()
+        pdf.name = f"pipeline/test/202605/exp1/{run_id}/outputs/ts/posterior_grid.pdf"
+        csv = Mock()
+        csv.name = f"pipeline/test/202605/exp1/{run_id}/outputs/ts/extra_metrics.csv.gz"
+
+        prefix_map, run_map = _standard_prefix_map()
+        _setup_gcs_mock(
+            mock_storage_client,
+            prefix_map=prefix_map,
+            run_map=run_map,
+            blob_map={
+                f"pipeline/test/202605/exp1/{run_id}/outputs/": [pdf, csv]
+            },
+        )
+
+        ctx = _make_ctx(mock_config, tmp_path, files="*.csv.gz")
+        assert download.handle(ctx) == 0
+        assert csv.download_to_filename.called
+        assert not pdf.download_to_filename.called
 
     @patch("epycloud.commands.download.handlers.storage.Client")
     def test_exact_pattern_matches_sub_experiments(

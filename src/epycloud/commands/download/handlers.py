@@ -87,6 +87,10 @@ def handle(ctx: dict[str, Any]) -> int:
     nest_runs = args.nest_runs
     auto_confirm = args.yes
 
+    files_override = None
+    if getattr(args, "files", None):
+        files_override = [f.strip() for f in args.files.split(",") if f.strip()]
+
     if verbose:
         status(f"Bucket: {bucket_name}")
         status(f"Prefix: {dir_prefix}")
@@ -138,7 +142,7 @@ def handle(ctx: dict[str, Any]) -> int:
     for exp_path_rel in matched:
         exp_gcs_path = f"{dir_prefix}{exp_path_rel}"
         exp_name = exp_path_rel.rsplit("/", 1)[-1]
-        target_files = get_target_files(exp_path_rel)
+        target_files = files_override or get_target_files(exp_path_rel)
 
         # List run IDs
         try:

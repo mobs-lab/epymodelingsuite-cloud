@@ -318,6 +318,66 @@ class TestFindMatchingBlobs:
         )
         assert len(result) == 2
 
+    def test_glob_pattern_matches_extension(self):
+        mock_client = Mock()
+        mock_bucket = Mock()
+        mock_client.bucket.return_value = mock_bucket
+
+        pdf = Mock()
+        pdf.name = "path/outputs/ts/a.pdf"
+        csv = Mock()
+        csv.name = "path/outputs/ts/b.csv"
+        mock_bucket.list_blobs.return_value = [pdf, csv]
+
+        result = find_matching_blobs(mock_client, "bucket", "path", ["*.pdf"])
+        assert result == [pdf]
+
+    def test_glob_prefix_pattern(self):
+        mock_client = Mock()
+        mock_bucket = Mock()
+        mock_client.bucket.return_value = mock_bucket
+
+        match = Mock()
+        match.name = "path/outputs/ts/posterior_grid.pdf"
+        other = Mock()
+        other.name = "path/outputs/ts/quantiles_grid.pdf"
+        mock_bucket.list_blobs.return_value = [match, other]
+
+        result = find_matching_blobs(mock_client, "bucket", "path", ["posterior_*"])
+        assert result == [match]
+
+    def test_exact_name_still_matches(self):
+        mock_client = Mock()
+        mock_bucket = Mock()
+        mock_client.bucket.return_value = mock_bucket
+
+        blob = Mock()
+        blob.name = "path/outputs/ts/posterior_grid.pdf"
+        mock_bucket.list_blobs.return_value = [blob]
+
+        result = find_matching_blobs(
+            mock_client, "bucket", "path", ["posterior_grid.pdf"]
+        )
+        assert result == [blob]
+
+    def test_multiple_patterns(self):
+        mock_client = Mock()
+        mock_bucket = Mock()
+        mock_client.bucket.return_value = mock_bucket
+
+        pdf = Mock()
+        pdf.name = "path/outputs/ts/x.pdf"
+        gz = Mock()
+        gz.name = "path/outputs/ts/y.csv.gz"
+        other = Mock()
+        other.name = "path/outputs/ts/z.txt"
+        mock_bucket.list_blobs.return_value = [pdf, gz, other]
+
+        result = find_matching_blobs(
+            mock_client, "bucket", "path", ["*.pdf", "*.csv.gz"]
+        )
+        assert result == [pdf, gz]
+
 
 class TestExtractScanPrefix:
     """Test extract_scan_prefix function."""
