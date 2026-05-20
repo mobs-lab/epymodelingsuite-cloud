@@ -20,9 +20,25 @@ Downloads specific output files (plots, CSVs) from experiment runs in GCS. Autom
 | `-o, --output-dir DIR` | Optional | Output directory | `./downloads` |
 | `--name-format {long,short}` | Optional | Filename format | `long` |
 | `--nest-runs` | Flag | Add `{run_id}/` subdirectory under each experiment | Disabled |
+| `--files PATTERN` | Optional | Comma-separated filenames/globs to download, replacing the defaults | Default file set |
 | `--bucket BUCKET` | Optional | GCS bucket name | From config |
 | `--dir-prefix PREFIX` | Optional | GCS directory prefix | From config |
 | `-y, --yes` | Flag | Skip confirmation prompt | Disabled |
+
+### Selecting Files
+
+By default, each matched run's `outputs/` directory is searched for a fixed set of plots:
+
+- `posterior_grid.pdf`
+- `quantiles_grid_sidebyside.pdf`
+- `categorical_rate_trends.pdf` (only for experiments whose name starts with `hosp_`)
+
+Use `--files` to download a different set. It accepts comma-separated [fnmatch](https://docs.python.org/3/library/fnmatch.html) glob patterns and **replaces** the defaults entirely (the `hosp_` rule no longer applies). Patterns match against the file basename, e.g.:
+
+- `--files quantiles_grid_sidebyside.pdf` — a single named file
+- `--files "*.pdf"` — every PDF in `outputs/`
+- `--files "*.pdf,*.csv.gz"` — all PDFs and compressed CSVs
+- `--files "posterior_*"` — files with a given prefix
 
 ### Name Formats
 
@@ -43,6 +59,12 @@ epycloud download -e "202607/" -o ./results
 
 # Short filenames with run subdirectories
 epycloud download -e "202607/" --name-format short --nest-runs
+
+# Download only one specific plot
+epycloud download -e "202607/" --files quantiles_grid_sidebyside.pdf
+
+# Download all PDFs and compressed CSVs (glob patterns)
+epycloud download -e "202607/hosp_*" --files "*.pdf,*.csv.gz"
 
 # Skip confirmation
 epycloud download -e "202607/" -y
