@@ -189,6 +189,9 @@ class TestRunWorkflowCommand:
         assert exit_code == 0
         # requests.post should not be called in dry run
         assert not mock_post.called
+        # Read-only Terraform discovery is allowed, but auth/submission is not.
+        commands = [" ".join(call.args[0]) for call in mock_subprocess.call_args_list]
+        assert all("gcloud auth print-access-token" not in command for command in commands)
 
 
 class TestRunJobCommand:
@@ -301,6 +304,75 @@ class TestRunJobCommand:
 
         # Should fail due to validation error
         assert exit_code == 1
+
+
+class TestCloudProviderDispatch:
+    """Provider selection occurs before provider-specific command preparation."""
+
+    @patch("epycloud.commands.run.handlers.run_job_gcp")
+    @patch("epycloud.commands.run.handlers.get_execution_backend")
+    def test_job_does_not_enter_gcp_adapter_for_another_backend(
+        self, mock_get_backend, mock_run_gcp
+    ):
+        mock_get_backend.return_value = Mock(provider="aws")
+        ctx = {
+            "config": {"execution": {"provider": "aws"}},
+            "environment": "dev",
+            "verbose": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="job",
+                stage="A",
+                exp_id="test-sim",
+                run_id=None,
+                task_index=0,
+                num_tasks=None,
+                output_config=None,
+                local=False,
+                machine_type=None,
+                task_count_per_node=None,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        assert run.handle(ctx) == 2
+        mock_run_gcp.assert_not_called()
+
+    @patch("epycloud.commands.run.handlers.run_workflow_gcp")
+    @patch("epycloud.commands.run.handlers.get_execution_backend")
+    def test_workflow_does_not_enter_gcp_adapter_for_another_backend(
+        self, mock_get_backend, mock_run_gcp
+    ):
+        mock_get_backend.return_value = Mock(provider="aws")
+        ctx = {
+            "config": {"execution": {"provider": "aws"}},
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="workflow",
+                exp_id="test-sim",
+                run_id=None,
+                local=False,
+                skip_output=False,
+                max_parallelism=None,
+                task_count_per_node=None,
+                stage_a_machine_type=None,
+                stage_b_machine_type=None,
+                stage_c_machine_type=None,
+                forecast_repo_ref=None,
+                output_config=None,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        assert run.handle(ctx) == 2
+        mock_run_gcp.assert_not_called()
 
 
 class TestRunWorkflowMachineTypeOverride:

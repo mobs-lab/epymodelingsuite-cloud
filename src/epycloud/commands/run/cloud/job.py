@@ -1,12 +1,14 @@
 """Cloud job execution for run command."""
 
-import json
-import os
-import subprocess
-import tempfile
 import uuid
 from typing import Any
 
+from epycloud.execution import (
+    ExecutionBackend,
+    ExecutionBackendError,
+    StageJobSpec,
+    StageResources,
+)
 from epycloud.lib.command_helpers import (
     generate_run_id,
     get_batch_config,
@@ -23,10 +25,10 @@ from ..validation import (
     prompt_user_confirmation,
     validate_and_get_machine_specs,
 )
-from .batch_config import build_batch_job_config
 
 
-def run_job_cloud(
+def run_job_gcp(
+    backend: ExecutionBackend,
     ctx: dict[str, Any],
     config: dict[str, Any],
     stage: str,
@@ -43,7 +45,7 @@ def run_job_cloud(
     verbose: bool,
     dry_run: bool,
 ) -> int:
-    """Submit individual job to Cloud Batch.
+    """Prepare and submit an individual job through the GCP backend.
 
     Parameters
     ----------
@@ -174,81 +176,59 @@ def run_job_cloud(
 
     status(f"Submitting Stage {stage} job to Cloud Batch...")
 
-    # Build job configuration
-    job_config = build_batch_job_config(
-        stage=stage,
-        exp_id=exp_id,
-        run_id=run_id,
-        task_index=task_index,
-        num_tasks=num_tasks,
-        output_config=output_config,
-        image_uri=image_uri,
-        bucket_name=bucket_name,
-        dir_prefix=dir_prefix,
-        github_forecast_repo=github_forecast_repo,
-        project_id=project_id,
-        cpu_milli=cpu_milli,
-        memory_mib=memory_mib,
-        machine_type=machine_type,
-        max_run_duration=max_run_duration,
-        task_count_per_node=task_count_per_node,
-        batch_sa_email=batch_sa_email,
-        profile=profile_name,
-        billing_project=billing_project,
+    plan = backend.plan_job(
+        StageJobSpec(
+            job_id=job_id,
+            stage=stage,
+            experiment_id=exp_id,
+            run_id=run_id,
+            task_index=task_index,
+            num_tasks=num_tasks,
+            output_config=output_config,
+            image_uri=image_uri,
+            storage_bucket=bucket_name,
+            storage_prefix=dir_prefix,
+            forecast_repo=github_forecast_repo,
+            resources=StageResources(
+                machine_type=machine_type,
+                cpu_milli=cpu_milli,
+                memory_mib=memory_mib,
+                max_run_duration=max_run_duration,
+            ),
+            task_count_per_node=task_count_per_node,
+            execution_identity=batch_sa_email,
+            profile=profile_name,
+            billing_project=billing_project,
+        )
     )
 
     if handle_dry_run(
         {"dry_run": dry_run},
         f"Submit batch job {job_id}",
-        {"job_config": json.dumps(job_config, indent=2)},
+        plan.display_details,
     ):
         return 0
 
-    # Write config to temp file
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump(job_config, f, indent=2)
-        temp_file = f.name
-
     try:
-        # Submit job
-        cmd = [
-            "gcloud",
-            "batch",
-            "jobs",
-            "submit",
-            job_id,
-            f"--project={project_id}",
-            f"--location={region}",
-            f"--config={temp_file}",
-        ]
+        run_ref = backend.submit_job(plan)
+    except ExecutionBackendError:
+        error("Job submission failed")
+        return 1
 
-        result = subprocess.run(cmd, check=False)
+    success("Job submitted successfully!")
+    info(f"Job Name: {run_ref.resource_name}")
+    print()
+    info("Monitor with:")
+    info(f"  gcloud batch jobs describe {job_id} --location={region}")
+    print()
+    info("View logs:")
+    info(
+        f'  gcloud logging read \'resource.type="batch.googleapis.com/Job" '
+        f'AND labels.job_uid="{job_id}"\' --limit=50'
+    )
 
-        if result.returncode != 0:
-            error("Job submission failed")
-            return 1
+    if wait:
+        warning("--wait not yet implemented")
+        info("Use: gcloud batch jobs describe --wait")
 
-        success("Job submitted successfully!")
-        info(f"Job Name: projects/{project_id}/locations/{region}/jobs/{job_id}")
-        print()
-        info("Monitor with:")
-        info(f"  gcloud batch jobs describe {job_id} --location={region}")
-        print()
-        info("View logs:")
-        info(
-            f'  gcloud logging read \'resource.type="batch.googleapis.com/Job" '
-            f'AND labels.job_uid="{job_id}"\' --limit=50'
-        )
-
-        if wait:
-            warning("--wait not yet implemented")
-            info("Use: gcloud batch jobs describe --wait")
-
-        return 0
-
-    finally:
-        # Clean up temp file
-        try:
-            os.unlink(temp_file)
-        except OSError:
-            pass
+    return 0
