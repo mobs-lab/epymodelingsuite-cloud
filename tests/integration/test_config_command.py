@@ -2,10 +2,9 @@
 
 import os
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
-import yaml
 
 from epycloud.commands import config_cmd
 
@@ -473,6 +472,41 @@ class TestConfigValidateCommand:
         exit_code = config_cmd.handle(ctx)
 
         assert exit_code == 0
+
+    @pytest.mark.parametrize(
+        ("execution", "message"),
+        [
+            ({"provider": "awss"}, "Unsupported execution provider: awss"),
+            ([], "execution must be a mapping"),
+            ({"provider": None}, "execution.provider must be a non-empty string"),
+        ],
+    )
+    @patch("epycloud.commands.config_cmd.handlers.ConfigLoader")
+    def test_config_validate_rejects_invalid_execution_config(
+        self, mock_loader, capsys, execution, message
+    ):
+        """Validation reports provider errors before a cloud command is run."""
+        mock_loader.return_value.load.return_value = {
+            "execution": execution,
+            "google_cloud": {
+                "project_id": "my-project",
+                "region": "us-east5",
+                "bucket_name": "my-bucket",
+            },
+            "github": {"personal_access_token": "ghp_realtoken"},
+        }
+        ctx = {
+            "config": None,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(config_subcommand="validate"),
+        }
+
+        assert config_cmd.handle(ctx) == 1
+        assert message in capsys.readouterr().err
 
     def test_config_validate_missing_fields(self, tmp_path, monkeypatch):
         """Test validation fails for missing required fields."""

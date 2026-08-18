@@ -6,6 +6,7 @@ import yaml
 
 from epycloud.config.loader import ConfigLoader, get_config_value, set_config_value
 from epycloud.exceptions import ConfigError
+from epycloud.execution import get_execution_provider
 from epycloud.lib.command_helpers import require_config
 from epycloud.lib.output import error, info, print_dict, success, warning
 from epycloud.lib.paths import get_config_dir, get_config_file, list_environments
@@ -189,12 +190,20 @@ def handle_validate(ctx: dict) -> int:
         errors = []
         warnings_list = []
 
+        try:
+            provider = get_execution_provider(config)
+        except ConfigError as exc:
+            errors.append(str(exc))
+            provider = None
+
         # Check required fields
-        required_fields = [
-            "google_cloud.project_id",
-            "google_cloud.region",
-            "google_cloud.bucket_name",
-        ]
+        required_fields = []
+        if provider == "gcp":
+            required_fields = [
+                "google_cloud.project_id",
+                "google_cloud.region",
+                "google_cloud.bucket_name",
+            ]
 
         for field in required_fields:
             value = get_config_value(config, field)

@@ -9,6 +9,10 @@
 storage:
   dir_prefix: "pipeline/{environment}/{profile}"
 
+# Cloud execution backend. Older configs without this key default to gcp.
+execution:
+  provider: gcp
+
 # Google Cloud Platform configuration
 google_cloud:
   project_id: your-gcp-project-id
