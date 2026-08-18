@@ -359,8 +359,7 @@ def validate_machine_type(machine_type: str, project_id: str, region: str) -> st
     """Validate Google Cloud machine type against available types in the region.
 
     Queries the Compute Engine API to verify that the specified machine type
-    exists in the given region. Machine types are zone-specific, so this checks
-    all zones in the region.
+    exists in the region's ``-a`` zone, which is also used to query its specs.
 
     Parameters
     ----------
@@ -402,7 +401,10 @@ def validate_machine_type(machine_type: str, project_id: str, region: str) -> st
             "Expected format like 'n2-standard-4' or 'c2-standard-8'"
         )
 
-    # Query available machine types in the region using gcloud
+    # Use the same representative zone as get_machine_type_specs. The regional
+    # command uses the aggregated-list API, which is slow enough to exceed the
+    # subprocess timeout even when its output is filtered to one region.
+    zone = f"{region}-a"
     try:
         result = subprocess.run(
             [
@@ -411,7 +413,9 @@ def validate_machine_type(machine_type: str, project_id: str, region: str) -> st
                 "machine-types",
                 "list",
                 f"--project={project_id}",
-                f"--filter=zone~{region}",
+                f"--zones={zone}",
+                f"--filter=name={machine_type}",
+                "--limit=1",
                 "--format=value(name)",
             ],
             capture_output=True,
@@ -432,11 +436,38 @@ def validate_machine_type(machine_type: str, project_id: str, region: str) -> st
         available_types = set(result.stdout.strip().split("\n"))
 
         if machine_type not in available_types:
-            # Provide helpful suggestions for similar machine types
-            suggestions = [mt for mt in available_types if machine_type.split("-")[0] in mt][:5]
+            # Keep the exact-match query fast, then make a second bounded query
+            # only when suggestions are needed for an invalid machine type.
+            machine_family = machine_type.split("-", maxsplit=1)[0]
+            suggestion_result = subprocess.run(
+                [
+                    "gcloud",
+                    "compute",
+                    "machine-types",
+                    "list",
+                    f"--project={project_id}",
+                    f"--zones={zone}",
+                    f"--filter=name~^{machine_family}-",
+                    "--limit=5",
+                    "--format=value(name)",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            suggestions = []
+            if suggestion_result.returncode == 0:
+                suggestions = sorted(
+                    {
+                        mt
+                        for mt in suggestion_result.stdout.strip().split("\n")
+                        if mt.startswith(f"{machine_family}-")
+                    }
+                )
             suggestion_msg = ""
             if suggestions:
-                suggestion_msg = f" Available similar types: {', '.join(sorted(suggestions))}"
+                suggestion_msg = f" Available similar types: {', '.join(suggestions)}"
 
             raise ValidationError(
                 f"Machine type '{machine_type}' not found in region {region}.{suggestion_msg}"
