@@ -5,7 +5,6 @@ Internal validation logic and batch config building use real implementations.
 """
 
 import json
-import tempfile
 from argparse import Namespace
 from unittest.mock import Mock, patch
 
@@ -15,7 +14,7 @@ from epycloud.commands import run
 class TestRunJobCloud:
     """Test run job command for cloud execution."""
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_stage_a_cloud_success(self, mock_subprocess, mock_config):
         """Test successful Stage A job submission to cloud."""
         # Mock gcloud batch submit success
@@ -55,7 +54,7 @@ class TestRunJobCloud:
         assert "jobs" in call_args
         assert "submit" in call_args
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_stage_b_cloud_success(self, mock_subprocess, mock_config):
         """Test successful Stage B job submission to cloud."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -87,7 +86,7 @@ class TestRunJobCloud:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_stage_c_cloud_success(self, mock_subprocess, mock_config):
         """Test successful Stage C job submission to cloud."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -119,7 +118,7 @@ class TestRunJobCloud:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_cloud_with_output_config(self, mock_subprocess, mock_config):
         """Test Stage C job with specific output config."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -151,7 +150,7 @@ class TestRunJobCloud:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_cloud_submission_failure(self, mock_subprocess, mock_config):
         """Test error handling when gcloud batch submit fails."""
         # Mock gcloud failure
@@ -272,7 +271,8 @@ class TestRunJobCloud:
         # Should fail with config error
         assert exit_code == 2
 
-    def test_run_job_cloud_dry_run_mode(self, mock_config):
+    @patch("epycloud.execution.gcp.subprocess.run")
+    def test_run_job_cloud_dry_run_mode(self, mock_subprocess, mock_config):
         """Test dry run mode doesn't submit actual job."""
         ctx = {
             "config": mock_config,
@@ -300,8 +300,10 @@ class TestRunJobCloud:
 
         # Should succeed (dry run shows config but doesn't submit)
         assert exit_code == 0
+        commands = [" ".join(call.args[0]) for call in mock_subprocess.call_args_list]
+        assert all("gcloud batch jobs submit" not in command for command in commands)
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_cloud_with_task_count_per_node(self, mock_subprocess, mock_config):
         """Test job submission with custom task_count_per_node."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -421,5 +423,3 @@ class TestRunJobCloudMachineType:
 
         # Should fail with validation error
         assert exit_code == 1
-
-

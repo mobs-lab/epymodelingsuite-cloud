@@ -42,6 +42,7 @@ These keys are read each time you run `epycloud run workflow`. Changes **take ef
 | Keys | Purpose | Overrides terraform default? |
 |------|---------|------------------------------|
 | `google_cloud.project_id`, `region`, `bucket_name` | Where to submit and store data | No (must match deployed infra) |
+| `execution.provider` | Cloud execution backend (`gcp` is currently supported) | N/A |
 | `storage.dir_prefix` | GCS path prefix | N/A (runtime only) |
 | `docker.image_tag` | Which image tag to use for this run | Yes |
 | `github.forecast_repo` | Experiment repo to clone | N/A (runtime only) |
@@ -80,6 +81,15 @@ Directory prefix for organizing pipeline data in GCS (or local filesystem).
 
 - `pipeline/prod/flu/` (environment=prod, profile=flu)
 - `pipeline/dev/covid/` (environment=dev, profile=covid)
+
+## execution
+
+Selects the backend used for cloud pipeline and stage execution. Configurations
+created before this setting was introduced continue to use GCP.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `execution.provider` | string | `gcp` | Cloud execution backend. Only `gcp` is currently supported. |
 
 ## google_cloud
 
@@ -228,6 +238,10 @@ For reference, here is the full default `config.yaml` template:
 # Storage configuration
 storage:
   dir_prefix: "pipeline/{environment}/{profile}"
+
+# Cloud execution backend
+execution:
+  provider: gcp
 
 # Google Cloud Platform configuration
 google_cloud:

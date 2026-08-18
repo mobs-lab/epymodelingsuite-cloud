@@ -32,6 +32,9 @@ Settings that vary or needs override should go in [environments](environments.md
 storage:
   dir_prefix: "pipeline/{environment}/{profile}"
 
+execution:
+  provider: gcp
+
 google_cloud:
   project_id: "my-gcp-project"
   region: "us-central1"
