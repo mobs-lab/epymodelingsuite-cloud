@@ -274,7 +274,9 @@ class TestValidateMachineType:
             assert "compute" in call_args
             assert "machine-types" in call_args
             assert "--project=test-project" in call_args
-            assert "--filter=zone~us-east1" in call_args
+            assert "--zones=us-east1-a" in call_args
+            assert "--filter=name=c2-standard-8" in call_args
+            assert "--limit=1" in call_args
 
     def test_machine_type_not_found_with_suggestions(self):
         """Test machine type not found provides suggestions."""
@@ -282,12 +284,16 @@ class TestValidateMachineType:
         mock_result.returncode = 0
         mock_result.stdout = "n2-standard-4\nn2-standard-8\nn2-highmem-16\nn2d-standard-4\n"
 
-        with patch("subprocess.run", return_value=mock_result):
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
             with pytest.raises(ValidationError, match="not found in region") as exc_info:
                 validate_machine_type("n2-standard-999", "my-project", "us-central1")
 
             # Check suggestions are included
             assert "n2-standard-4" in str(exc_info.value) or "n2-standard-8" in str(exc_info.value)
+            suggestion_args = mock_run.call_args_list[1][0][0]
+            assert "--zones=us-central1-a" in suggestion_args
+            assert "--filter=name~^n2-" in suggestion_args
+            assert "--limit=5" in suggestion_args
 
     def test_machine_type_not_found_no_similar(self):
         """Test machine type not found when no similar types exist."""
