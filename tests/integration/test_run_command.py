@@ -412,7 +412,7 @@ class TestRunWorkflowMachineTypeOverride:
                     stdout=json.dumps({
                         "guestCpus": 8,
                         "memoryMb": 32768,
-                        "name": "c2-standard-8"
+                        "name": "c4-standard-8"
                     }),
                     stderr=""
                 )
@@ -420,7 +420,7 @@ class TestRunWorkflowMachineTypeOverride:
                 # Return machine type list output (format=value(name) returns just names)
                 return Mock(
                     returncode=0,
-                    stdout='c2-standard-8\nn2-standard-4\nn2-standard-8\n',
+                    stdout='c4-standard-8\nn2-standard-4\nn2-standard-8\n',
                     stderr=""
                 )
             # Default: return token
@@ -445,7 +445,7 @@ class TestRunWorkflowMachineTypeOverride:
                 max_parallelism=None,
                 task_count_per_node=None,
                 stage_a_machine_type=None,
-                stage_b_machine_type="c2-standard-8",  # Override provided
+                stage_b_machine_type="c4-standard-8",  # Override provided
                 stage_c_machine_type=None,
                 forecast_repo_ref=None,
                 output_config=None,
@@ -469,7 +469,7 @@ class TestRunWorkflowMachineTypeOverride:
         assert "stageBMachineType" in parsed_arg
         # CLI override takes precedence over the fixture's profile value
         # (mock_config sets stage_b.machine_type = "c4d-standard-4").
-        assert parsed_arg["stageBMachineType"] == "c2-standard-8"
+        assert parsed_arg["stageBMachineType"] == "c4-standard-8"
 
     @patch("epycloud.lib.validation.subprocess.run")
     def test_workflow_with_invalid_machine_type_rejects(self, mock_subprocess, mock_config):

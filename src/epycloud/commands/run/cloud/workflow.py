@@ -27,6 +27,7 @@ from ..validation import (
     build_base_confirmation_info,
     prompt_user_confirmation,
     validate_and_get_machine_specs,
+    validate_stage_machine_family,
 )
 
 
@@ -151,6 +152,9 @@ def run_workflow_gcp(
         if result is None:
             return 1
         stage_a_cpu_milli, stage_a_memory_mib = result
+    elif not validate_stage_machine_family(stage_a_machine_type, "Stage A"):
+        # Config-supplied machine types never reach validate_and_get_machine_specs
+        return 1
 
     # Stage B
     stage_b_config = batch_config.get("stage_b", {})
@@ -165,6 +169,9 @@ def run_workflow_gcp(
         if result is None:
             return 1
         stage_b_cpu_milli, stage_b_memory_mib = result
+    elif not validate_stage_machine_family(stage_b_machine_type, "Stage B"):
+        # Config-supplied machine types never reach validate_and_get_machine_specs
+        return 1
 
     # Stage C
     stage_c_config = batch_config.get("stage_c", {})
@@ -179,6 +186,9 @@ def run_workflow_gcp(
         if result is None:
             return 1
         stage_c_cpu_milli, stage_c_memory_mib = result
+    elif not validate_stage_machine_family(stage_c_machine_type, "Stage C"):
+        # Config-supplied machine types never reach validate_and_get_machine_specs
+        return 1
 
     # Extract labels
     profile_meta = config.get("_meta", {}).get("profile") or {}

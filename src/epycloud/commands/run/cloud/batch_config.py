@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from epycloud.execution.gcp_machines import is_hyperdisk_family
 from epycloud.lib.validation import sanitize_label_value
 
 
@@ -136,8 +137,10 @@ def build_batch_job_config(
     if machine_type:
         instances = {"policy": {"machineType": machine_type}}
 
-        # C4D machines require hyperdisk
-        if machine_type.startswith("c4d-"):
+        # C4/C4D/N4/N4D are Hyperdisk-only and cannot boot on Persistent Disk;
+        # C3/C3D boot from it fine. Without this, Batch accepts the job and then
+        # fails VM creation ~1080s later, blaming the disk type.
+        if is_hyperdisk_family(machine_type):
             instances["installGpuDrivers"] = False
             instances["policy"]["provisioningModel"] = "STANDARD"
             instances["policy"]["bootDisk"] = {"type": "hyperdisk-balanced", "sizeGb": 50}

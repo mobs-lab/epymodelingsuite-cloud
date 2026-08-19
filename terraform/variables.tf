@@ -70,7 +70,17 @@ variable "stage_a_memory_mib" {
 variable "stage_a_machine_type" {
   type        = string
   default     = "c4d-standard-2"
-  description = "Machine type for Stage A (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
+  description = "Machine type for Stage A. Must be Hyperdisk-capable (c3, c3d, c4, c4d, n4, n4d), e.g. 'c4d-standard-2'. Empty string = auto-select"
+
+  # C4/C4D/N4/N4D are Hyperdisk-only and the workflow emits a hyperdisk-balanced
+  # bootDisk for any non-empty machine type. A family that cannot boot from it
+  # renders a workflow that Batch accepts and then fails ~1080s later at VM
+  # creation, blaming the disk type. Mirrors is_hyperdisk_family() in
+  # src/epycloud/execution/gcp_machines.py — keep the two lists in step.
+  validation {
+    condition     = var.stage_a_machine_type == "" || contains(["c3", "c3d", "c4", "c4d", "n4", "n4d"], split("-", var.stage_a_machine_type)[0])
+    error_message = "Stage A machine type must be empty (auto-select) or in a Hyperdisk-capable family: c3, c3d, c4, c4d, n4, n4d. This pipeline boots VMs with bootDisk type 'hyperdisk-balanced'; other families are accepted by Batch and then fail at VM creation."
+  }
 }
 
 variable "stage_a_max_run_duration" {
@@ -95,7 +105,17 @@ variable "stage_b_memory_mib" {
 variable "stage_b_machine_type" {
   type        = string
   default     = ""
-  description = "Machine type for Stage B (optional, e.g., 'n2-standard-4'). Empty string = auto-select"
+  description = "Machine type for Stage B. Must be Hyperdisk-capable (c3, c3d, c4, c4d, n4, n4d), e.g. 'c4d-standard-2'. Empty string = auto-select"
+
+  # C4/C4D/N4/N4D are Hyperdisk-only and the workflow emits a hyperdisk-balanced
+  # bootDisk for any non-empty machine type. A family that cannot boot from it
+  # renders a workflow that Batch accepts and then fails ~1080s later at VM
+  # creation, blaming the disk type. Mirrors is_hyperdisk_family() in
+  # src/epycloud/execution/gcp_machines.py — keep the two lists in step.
+  validation {
+    condition     = var.stage_b_machine_type == "" || contains(["c3", "c3d", "c4", "c4d", "n4", "n4d"], split("-", var.stage_b_machine_type)[0])
+    error_message = "Stage B machine type must be empty (auto-select) or in a Hyperdisk-capable family: c3, c3d, c4, c4d, n4, n4d. This pipeline boots VMs with bootDisk type 'hyperdisk-balanced'; other families are accepted by Batch and then fail at VM creation."
+  }
 }
 
 variable "stage_b_max_run_duration" {
@@ -126,7 +146,17 @@ variable "stage_c_memory_mib" {
 variable "stage_c_machine_type" {
   type        = string
   default     = "c4d-standard-4"
-  description = "Machine type for Stage C (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
+  description = "Machine type for Stage C. Must be Hyperdisk-capable (c3, c3d, c4, c4d, n4, n4d), e.g. 'c4d-standard-4'. Empty string = auto-select"
+
+  # C4/C4D/N4/N4D are Hyperdisk-only and the workflow emits a hyperdisk-balanced
+  # bootDisk for any non-empty machine type. A family that cannot boot from it
+  # renders a workflow that Batch accepts and then fails ~1080s later at VM
+  # creation, blaming the disk type. Mirrors is_hyperdisk_family() in
+  # src/epycloud/execution/gcp_machines.py — keep the two lists in step.
+  validation {
+    condition     = var.stage_c_machine_type == "" || contains(["c3", "c3d", "c4", "c4d", "n4", "n4d"], split("-", var.stage_c_machine_type)[0])
+    error_message = "Stage C machine type must be empty (auto-select) or in a Hyperdisk-capable family: c3, c3d, c4, c4d, n4, n4d. This pipeline boots VMs with bootDisk type 'hyperdisk-balanced'; other families are accepted by Batch and then fail at VM creation."
+  }
 }
 
 variable "stage_c_max_run_duration" {

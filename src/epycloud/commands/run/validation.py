@@ -3,6 +3,7 @@
 from typing import Any
 
 from epycloud.exceptions import ValidationError
+from epycloud.execution.gcp_machines import validate_hyperdisk_family
 from epycloud.lib.output import error, info, status, success
 from epycloud.lib.validation import get_machine_type_specs, validate_machine_type
 from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
@@ -120,6 +121,9 @@ def validate_and_get_machine_specs(
     """
     status(f"Validating {stage_name} machine type '{machine_type}'...")
     try:
+        # Cheap local check first — a wrong family is rejected without a
+        # gcloud round-trip, and before validate_machine_type rejects "".
+        validate_hyperdisk_family(machine_type, stage_name)
         validate_machine_type(machine_type, project_id, region)
         success(f"{stage_name} machine type '{machine_type}' is valid")
         status("Querying machine type specs...")
@@ -129,3 +133,30 @@ def validate_and_get_machine_specs(
     except ValidationError as e:
         error(str(e))
         return None
+
+
+def validate_stage_machine_family(machine_type: str, stage_name: str) -> bool:
+    """Check a resolved machine type against the Hyperdisk boot-disk constraint.
+
+    Unlike :func:`validate_and_get_machine_specs`, this runs on the value the
+    stage will actually use — CLI override or config — so a bad machine type in
+    config is caught at submission instead of at VM creation ~1080s later.
+
+    Parameters
+    ----------
+    machine_type : str
+        Resolved machine type. An empty string means auto-select and passes.
+    stage_name : str
+        Stage name for the error message (e.g. "Stage B")
+
+    Returns
+    -------
+    bool
+        True if usable, False if rejected (the error is already reported)
+    """
+    try:
+        validate_hyperdisk_family(machine_type, stage_name)
+        return True
+    except ValidationError as e:
+        error(str(e))
+        return False

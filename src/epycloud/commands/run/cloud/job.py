@@ -24,6 +24,7 @@ from ..validation import (
     build_base_confirmation_info,
     prompt_user_confirmation,
     validate_and_get_machine_specs,
+    validate_stage_machine_family,
 )
 
 
@@ -118,6 +119,9 @@ def run_job_gcp(
             return 1
         cpu_milli, memory_mib = result
         machine_type = machine_type_override
+    elif not validate_stage_machine_family(machine_type, f"Stage {stage}"):
+        # Config-supplied machine types never reach validate_and_get_machine_specs
+        return 1
 
     # Set default for task_count_per_node if not provided
     if not task_count_per_node:

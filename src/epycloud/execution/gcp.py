@@ -16,6 +16,14 @@ from epycloud.lib.command_helpers import DEFAULT_WORKFLOW_NAME, get_gcloud_acces
 from epycloud.lib.validation import sanitize_label_value
 
 from .base import ExecutionAuthenticationError, ExecutionBackendError
+from .gcp_machines import (
+    ARM_MACHINE_FAMILIES,
+    HYPERDISK_MACHINE_FAMILIES,
+    STAGE_MACHINE_CHAINS,
+    is_hyperdisk_family,
+    machine_family,
+    validate_hyperdisk_family,
+)
 from .models import (
     CancelResult,
     ChildCancellation,
@@ -27,6 +35,16 @@ from .models import (
     StageJobSpec,
     SubmissionPlan,
 )
+
+__all__ = [
+    "ARM_MACHINE_FAMILIES",
+    "HYPERDISK_MACHINE_FAMILIES",
+    "STAGE_MACHINE_CHAINS",
+    "GcpExecutionBackend",
+    "is_hyperdisk_family",
+    "machine_family",
+    "validate_hyperdisk_family",
+]
 
 
 class GcpExecutionBackend:

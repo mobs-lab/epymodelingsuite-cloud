@@ -351,11 +351,11 @@ class TestRunJobCloudMachineType:
                 # Return machine specs
                 return Mock(
                     returncode=0,
-                    stdout=json.dumps({"guestCpus": 8, "memoryMb": 32768, "name": "c2-standard-8"}),
+                    stdout=json.dumps({"guestCpus": 8, "memoryMb": 32768, "name": "c4-standard-8"}),
                     stderr="",
                 )
             elif "machine-types list" in cmd_str:
-                return Mock(returncode=0, stdout="c2-standard-8\nn2-standard-4\n", stderr="")
+                return Mock(returncode=0, stdout="c4-standard-8\nn2-standard-4\n", stderr="")
             elif "batch" in cmd_str and "jobs" in cmd_str and "submit" in cmd_str:
                 # Job submission
                 return Mock(returncode=0, stdout="", stderr="")
@@ -377,7 +377,7 @@ class TestRunJobCloudMachineType:
                 num_tasks=None,
                 output_config=None,
                 local=False,
-                machine_type="c2-standard-8",  # Override
+                machine_type="c4-standard-8",  # Override
                 task_count_per_node=None,
                 wait=False,
                 yes=True,
