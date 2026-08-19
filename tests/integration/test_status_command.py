@@ -989,6 +989,7 @@ class TestFetchRecentFunctions:
         call_args = mock_subprocess.call_args[0][0]
         assert any("labels.exp_id=test-flu" in arg for arg in call_args)
         assert any("SUCCEEDED" in arg for arg in call_args)
+        assert any("CANCELLED" in arg for arg in call_args)
 
 
 class TestDisplayRecentFunctions:

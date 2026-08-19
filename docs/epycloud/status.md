@@ -10,7 +10,7 @@ epycloud status [OPTIONS]
 
 ## Description
 
-Provides a real-time overview of active workflows and Cloud Batch jobs. Displays current execution status, running workflow/jobs, and task progress. Supports watch mode for continuous monitoring.
+Provides a real-time overview of active workflows and Cloud Batch jobs. The `TASKS` column shows completed work, while `SLOTS` shows occupied capacity against current demand. A separate provisioning warning identifies jobs that remain underfilled. Supports watch mode for continuous monitoring.
 
 ## Options
 
@@ -18,7 +18,9 @@ Provides a real-time overview of active workflows and Cloud Batch jobs. Displays
 |--------|------|-------------|---------|
 | `--exp-id ID` | Optional | Filter by experiment ID | All experiments |
 | `--watch`, `-w` | Flag | Watch mode - auto-refresh at interval | Disabled |
+| `--recent [TIME]`, `-r` | Optional | Show recently completed items | 1 hour when present |
 | `--interval N` | Optional | Refresh interval in seconds (with `--watch`) | 10 |
+| `--stall-threshold MINUTES` | Optional | Warn after provisioning makes no progress for this long | 15 |
 
 ## Examples
 
@@ -35,7 +37,11 @@ epycloud status --watch
 # Watch with custom 5-second interval
 epycloud status --watch --interval 5
 
+# Use a 25-minute provisioning grace period
+epycloud status --watch --stall-threshold 25
 ```
+
+In one-shot mode, a never-started job can be timed from its creation time. A partially filled job is reported as underfilled with an unknown duration because one snapshot cannot establish when progress stopped. Watch mode retains count history and reports a stall only after neither completed tasks nor occupied slots have changed for the threshold. Provisioning warnings do not change the successful exit code.
 
 ## Exit Codes
 

@@ -46,3 +46,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         default=10,
         help="Refresh interval in seconds (default: 10)",
     )
+
+    parser.add_argument(
+        "--stall-threshold",
+        type=int,
+        default=15,
+        metavar="MINUTES",
+        help="Warn after provisioning makes no progress for this many minutes (default: 15)",
+    )

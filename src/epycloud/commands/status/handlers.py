@@ -1,10 +1,12 @@
 """Status command handlers."""
 
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from epycloud.commands.status.operations import (
+    ProvisioningStallTracker,
+    detect_one_shot_provisioning_alerts,
     display_status,
     fetch_active_batch_jobs,
     fetch_active_workflows,
@@ -59,6 +61,12 @@ def handle(ctx: dict[str, Any]) -> int:
     else:
         since = None
 
+    raw_stall_threshold = getattr(args, "stall_threshold", 15)
+    stall_threshold = raw_stall_threshold if isinstance(raw_stall_threshold, int) else 15
+    if stall_threshold <= 0:
+        error("--stall-threshold must be greater than zero")
+        return 2
+
     # Watch mode
     if args.watch:
         return _watch_status(
@@ -69,6 +77,7 @@ def handle(ctx: dict[str, Any]) -> int:
             verbose=verbose,
             recent=recent_window,
             workflow_name=workflow_name,
+            stall_threshold=stall_threshold,
         )
 
     # One-time status check
@@ -79,6 +88,7 @@ def handle(ctx: dict[str, Any]) -> int:
         verbose=verbose,
         since=since,
         workflow_name=workflow_name,
+        stall_threshold=stall_threshold,
     )
 
 
@@ -89,6 +99,7 @@ def _show_status(
     verbose: bool,
     since: datetime | None = None,
     workflow_name: str = DEFAULT_WORKFLOW_NAME,
+    stall_threshold: int = 15,
 ) -> int:
     """Show current status.
 
@@ -106,6 +117,8 @@ def _show_status(
         If set, also show recently completed items since this time
     workflow_name : str
         Cloud Workflows workflow to query
+    stall_threshold : int
+        Minutes without provisioning progress before a zero-fill warning
 
     Returns
     -------
@@ -150,8 +163,19 @@ def _show_status(
                 verbose=verbose,
             )
 
-        # Display status
-        display_status(workflows, jobs, exp_id, recent_workflows, recent_jobs)
+        provisioning_alerts = detect_one_shot_provisioning_alerts(
+            jobs,
+            threshold_minutes=stall_threshold,
+        )
+
+        display_status(
+            workflows,
+            jobs,
+            exp_id,
+            recent_workflows,
+            recent_jobs,
+            provisioning_alerts=provisioning_alerts,
+        )
 
         return 0
 
@@ -172,6 +196,7 @@ def _watch_status(
     verbose: bool,
     recent: str | None = None,
     workflow_name: str = DEFAULT_WORKFLOW_NAME,
+    stall_threshold: int = 15,
 ) -> int:
     """Watch status with auto-refresh.
 
@@ -188,9 +213,11 @@ def _watch_status(
     verbose : bool
         Verbose output
     recent : str | None
-        Recent time window string (e.g., "1h", "30m") — re-parsed each refresh
+        Recent time window string (e.g., "1h", "30m"), re-parsed each refresh
     workflow_name : str
         Cloud Workflows workflow to query
+    stall_threshold : int
+        Minutes without occupancy progress before reporting a stall
 
     Returns
     -------
@@ -199,6 +226,7 @@ def _watch_status(
     """
     status(f"Watching pipeline status (refreshing every {interval}s, Ctrl+C to stop)...")
     status("")
+    stall_tracker = ProvisioningStallTracker(stall_threshold)
 
     try:
         while True:
@@ -244,10 +272,18 @@ def _watch_status(
                             verbose=verbose,
                         )
 
-                display_status(workflows, jobs, exp_id, recent_workflows, recent_jobs)
+                provisioning_alerts = stall_tracker.observe(jobs)
+                display_status(
+                    workflows,
+                    jobs,
+                    exp_id,
+                    recent_workflows,
+                    recent_jobs,
+                    provisioning_alerts=provisioning_alerts,
+                )
 
                 # Show refresh time
-                now = format_timestamp_local(datetime.now().isoformat())
+                now = format_timestamp_local(datetime.now(UTC).isoformat())
                 print(f"Last updated: {now} (refreshing every {interval}s)")
 
             except Exception as e:
