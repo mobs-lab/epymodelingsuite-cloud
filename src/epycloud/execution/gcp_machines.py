@@ -48,27 +48,9 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
     "c4-highmem-4": (4, 31744),
 }
 
-# Ordered in-region fallback candidates, keyed by machine size.
-#
-# Chains are per size, not per stage, because a stage's size is a config choice.
-# The flu profile runs Stage C on c4d-standard-8 for memory headroom, so pinning
-# Stage C to a standard-4 chain would make every fallback a silent downgrade.
-#
-# C4 is the first fallback at standard-2 and standard-4. At those sizes it has
-# the same vCPU and memory as C4D, so the fallback preserves requested
-# resources.
-#
-# Sizes below standard-4 cannot serve Stage C: 2 vCPU cannot satisfy its 4000
-# mCPU request. c3-standard-2 does not exist, which is why C3 appears only in
-# the larger chains.
-#
-# The standard-8 chain excludes C4 because it would lower memory from 31744 MiB
-# to 30720 MiB. Every included fallback keeps 8 vCPU and provides at least the
-# memory of the c4d-standard-8 head.
-#
-# A memory-bound stage can instead use highmem-4, which preserves at least the
-# c4d-standard-8 memory requirement while satisfying Stage C's 4000 mCPU
-# minimum. Revalidate a chain whenever a candidate or region changes.
+# Ordered in-region fallbacks. Each chain keeps vCPU constant and memory
+# non-decreasing. C4 is excluded from standard-8 because it has less memory
+# than C4D. Revalidate specs and capacity when candidates or regions change.
 MACHINE_CHAINS_BY_SIZE: dict[str, tuple[str, ...]] = {
     "standard-2": ("c4d-standard-2", "c4-standard-2", "n4d-standard-2", "n4-standard-2"),
     "standard-4": ("c4d-standard-4", "c4-standard-4", "n4d-standard-4", "c3-standard-4"),
