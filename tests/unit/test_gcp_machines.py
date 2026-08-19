@@ -9,7 +9,6 @@ from epycloud.execution.gcp_machines import (
     HYPERDISK_MACHINE_FAMILIES,
     MACHINE_CHAINS_BY_SIZE,
     MACHINE_SPECS,
-    MEASURED_AVAILABILITY,
     STAGE_MACHINE_CHAINS,
     chain_for,
     is_hyperdisk_family,
@@ -123,7 +122,7 @@ class TestValidateHyperdiskFamily:
 
 
 class TestStageChains:
-    """The chains are the 2026-08-18 probe result; guard them against edits."""
+    """Fallback chains must preserve each stage's resource requirements."""
 
     def test_stage_a_and_b_share_the_standard_2_chain(self):
         expected = ("c4d-standard-2", "c4-standard-2", "n4d-standard-2", "n4-standard-2")
@@ -140,8 +139,8 @@ class TestStageChains:
         # 2 vCPU cannot satisfy Stage C's 4000 mCPU request.
         assert all(c.rsplit("-", 1)[-1] == "4" for c in STAGE_MACHINE_CHAINS["c"])
 
-    def test_c4_is_in_position_2_at_the_probed_sizes(self):
-        """us-central1 had zero C4D/N4D/N4 capacity and instant C4 on 2026-08-18."""
+    def test_c4_is_the_first_equivalent_fallback(self):
+        """C4 follows C4D where both machine types have identical resources."""
         assert MACHINE_CHAINS_BY_SIZE["standard-2"][1] == "c4-standard-2"
         assert MACHINE_CHAINS_BY_SIZE["standard-4"][1] == "c4-standard-4"
 
@@ -178,42 +177,27 @@ class TestStageChains:
         """
         assert MACHINE_SPECS["c4-standard-8"][1] < MACHINE_SPECS["c4d-standard-8"][1]
 
-    def test_no_standard_8_chain_since_its_candidates_were_measured_starved(self):
-        """c4d-standard-8 and c3-standard-8 both starved on 2026-08-19.
-
-        A chain whose members are all unobtainable is worse than no chain: it
-        spends the full stall budget per candidate and still fails.
-        """
+    def test_standard_8_has_no_unvalidated_fallback_chain(self):
+        """An 8-vCPU machine stays pinned until a safe fallback is validated."""
         assert "standard-8" not in MACHINE_CHAINS_BY_SIZE
-        assert "STARVED" in MEASURED_AVAILABILITY["c3-standard-8"]
-        assert "STARVED" in MEASURED_AVAILABILITY["c4d-standard-8"]
 
     def test_highmem_4_chain_serves_a_memory_bound_stage_c(self):
-        """Same memory as standard-8, half the vCPUs, and it is obtainable."""
+        """Highmem-4 preserves memory while meeting Stage C's CPU minimum."""
         chain = MACHINE_CHAINS_BY_SIZE["highmem-4"]
 
         assert chain[0] == "c3-highmem-4"
-        assert "obtained" in MEASURED_AVAILABILITY["c3-highmem-4"]
         for candidate in chain:
             vcpu, mem = MACHINE_SPECS[candidate]
             assert vcpu == 4, candidate
             assert vcpu * 1000 >= 4000, candidate  # Stage C minimum
             assert mem >= MACHINE_SPECS["c4d-standard-8"][1], candidate
 
-    def test_measured_availability_only_names_known_machines(self):
-        for machine_type in MEASURED_AVAILABILITY:
-            assert machine_type in MACHINE_SPECS, machine_type
-
 
 class TestChainFor:
     """The fallback loop must chain on the *configured* size, not a fixed one."""
 
     def test_eight_vcpu_pins_itself_with_no_fallback(self):
-        """No standard-8 chain exists, so there is nothing to fall back to.
-
-        Returning the machine unchanged is the honest answer: it beats offering
-        candidates that were measured unobtainable.
-        """
+        """Without a standard-8 chain, the configured machine remains pinned."""
         assert chain_for("c4d-standard-8") == ("c4d-standard-8",)
 
     def test_highmem_4_chains_without_lowering_memory(self):

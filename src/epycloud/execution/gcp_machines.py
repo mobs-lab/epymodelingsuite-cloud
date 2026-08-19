@@ -48,60 +48,27 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
     "c4-highmem-4": (4, 31744),
 }
 
-# Observed capacity in us-central1, newest first. "obtained" means a VM was
-# actually created; "starved" means CODE_GCE_ZONE_RESOURCE_POOL_EXHAUSTED and
-# the 1080s window elapsing without one.
-#
-# Read the vCPU column before the family column. On 2026-08-19, c3-standard-8
-# and c3-highmem-4 differ only in vCPU count (8 vs 4) at identical memory,
-# family and region, and one starved while the other was obtained in ~60s.
-# That controlled pair is why availability here is treated as a function of
-# size first and family second.
-MEASURED_AVAILABILITY: dict[str, str] = {
-    "c4-standard-2": "2026-08-19 obtained, 2 of 2 tasks in ~70-100s (also 10 of 10 on 2026-08-18)",
-    "c3-highmem-4": "2026-08-19 obtained in ~60s",
-    "c3-standard-4": "2026-08-18 obtained, 1 of 1",
-    "c4-standard-4": "2026-08-18 partial, 7 of 10",
-    "c3-standard-8": "2026-08-19 STARVED, full 1080s window",
-    "c4d-standard-8": "2026-08-19 STARVED, full 1080s window",
-    "c4d-standard-2": "2026-08-18 STARVED, 0 of 1",
-    "n4d-standard-2": "2026-08-18 STARVED, 0 of 1",
-    "n4-standard-2": "2026-08-18 STARVED, 0 of 10",
-}
-
 # Ordered in-region fallback candidates, keyed by machine size.
 #
 # Chains are per size, not per stage, because a stage's size is a config choice.
 # The flu profile runs Stage C on c4d-standard-8 for memory headroom, so pinning
 # Stage C to a standard-4 chain would make every fallback a silent downgrade.
 #
-# Position 2 at standard-2 and standard-4 is C4, not N4D. A capacity probe on
-# 2026-08-18 that created VMs directly (bypassing Batch) found us-central1
-# unable to supply a *single* c4d-standard-2, n4d-standard-2 or n4-standard-2,
-# while c4-standard-2 returned 10 of 10 instantly. At those two sizes C4 is a
-# spec-identical drop-in for C4D (2 / 7168 and 4 / 15360 respectively), so it
-# costs nothing in requested resources.
+# C4 is the first fallback at standard-2 and standard-4. At those sizes it has
+# the same vCPU and memory as C4D, so the fallback preserves requested
+# resources.
 #
 # Sizes below standard-4 cannot serve Stage C: 2 vCPU cannot satisfy its 4000
 # mCPU request. c3-standard-2 does not exist, which is why C3 appears only in
 # the larger chains.
 #
-# THERE IS DELIBERATELY NO standard-8 CHAIN. An earlier revision had one
-# (c4d -> c3 -> c3d -> n4d). Two of those four were then measured starved on
-# 2026-08-19 within an hour of each other, so the chain would have burned the
-# full stall budget per candidate and still failed, which is worse than no
-# chain at all. chain_for() therefore returns an 8-vCPU machine unchanged,
-# meaning "pinned, no fallback", rather than offering candidates that do not
-# exist in practice.
+# There is deliberately no standard-8 chain. No safe, usable fallback chain is
+# currently validated for that size, and C4 would lower memory from 31744 MiB
+# to 30720 MiB. chain_for() therefore keeps an 8-vCPU machine pinned.
 #
-# The fix for a memory-bound 8-vCPU stage is not a different family at the same
-# size, it is a different SHAPE: highmem-4 delivers the same 32768 MiB on half
-# the vCPUs, and that is the tier that still has capacity. See the flu Stage C
-# note in MEASURED_AVAILABILITY.
-#
-# CAPACITY CAVEAT: c3d-highmem-4, n4d-highmem-4 and n4-highmem-4 are ordered on
-# specs, not measurement; only c3-highmem-4 has been observed. Re-probe whenever
-# a chain is edited or a region is added.
+# A memory-bound stage can instead use highmem-4, which preserves at least the
+# c4d-standard-8 memory requirement while satisfying Stage C's 4000 mCPU
+# minimum. Revalidate a chain whenever a candidate or region changes.
 MACHINE_CHAINS_BY_SIZE: dict[str, tuple[str, ...]] = {
     "standard-2": ("c4d-standard-2", "c4-standard-2", "n4d-standard-2", "n4-standard-2"),
     "standard-4": ("c4d-standard-4", "c4-standard-4", "n4d-standard-4", "c3-standard-4"),
@@ -192,7 +159,7 @@ def chain_for(machine_type: str) -> tuple[str, ...]:
     Examples
     --------
     >>> chain_for("c4d-standard-8")
-    ('c4d-standard-8', 'c3-standard-8', 'c3d-standard-8', 'n4d-standard-8')
+    ('c4d-standard-8',)
     >>> chain_for("c4-standard-2")
     ('c4-standard-2', 'c4d-standard-2', 'n4d-standard-2', 'n4-standard-2')
     >>> chain_for("")
@@ -208,7 +175,7 @@ def chain_for(machine_type: str) -> tuple[str, ...]:
     if machine_type not in chain:
         return (machine_type,)
 
-    # Start from the configured type, then the rest in their probed order.
+    # Start from the configured type, then preserve the declared chain order.
     return (machine_type,) + tuple(c for c in chain if c != machine_type)
 
 
