@@ -177,9 +177,15 @@ class TestStageChains:
         """
         assert MACHINE_SPECS["c4-standard-8"][1] < MACHINE_SPECS["c4d-standard-8"][1]
 
-    def test_standard_8_has_no_unvalidated_fallback_chain(self):
-        """An 8-vCPU machine stays pinned until a safe fallback is validated."""
-        assert "standard-8" not in MACHINE_CHAINS_BY_SIZE
+    def test_standard_8_chain_preserves_resources_and_excludes_c4(self):
+        """The 8-vCPU chain must not include memory-lowering c4-standard-8."""
+        assert MACHINE_CHAINS_BY_SIZE["standard-8"] == (
+            "c4d-standard-8",
+            "c3-standard-8",
+            "c3d-standard-8",
+            "n4d-standard-8",
+        )
+        assert "c4-standard-8" not in MACHINE_CHAINS_BY_SIZE["standard-8"]
 
     def test_highmem_4_chain_serves_a_memory_bound_stage_c(self):
         """Highmem-4 preserves memory while meeting Stage C's CPU minimum."""
@@ -196,9 +202,14 @@ class TestStageChains:
 class TestChainFor:
     """The fallback loop must chain on the *configured* size, not a fixed one."""
 
-    def test_eight_vcpu_pins_itself_with_no_fallback(self):
-        """Without a standard-8 chain, the configured machine remains pinned."""
-        assert chain_for("c4d-standard-8") == ("c4d-standard-8",)
+    def test_eight_vcpu_uses_its_standard_8_chain(self):
+        """A configured standard-8 machine receives every compatible fallback."""
+        assert chain_for("c4d-standard-8") == (
+            "c4d-standard-8",
+            "c3-standard-8",
+            "c3d-standard-8",
+            "n4d-standard-8",
+        )
 
     def test_highmem_4_chains_without_lowering_memory(self):
         chain = chain_for("c3-highmem-4")

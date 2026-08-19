@@ -62,9 +62,9 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
 # mCPU request. c3-standard-2 does not exist, which is why C3 appears only in
 # the larger chains.
 #
-# There is deliberately no standard-8 chain. No safe, usable fallback chain is
-# currently validated for that size, and C4 would lower memory from 31744 MiB
-# to 30720 MiB. chain_for() therefore keeps an 8-vCPU machine pinned.
+# The standard-8 chain excludes C4 because it would lower memory from 31744 MiB
+# to 30720 MiB. Every included fallback keeps 8 vCPU and provides at least the
+# memory of the c4d-standard-8 head.
 #
 # A memory-bound stage can instead use highmem-4, which preserves at least the
 # c4d-standard-8 memory requirement while satisfying Stage C's 4000 mCPU
@@ -72,6 +72,7 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
 MACHINE_CHAINS_BY_SIZE: dict[str, tuple[str, ...]] = {
     "standard-2": ("c4d-standard-2", "c4-standard-2", "n4d-standard-2", "n4-standard-2"),
     "standard-4": ("c4d-standard-4", "c4-standard-4", "n4d-standard-4", "c3-standard-4"),
+    "standard-8": ("c4d-standard-8", "c3-standard-8", "c3d-standard-8", "n4d-standard-8"),
     "highmem-4": ("c3-highmem-4", "c3d-highmem-4", "n4d-highmem-4", "n4-highmem-4"),
 }
 
@@ -159,7 +160,7 @@ def chain_for(machine_type: str) -> tuple[str, ...]:
     Examples
     --------
     >>> chain_for("c4d-standard-8")
-    ('c4d-standard-8',)
+    ('c4d-standard-8', 'c3-standard-8', 'c3d-standard-8', 'n4d-standard-8')
     >>> chain_for("c4-standard-2")
     ('c4-standard-2', 'c4d-standard-2', 'n4d-standard-2', 'n4-standard-2')
     >>> chain_for("")
