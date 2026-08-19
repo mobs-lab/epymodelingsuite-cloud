@@ -200,6 +200,25 @@ main:
         call: waitJob
         args:
           name: $${jobA.body.name}
+          expectedParallelism: 1
+          taskCount: 1
+          stallSeconds: 900
+          maxRunDurationSeconds: ${stage_a_max_run_duration}
+        result: waitA
+
+    - ensure_stageA_completed:
+        switch:
+          - condition: $${waitA.outcome == "STALLED"}
+            steps:
+              - build_stageA_stall_error:
+                  assign:
+                    - stallErrorA:
+                        code: PROVISIONING_STALLED
+                        job: $${jobA.body.name}
+                        status: $${waitA.status}
+                        counts: $${waitA.counts}
+              - raise_stageA_stall:
+                  raise: $${stallErrorA}
 
     - wait_for_file_upload:
         call: sys.sleep
@@ -309,6 +328,25 @@ main:
         call: waitJob
         args:
           name: $${jobB.body.name}
+          expectedParallelism: $${parallelism}
+          taskCount: $${N}
+          stallSeconds: 900
+          maxRunDurationSeconds: ${stage_b_max_run_duration}
+        result: waitB
+
+    - ensure_stageB_completed:
+        switch:
+          - condition: $${waitB.outcome == "STALLED"}
+            steps:
+              - build_stageB_stall_error:
+                  assign:
+                    - stallErrorB:
+                        code: PROVISIONING_STALLED
+                        job: $${jobB.body.name}
+                        status: $${waitB.status}
+                        counts: $${waitB.counts}
+              - raise_stageB_stall:
+                  raise: $${stallErrorB}
 
     # ========== STAGE C: Generate Outputs (Conditional) ==========
     - check_run_output_stage:
@@ -395,6 +433,25 @@ main:
                   call: waitJob
                   args:
                     name: $${jobC.body.name}
+                    expectedParallelism: 1
+                    taskCount: 1
+                    stallSeconds: 900
+                    maxRunDurationSeconds: ${stage_c_max_run_duration}
+                  result: waitC
+
+              - ensure_stageC_completed:
+                  switch:
+                    - condition: $${waitC.outcome == "STALLED"}
+                      steps:
+                        - build_stageC_stall_error:
+                            assign:
+                              - stallErrorC:
+                                  code: PROVISIONING_STALLED
+                                  job: $${jobC.body.name}
+                                  status: $${waitC.status}
+                                  counts: $${waitC.counts}
+                        - raise_stageC_stall:
+                            raise: $${stallErrorC}
 
               - assign_stageC_job:
                   assign:
@@ -420,17 +477,30 @@ main:
 
 # ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
 waitJob:
-  params: [name]
+  params: [name, expectedParallelism, taskCount, stallSeconds, maxRunDurationSeconds]
   steps:
     - init_wait:
         assign:
+          - pollSeconds: 15
+          - zeroFillGraceSeconds: 1500
+          - provisioningMarginSeconds: 1800
+          - safeParallelism: $${if(expectedParallelism > 0, expectedParallelism, 1)}
+          - waves: $${int((taskCount + safeParallelism - 1) / safeParallelism)}
+          - maxWaitSeconds: $${waves * maxRunDurationSeconds + provisioningMarginSeconds}
+          - maxPolls: $${int((maxWaitSeconds + pollSeconds - 1) / pollSeconds)}
           - waitCount: 0
+          - flatPolls: 0
+          - lastEverStarted: 0
+          - emptyCounts: {}
+          - lastCounts: $${emptyCounts}
           - finalStatus: null
+          - currentState: "NO_STATUS"
+          - outcome: null
 
     - poll_loop:
         for:
           value: i
-          range: $${[0, 2999]}
+          range: $${[1, maxPolls]}
           steps:
             - get_job_status:
                 try:
@@ -458,7 +528,25 @@ waitJob:
             - extract_state:
                 assign:
                   - currentState: $${if("status" in j.body and "state" in j.body.status, j.body.status.state, "NO_STATUS")}
+                  - lastCounts: $${default(map.get(j.body, ["status", "taskGroups", "group0", "counts"]), emptyCounts)}
+                  - cRunning: $${int(default(map.get(lastCounts, "RUNNING"), 0))}
+                  - cAssigned: $${int(default(map.get(lastCounts, "ASSIGNED"), 0))}
+                  - cSucceeded: $${int(default(map.get(lastCounts, "SUCCEEDED"), 0))}
+                  - cFailed: $${int(default(map.get(lastCounts, "FAILED"), 0))}
+                  - everStarted: $${cRunning + cAssigned + cSucceeded + cFailed}
+                  - remaining: $${taskCount - cSucceeded - cFailed}
+                  - remaining: $${if(remaining > 0, remaining, 0)}
+                  - targetSlots: $${if(safeParallelism < remaining, safeParallelism, remaining)}
+                  - occupied: $${cRunning + cAssigned}
+                  - filled: $${if(targetSlots <= 0, 1, occupied / targetSlots)}
+                  # Time only continuous underfill. A full earlier wave must not
+                  # consume the grace period needed to provision the next wave.
+                  - madeProgress: $${everStarted != lastEverStarted}
+                  - flatPolls: $${if(filled >= 0.9 or madeProgress, 0, flatPolls + 1)}
+                  - lastEverStarted: $${everStarted}
                   - waitCount: $${waitCount + 1}
+                  - flatSeconds: $${flatPolls * pollSeconds}
+                  - zeroFillSeconds: $${(waitCount - 1) * pollSeconds}
 
             - log_status:
                 call: sys.log
@@ -478,21 +566,77 @@ waitJob:
                       - save_status:
                           assign:
                             - finalStatus: $${j.body.status}
+                            - outcome: "SUCCEEDED"
                       - exit_loop:
                           next: break
 
             - check_if_failed:
                 switch:
                   - condition: $${currentState in ["FAILED", "DELETION_IN_PROGRESS"]}
-                    raise: '$${currentState}'
+                    steps:
+                      - build_job_failure:
+                          assign:
+                            - jobFailure:
+                                code: BATCH_JOB_FAILED
+                                job: $${name}
+                                state: $${currentState}
+                                counts: $${lastCounts}
+                      - raise_job_failure:
+                          raise: $${jobFailure}
+
+            - check_if_stalled:
+                switch:
+                  # A never-started job gets extra time so Batch can report a
+                  # hard VM configuration error before capacity fallback acts.
+                  - condition: $${everStarted == 0 and zeroFillSeconds >= zeroFillGraceSeconds}
+                    steps:
+                      - save_zero_fill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_zero_fill_stall:
+                          next: break
+                  - condition: $${everStarted > 0 and filled < 0.5 and flatSeconds >= stallSeconds}
+                    steps:
+                      - save_severe_underfill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_severe_underfill_stall:
+                          next: break
+                  - condition: $${everStarted > 0 and filled < 0.9 and flatSeconds >= stallSeconds * 6}
+                    steps:
+                      - save_mild_underfill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_mild_underfill_stall:
+                          next: break
 
             - sleep_before_retry:
                 call: sys.sleep
                 args:
-                  seconds: 15
+                  seconds: $${pollSeconds}
+
+    - check_wait_timeout:
+        switch:
+          - condition: $${outcome == null}
+            steps:
+              - build_wait_timeout:
+                  assign:
+                    - waitTimeout:
+                        code: WAIT_TIMEOUT
+                        job: $${name}
+                        state: $${currentState}
+                        counts: $${lastCounts}
+              - raise_wait_timeout:
+                  raise: $${waitTimeout}
 
     - return_status:
-        return: $${finalStatus}
+        return:
+          outcome: $${outcome}
+          status: $${finalStatus}
+          counts: $${lastCounts}
 
 # ========== SUBWORKFLOW: Wait for Files in GCS ==========
 waitForFiles:
