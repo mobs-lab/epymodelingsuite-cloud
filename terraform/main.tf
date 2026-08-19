@@ -240,19 +240,27 @@ resource "google_workflows_workflow" "pipeline" {
   ]
 }
 
-# Dev workflow (blue/green). Renders workflow-dev.yaml so that editing the dev
-# template and applying cannot touch production. Promotion is a file copy:
-#   cp terraform/workflow-dev.yaml terraform/workflow.yaml && terraform apply
+# v2 workflow (blue/green staging pipeline). Renders workflow-v2.yaml so that
+# editing the staging template and applying cannot touch production. Promotion
+# is a file copy:
+#   cp terraform/workflow-v2.yaml terraform/workflow.yaml && terraform apply
+# Named v2 rather than dev because "dev" is already taken here by the dev
+# branch, the dev image tag and github.modeling_suite_ref.
 # Shares the network, registry and service accounts with production; isolation
 # comes from the template source and the name, not from separate state.
-resource "google_workflows_workflow" "pipeline_dev" {
-  count = var.enable_dev_workflow ? 1 : 0
+moved {
+  from = google_workflows_workflow.pipeline_dev
+  to   = google_workflows_workflow.pipeline_v2
+}
 
-  name            = "${var.workflow_name}-dev"
-  description     = "Dev pipeline (blue/green), rendered from workflow-dev.yaml"
+resource "google_workflows_workflow" "pipeline_v2" {
+  count = var.enable_v2_workflow ? 1 : 0
+
+  name            = "${var.workflow_name}-v2"
+  description     = "v2 pipeline (blue/green), rendered from workflow-v2.yaml"
   region          = var.region
   service_account = google_service_account.workflows_runner.email
-  source_contents = templatefile("${path.module}/workflow-dev.yaml", {
+  source_contents = templatefile("${path.module}/workflow-v2.yaml", {
     repo_name                = var.repo_name
     image_name               = var.image_name
     image_tag                = var.image_tag
@@ -278,7 +286,7 @@ resource "google_workflows_workflow" "pipeline_dev" {
   labels = {
     component   = "epymodelingsuite"
     project     = "epymodelingsuite-cloud"
-    environment = "dev"
+    environment = "v2pipeline"
     managed-by  = "terraform"
   }
 

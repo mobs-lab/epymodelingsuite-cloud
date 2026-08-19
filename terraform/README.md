@@ -49,38 +49,42 @@ Configuration is stored in YAML format with hierarchical structure. Key sections
   - `google_cloud.workflow_name`: Cloud Workflows workflow to deploy and submit to (default: `epymodelingsuite-pipeline`)
 
 See [docs/variable-configuration.md](../docs/variable-configuration.md) for complete configuration reference.
-
-## Blue/green dev pipeline
+## Blue/green v2 pipeline
 
 Two workflows are deployed from one state:
 
 | Workflow | Rendered from | Selected with |
 |---|---|---|
 | `epymodelingsuite-pipeline` | `workflow.yaml` | default (no `--env`) |
-| `epymodelingsuite-pipeline-dev` | `workflow-dev.yaml` | `epycloud --env dev ...` |
+| `epymodelingsuite-pipeline-v2` | `workflow-v2.yaml` | `epycloud --env v2pipeline ...` |
 
-`workflow-dev.yaml` starts as a byte-identical copy of `workflow.yaml`. Editing it and
-applying changes **only** the dev workflow. The isolation is structural, so there is no
+The staging environment is called `v2pipeline`, not `dev`, because "dev" is already
+taken in this project by the dev git branch, the `dev` image tag and
+`github.modeling_suite_ref: dev`. Those select which *code* runs; this selects which
+*workflow* runs, which is a separate axis. `--env dev` still exists for the first kind.
+
+`workflow-v2.yaml` starts as a byte-identical copy of `workflow.yaml`. Editing it and
+applying changes **only** the v2 workflow. The isolation is structural, so there is no
 `-target` flag to remember. Everything else (network, subnet, Artifact Registry, both
 service accounts) is shared; a workflow only reads those, and Batch jobs hold no shared
 state.
 
-Workflow changes therefore go: edit `workflow-dev.yaml` → apply → exercise with
-`--env dev` → promote.
+Workflow changes therefore go: edit `workflow-v2.yaml`, apply, exercise with
+`--env v2pipeline`, then promote.
 
 ```bash
-# Promote a validated dev workflow to production
-diff terraform/workflow.yaml terraform/workflow-dev.yaml   # review before promoting
-cp terraform/workflow-dev.yaml terraform/workflow.yaml
+# Promote a validated v2 workflow to production
+diff terraform/workflow.yaml terraform/workflow-v2.yaml   # review before promoting
+cp terraform/workflow-v2.yaml terraform/workflow.yaml
 epycloud terraform apply
 ```
 
-Set `enable_dev_workflow = false` to tear the dev workflow down without removing the code.
+Set `enable_v2_workflow = false` to tear the v2 workflow down without removing the code.
 
-### Run terraform from the base environment, not `--env dev`
+### Run terraform from the base environment, not `--env v2pipeline`
 
-`var.workflow_name` is the **production** name; the dev workflow is derived as
-`"${var.workflow_name}-dev"`. Because `epycloud` exports config as `TF_VAR_*`, running
-`epycloud --env dev terraform apply` would pass the already-suffixed dev name and rename
-the production workflow. An HCL validation rejects any `workflow_name` ending in `-dev`,
-so this fails fast instead of destroying and recreating the production workflow.
+`var.workflow_name` is the **production** name; the v2 workflow is derived as
+`"${var.workflow_name}-v2"`. Because `epycloud` exports config as `TF_VAR_*`, running
+`epycloud --env v2pipeline terraform apply` would pass the already-suffixed v2 name and
+rename the production workflow. An HCL validation rejects any `workflow_name` ending in
+`-v2`, so this fails fast instead of destroying and recreating the production workflow.

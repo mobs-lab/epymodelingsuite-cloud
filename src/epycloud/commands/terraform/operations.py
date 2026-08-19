@@ -40,9 +40,9 @@ def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
     if "bucket_name" in google_cloud_config:
         env_vars["TF_VAR_bucket_name"] = google_cloud_config["bucket_name"]
 
-    # Production workflow name. Terraform derives the dev workflow as
-    # "<workflow_name>-dev", so running terraform under --env dev (where
-    # workflow_name is already the dev name) is rejected by an HCL validation
+    # Production workflow name. Terraform derives the v2 workflow as
+    # "<workflow_name>-v2", so running terraform under --env v2pipeline (where
+    # workflow_name is already the v2 name) is rejected by an HCL validation
     # rather than silently renaming the production workflow.
     if google_cloud_config.get("workflow_name"):
         env_vars["TF_VAR_workflow_name"] = google_cloud_config["workflow_name"]

@@ -1,0 +1,41 @@
+# v2 pipeline environment configuration
+#
+# Location: ~/.config/epymodelingsuite-cloud/environments/v2pipeline.yaml
+#
+# Selected with `epycloud --env v2pipeline ...`. This is the blue/green staging
+# pipeline: a second Cloud Workflows workflow rendered from
+# terraform/workflow-v2.yaml. Production is untouched until a change is
+# promoted (cp terraform/workflow-v2.yaml terraform/workflow.yaml).
+#
+# Named v2pipeline rather than dev on purpose. "dev" is already overloaded in
+# this project: the dev git branch, the dev image tag, and
+# github.modeling_suite_ref: dev. This environment is about which *workflow*
+# runs, which is a separate axis from which code or image it runs.
+
+google_cloud:
+  # Second workflow deployed by terraform (var.enable_v2_workflow).
+  workflow_name: epymodelingsuite-pipeline-v2
+
+storage:
+  # {environment} resolves to "v2pipeline", so runs land under
+  # pipeline/v2pipeline/.
+  #
+  # CAVEAT: profiles are merged AFTER environments, so a profile that pins
+  # storage.dir_prefix (e.g. profiles/flu.yaml with "pipeline/flu") wins over
+  # this key and v2 runs share the production prefix. Artifacts still cannot
+  # collide, since run_id is unique per execution, but they interleave in the
+  # same tree. To separate them, either use a dedicated --exp-id, or drop a
+  # project config next to the worktree (./epycloud.yaml overrides the profile):
+  #   storage:
+  #     dir_prefix: "pipeline/v2pipeline/flu"
+  dir_prefix: "pipeline/{environment}/{profile}"
+
+# imageTag is a runtime workflow input, so pointing this environment at its own
+# image needs no terraform apply. Left commented out so v2 runs the same image
+# as production by default, and a workflow change is the only variable.
+# docker:
+#   image_tag: dev
+
+logging:
+  level: DEBUG
+  storage_verbose: true
