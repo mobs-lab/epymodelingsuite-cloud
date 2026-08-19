@@ -7,7 +7,7 @@ from typing import Any
 
 import requests
 
-from epycloud.lib.command_helpers import get_gcloud_access_token
+from epycloud.lib.command_helpers import DEFAULT_WORKFLOW_NAME, get_gcloud_access_token
 from epycloud.lib.formatters import format_duration, format_status, format_timestamp_local
 from epycloud.lib.output import section_header, supports_color, warning
 
@@ -45,6 +45,7 @@ def fetch_active_workflows(
     region: str,
     exp_id: str | None,
     verbose: bool,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
 ) -> list[dict[str, Any]]:
     """Fetch active workflow executions.
 
@@ -58,13 +59,14 @@ def fetch_active_workflows(
         Optional experiment ID filter
     verbose : bool
         Verbose output
+    workflow_name : str
+        Cloud Workflows workflow to query
 
     Returns
     -------
     list[dict[str, Any]]
         List of active workflow executions
     """
-    workflow_name = "epymodelingsuite-pipeline"
     base_url = (
         f"https://workflowexecutions.googleapis.com/v1/"
         f"projects/{project_id}/locations/{region}/workflows/{workflow_name}/executions"
@@ -134,6 +136,7 @@ def fetch_recent_workflows(
     exp_id: str | None,
     since: datetime,
     verbose: bool,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
 ) -> list[dict[str, Any]]:
     """Fetch recently completed workflow executions.
 
@@ -149,13 +152,14 @@ def fetch_recent_workflows(
         Cutoff time — only include executions that ended after this time
     verbose : bool
         Verbose output
+    workflow_name : str
+        Cloud Workflows workflow to query
 
     Returns
     -------
     list[dict[str, Any]]
         List of recently completed workflow executions
     """
-    workflow_name = "epymodelingsuite-pipeline"
     base_url = (
         f"https://workflowexecutions.googleapis.com/v1/"
         f"projects/{project_id}/locations/{region}/workflows/{workflow_name}/executions"

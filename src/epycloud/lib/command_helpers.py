@@ -8,6 +8,7 @@ Functions
 ---------
 require_config : Get configuration with validation
 get_google_cloud_config : Get Google Cloud config section with validation
+get_workflow_name : Resolve the Cloud Workflows workflow name from config
 handle_dry_run : Handle dry-run mode with consistent messaging
 get_project_root : Get project root directory path
 get_gcloud_access_token : Retrieve Google Cloud access token
@@ -32,6 +33,11 @@ from uuid import uuid4
 
 from epycloud.exceptions import CloudAPIError, ConfigError
 from epycloud.lib.output import error, info
+
+# Name of the Cloud Workflows workflow the pipeline is deployed as.
+# Overridable via ``google_cloud.workflow_name`` so a dev pipeline can be
+# addressed with ``--env dev`` without touching production defaults.
+DEFAULT_WORKFLOW_NAME = "epymodelingsuite-pipeline"
 
 
 class CommandContext(TypedDict):
@@ -93,6 +99,32 @@ def require_config(ctx: CommandContext) -> dict:
     if not config:
         raise ConfigError("Configuration not loaded. Run 'epycloud config init' first")
     return config
+
+
+def get_workflow_name(config: dict[str, Any]) -> str:
+    """
+    Resolve the Cloud Workflows workflow name from configuration.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Merged configuration dictionary.
+
+    Returns
+    -------
+    str
+        Value of ``google_cloud.workflow_name`` if set and non-empty,
+        otherwise :data:`DEFAULT_WORKFLOW_NAME`.
+
+    Examples
+    --------
+    >>> get_workflow_name({})
+    'epymodelingsuite-pipeline'
+    >>> get_workflow_name({"google_cloud": {"workflow_name": "pipeline-dev"}})
+    'pipeline-dev'
+    """
+    google_cloud = config.get("google_cloud", {}) or {}
+    return google_cloud.get("workflow_name") or DEFAULT_WORKFLOW_NAME
 
 
 def get_google_cloud_config(ctx: CommandContext) -> dict:

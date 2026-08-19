@@ -11,6 +11,7 @@ from epycloud.exceptions import ConfigError
 from epycloud.execution import ExecutionAuthenticationError, RunQuery, get_execution_backend
 from epycloud.lib.command_helpers import (
     get_gcloud_access_token,
+    get_workflow_name,
     require_config,
 )
 from epycloud.lib.formatters import parse_since_time
@@ -230,7 +231,7 @@ def handle_logs(ctx: dict[str, Any]) -> int:
 
     status(f"Fetching logs for execution: {execution_id}")
 
-    workflow_name = "epymodelingsuite-pipeline"
+    workflow_name = get_workflow_name(config)
 
     if args.follow:
         # For follow mode, we need to continuously poll

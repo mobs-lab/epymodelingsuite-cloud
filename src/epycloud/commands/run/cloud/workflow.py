@@ -13,10 +13,12 @@ from epycloud.execution import (
     StageResources,
 )
 from epycloud.lib.command_helpers import (
+    DEFAULT_WORKFLOW_NAME,
     get_batch_config,
     get_batch_service_account,
     get_github_config,
     get_image_uri,
+    get_workflow_name,
     handle_dry_run,
 )
 from epycloud.lib.output import error, info, status, success, warning
@@ -97,6 +99,7 @@ def run_workflow_gcp(
     project_id = google_cloud.get("project_id")
     region = google_cloud.get("region", "us-central1")
     bucket_name = google_cloud.get("bucket_name")
+    workflow_name = get_workflow_name(config)
     storage = config.get("storage", {})
     dir_prefix = storage.get("dir_prefix", "pipeline/flu/")
     if dir_prefix and not dir_prefix.endswith("/"):
@@ -228,6 +231,10 @@ def run_workflow_gcp(
     )
     if billing_project:
         confirmation_info["billing_project"] = billing_project
+    # Surfaced only when submitting to a non-default pipeline, so default runs
+    # keep their existing confirmation output verbatim.
+    if workflow_name != DEFAULT_WORKFLOW_NAME:
+        confirmation_info["workflow_name"] = workflow_name
 
     # Show confirmation and prompt
     if not prompt_user_confirmation(auto_confirm, confirmation_info, mode="cloud"):
@@ -297,11 +304,9 @@ def run_workflow_gcp(
             info("Monitor with:")
             info(
                 f"  gcloud workflows executions describe {execution_id} "
-                f"--workflow=epymodelingsuite-pipeline --location={region}"
+                f"--workflow={workflow_name} --location={region}"
             )
-            info(
-                f"  gcloud workflows executions list epymodelingsuite-pipeline --location={region}"
-            )
+            info(f"  gcloud workflows executions list {workflow_name} --location={region}")
             print()
             info("Or use:")
             info(f"  epycloud workflow describe {execution_id}")

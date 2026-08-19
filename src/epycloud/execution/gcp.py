@@ -12,7 +12,7 @@ import requests
 
 from epycloud.commands.run.cloud.batch_config import build_batch_job_config
 from epycloud.commands.workflow import api as default_workflow_api
-from epycloud.lib.command_helpers import get_gcloud_access_token
+from epycloud.lib.command_helpers import DEFAULT_WORKFLOW_NAME, get_gcloud_access_token
 from epycloud.lib.validation import sanitize_label_value
 
 from .base import ExecutionAuthenticationError, ExecutionBackendError
@@ -47,7 +47,7 @@ class GcpExecutionBackend:
         google_cloud = config.get("google_cloud", {})
         self.project_id = google_cloud.get("project_id", "")
         self.region = google_cloud.get("region", "us-central1")
-        self.workflow_name = "epymodelingsuite-pipeline"
+        self.workflow_name = google_cloud.get("workflow_name") or DEFAULT_WORKFLOW_NAME
         self.verbose = verbose
         self._command_runner = command_runner or subprocess.run
         self._token_provider = token_provider or (

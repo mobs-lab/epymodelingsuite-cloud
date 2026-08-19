@@ -174,6 +174,9 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
             lines.append(f"  Project: {info['project_id']}")
         if "region" in info:
             lines.append(f"  Region: {info['region']}")
+        # Only present when the pipeline is not the default one (e.g. --env dev)
+        if "workflow_name" in info:
+            lines.append(f"  Workflow: {info['workflow_name']}")
         if "bucket_name" in info and command_type == "workflow":
             lines.append(f"  Bucket: gs://{info['bucket_name']}")
         lines.append("")

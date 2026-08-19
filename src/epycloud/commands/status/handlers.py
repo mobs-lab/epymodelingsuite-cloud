@@ -12,7 +12,12 @@ from epycloud.commands.status.operations import (
     fetch_recent_workflows,
 )
 from epycloud.exceptions import ConfigError
-from epycloud.lib.command_helpers import get_google_cloud_config, require_config
+from epycloud.lib.command_helpers import (
+    DEFAULT_WORKFLOW_NAME,
+    get_google_cloud_config,
+    get_workflow_name,
+    require_config,
+)
 from epycloud.lib.formatters import format_timestamp_local, parse_since_time
 from epycloud.lib.output import error, status, warning
 
@@ -35,10 +40,11 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Validate configuration
     try:
-        require_config(ctx)
+        config = require_config(ctx)
         gcloud_config = get_google_cloud_config(ctx)
         project_id = gcloud_config["project_id"]
         region = gcloud_config.get("region", "us-central1")
+        workflow_name = get_workflow_name(config)
     except (ConfigError, KeyError) as e:
         error(str(e))
         return 2
@@ -62,6 +68,7 @@ def handle(ctx: dict[str, Any]) -> int:
             interval=args.interval,
             verbose=verbose,
             recent=recent_window,
+            workflow_name=workflow_name,
         )
 
     # One-time status check
@@ -71,6 +78,7 @@ def handle(ctx: dict[str, Any]) -> int:
         exp_id=args.exp_id,
         verbose=verbose,
         since=since,
+        workflow_name=workflow_name,
     )
 
 
@@ -80,6 +88,7 @@ def _show_status(
     exp_id: str | None,
     verbose: bool,
     since: datetime | None = None,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
 ) -> int:
     """Show current status.
 
@@ -95,6 +104,8 @@ def _show_status(
         Verbose output
     since : datetime | None
         If set, also show recently completed items since this time
+    workflow_name : str
+        Cloud Workflows workflow to query
 
     Returns
     -------
@@ -108,6 +119,7 @@ def _show_status(
             region=region,
             exp_id=exp_id,
             verbose=verbose,
+            workflow_name=workflow_name,
         )
 
         # Fetch active batch jobs
@@ -128,6 +140,7 @@ def _show_status(
                 exp_id=exp_id,
                 since=since,
                 verbose=verbose,
+                workflow_name=workflow_name,
             )
             recent_jobs = fetch_recent_batch_jobs(
                 project_id=project_id,
@@ -158,6 +171,7 @@ def _watch_status(
     interval: int,
     verbose: bool,
     recent: str | None = None,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
 ) -> int:
     """Watch status with auto-refresh.
 
@@ -175,6 +189,8 @@ def _watch_status(
         Verbose output
     recent : str | None
         Recent time window string (e.g., "1h", "30m") — re-parsed each refresh
+    workflow_name : str
+        Cloud Workflows workflow to query
 
     Returns
     -------
@@ -196,6 +212,7 @@ def _watch_status(
                     region=region,
                     exp_id=exp_id,
                     verbose=verbose,
+                    workflow_name=workflow_name,
                 )
 
                 jobs = fetch_active_batch_jobs(
@@ -217,6 +234,7 @@ def _watch_status(
                             exp_id=exp_id,
                             since=since,
                             verbose=verbose,
+                            workflow_name=workflow_name,
                         )
                         recent_jobs = fetch_recent_batch_jobs(
                             project_id=project_id,

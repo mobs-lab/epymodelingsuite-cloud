@@ -20,6 +20,11 @@ google_cloud:
   bucket_name: your-bucket-name
   billing_project: ""
 
+  # Cloud Workflows workflow to submit to and query.
+  # Leave as-is for the production pipeline; environments/dev.yaml points the
+  # dev pipeline at "epymodelingsuite-pipeline-dev" instead.
+  workflow_name: epymodelingsuite-pipeline
+
   # Cloud Batch configuration
   batch:
     max_parallelism: 100
