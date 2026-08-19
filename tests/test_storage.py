@@ -165,7 +165,7 @@ class TestExists:
     """Tests for storage.exists()."""
 
     def test_local_regular_file_exists(self, mock_env_local, temp_local_path):
-        """A completed local regular file is eligible for resume checks."""
+        """A completed local regular file is eligible for reuse checks."""
         path = "bucket/test/file.txt"
         file_path = temp_local_path / path
         file_path.parent.mkdir(parents=True)

@@ -146,7 +146,7 @@ def main() -> None:
                             extra={"path": telemetry_path, "task_index": idx},
                         )
                     logger.info(
-                        "Result complete and inputs unchanged; resuming past task",
+                        "Completed result matches input; skipping task",
                         extra={"path": output_path, "task_index": idx},
                     )
                     return

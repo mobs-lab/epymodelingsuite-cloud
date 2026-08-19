@@ -209,8 +209,8 @@ class TestBatchConfigStageB:
         assert compute["cpuMilli"] == 4000
         assert compute["memoryMib"] == 16384
 
-    def test_stage_b_can_resume_completed_result(self):
-        """Stage B receives an explicit true resume flag when requested."""
+    def test_stage_b_can_reuse_completed_result(self):
+        """Stage B receives an explicit skip-existing flag when requested."""
         config = build_batch_job_config(
             stage="B",
             exp_id="test-sim",

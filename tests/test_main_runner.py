@@ -1,4 +1,4 @@
-"""Tests for Stage B completion markers and resume behavior."""
+"""Tests for Stage B completion markers and completed-result reuse."""
 
 import sys
 from hashlib import sha256
@@ -73,7 +73,7 @@ def runner_mocks(monkeypatch):
 def test_matching_marker_skips_deserialization_and_execution(runner_mocks):
     """A matching digest proves the saved result is reusable.
 
-    Resume must return before deserializing the workload, dispatching the
+    A match must return before deserializing the workload, dispatching the
     simulation, or writing replacement artifacts.
     """
     digest = sha256(b"input bytes").hexdigest()
@@ -97,7 +97,7 @@ def test_changed_input_digest_recomputes_and_replaces_marker(runner_mocks):
     """Changed builder input invalidates an otherwise complete result.
 
     The runner must execute the new workload and publish a marker containing
-    the new input digest so later retries can safely resume.
+    the new input digest so later retries can safely reuse it.
     """
     with (
         patch.object(main_runner.storage, "exists", return_value=True),
@@ -137,11 +137,11 @@ def test_result_without_marker_recomputes(runner_mocks):
 
 
 @pytest.mark.unit
-def test_false_string_disables_resume(runner_mocks, monkeypatch):
+def test_false_string_disables_completed_result_reuse(runner_mocks, monkeypatch):
     """The literal string ``false`` must parse as false.
 
     Treating every non-empty environment value as true would make ``--fresh``
-    silently resume instead of recomputing the task.
+    silently skip the completed task instead of recomputing it.
     """
     monkeypatch.setenv("SKIP_EXISTING", "false")
 

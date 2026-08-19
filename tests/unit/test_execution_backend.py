@@ -252,7 +252,7 @@ def test_gcp_job_plan_matches_legacy_batch_document(mock_config):
     }
 
 
-def test_gcp_job_plan_forwards_runner_resume_flag(mock_config):
+def test_gcp_job_plan_forwards_skip_existing_flag(mock_config):
     """The provider-neutral job flag reaches the Stage B container environment."""
     backend = GcpExecutionBackend(mock_config)
     spec = replace(job_spec(), stage="B", skip_existing=True)

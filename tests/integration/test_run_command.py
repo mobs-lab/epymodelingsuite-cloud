@@ -271,8 +271,8 @@ class TestRunJobCommand:
         assert exit_code == 1
 
     @patch("epycloud.commands.run.local.job.run_docker_compose_stage", return_value=0)
-    def test_run_job_stage_b_resumes_by_default(self, mock_compose, mock_config):
-        """Naming a prior Stage B run enables digest-safe resume by default."""
+    def test_run_job_stage_b_reuses_completed_results_by_default(self, mock_compose, mock_config):
+        """Naming a prior Stage B run enables completed-result reuse by default."""
         ctx = {
             "config": mock_config,
             "environment": "dev",
@@ -297,8 +297,8 @@ class TestRunJobCommand:
         assert mock_compose.call_args.kwargs["env_vars"]["SKIP_EXISTING"] == "true"
 
     @patch("epycloud.commands.run.local.job.run_docker_compose_stage", return_value=0)
-    def test_run_job_stage_b_fresh_disables_resume(self, mock_compose, mock_config):
-        """The ``--fresh`` repair path sends an explicit false resume flag."""
+    def test_run_job_stage_b_fresh_disables_result_reuse(self, mock_compose, mock_config):
+        """The ``--fresh`` repair path disables completed-result reuse."""
         ctx = {
             "config": mock_config,
             "environment": "dev",
