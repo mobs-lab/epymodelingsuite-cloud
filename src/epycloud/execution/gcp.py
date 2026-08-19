@@ -19,9 +19,13 @@ from .base import ExecutionAuthenticationError, ExecutionBackendError
 from .gcp_machines import (
     ARM_MACHINE_FAMILIES,
     HYPERDISK_MACHINE_FAMILIES,
+    MACHINE_CHAINS_BY_SIZE,
+    MACHINE_SPECS,
     STAGE_MACHINE_CHAINS,
+    chain_for,
     is_hyperdisk_family,
     machine_family,
+    machine_size,
     validate_hyperdisk_family,
 )
 from .models import (
@@ -39,10 +43,14 @@ from .models import (
 __all__ = [
     "ARM_MACHINE_FAMILIES",
     "HYPERDISK_MACHINE_FAMILIES",
+    "MACHINE_CHAINS_BY_SIZE",
+    "MACHINE_SPECS",
     "STAGE_MACHINE_CHAINS",
     "GcpExecutionBackend",
+    "chain_for",
     "is_hyperdisk_family",
     "machine_family",
+    "machine_size",
     "validate_hyperdisk_family",
 ]
 
