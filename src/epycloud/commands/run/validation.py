@@ -121,7 +121,7 @@ def validate_and_get_machine_specs(
     """
     status(f"Validating {stage_name} machine type '{machine_type}'...")
     try:
-        # Cheap local check first — a wrong family is rejected without a
+        # Cheap local check first, so a wrong family is rejected without a
         # gcloud round-trip, and before validate_machine_type rejects "".
         validate_hyperdisk_family(machine_type, stage_name)
         validate_machine_type(machine_type, project_id, region)
@@ -139,7 +139,7 @@ def validate_stage_machine_family(machine_type: str, stage_name: str) -> bool:
     """Check a resolved machine type against the Hyperdisk boot-disk constraint.
 
     Unlike :func:`validate_and_get_machine_specs`, this runs on the value the
-    stage will actually use — CLI override or config — so a bad machine type in
+    stage will actually use (CLI override or config), so a bad machine type in
     config is caught at submission instead of at VM creation ~1080s later.
 
     Parameters

@@ -4,7 +4,7 @@ Deliberately kept out of ``lib/validation.py``: Hyperdisk is a Google Cloud
 compute concept that does not survive to a second provider backend, so it
 belongs with the GCP backend rather than in a module that presents as shared.
 
-Split out of ``gcp.py`` only to keep the import graph acyclic —
+Split out of ``gcp.py`` only to keep the import graph acyclic:
 ``gcp.py`` imports ``commands.run.cloud.batch_config``, which needs the guard.
 ``gcp.py`` re-exports everything here, so ``execution.gcp`` remains the
 reference point for callers.
@@ -14,7 +14,7 @@ from epycloud.exceptions import ValidationError
 
 # Families whose VMs can boot from ``hyperdisk-balanced``, which is the boot
 # disk every Batch job in this pipeline requests. C4, C4D and N4/N4D are in
-# fact Hyperdisk-*only* — they cannot boot on Persistent Disk at all.
+# fact Hyperdisk-*only*: they cannot boot on Persistent Disk at all.
 HYPERDISK_MACHINE_FAMILIES = frozenset({"c3", "c3d", "c4", "c4d", "n4", "n4d"})
 
 # Arm64 families. Hyperdisk-capable, but the pipeline image is amd64, so they
@@ -34,7 +34,7 @@ ARM_MACHINE_FAMILIES = frozenset({"c4a", "n4a"})
 # Stage C cannot use the standard-2 chain: 2 vCPU cannot satisfy its 4000 mCPU
 # request. C3 appears only there because c3-standard-2 does not exist.
 #
-# Re-probe whenever a chain is edited or a region is added — a chain whose
+# Re-probe whenever a chain is edited or a region is added. A chain whose
 # members are all starved is worse than no chain, since it consumes the full
 # stall budget per candidate and still fails.
 STAGE_MACHINE_CHAINS: dict[str, tuple[str, ...]] = {
@@ -154,7 +154,7 @@ def validate_hyperdisk_family(machine_type: str, stage_name: str = "Stage") -> s
             f"This pipeline boots VMs with bootDisk type 'hyperdisk-balanced'. "
             f"Families {supported} support it; {family} does not. Cloud Batch would "
             "accept the job and then fail VM creation, giving up after ~1080s and "
-            "blaming the disk type — 20 minutes lost for a typo."
+            "blaming the disk type. 20 minutes lost for a typo."
         )
 
     stage_key = _stage_key(stage_name)

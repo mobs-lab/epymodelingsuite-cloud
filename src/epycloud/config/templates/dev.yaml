@@ -17,7 +17,7 @@ storage:
   # CAVEAT: profiles are merged AFTER environments, so a profile that pins
   # storage.dir_prefix (e.g. profiles/flu.yaml with "pipeline/flu") wins over
   # this key and dev runs share the production prefix. Artifacts still cannot
-  # collide — run_id is unique per execution — but they interleave in the same
+  # collide, since run_id is unique per execution, but they interleave in the same
   # tree. To separate them, either use a dev-only --exp-id, or drop a project
   # config next to the worktree (./epycloud.yaml overrides the profile):
   #   storage:

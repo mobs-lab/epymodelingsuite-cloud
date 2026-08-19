@@ -11,7 +11,7 @@ from epycloud.lib.command_helpers import DEFAULT_WORKFLOW_NAME, get_workflow_nam
 
 
 def _pipeline_spec() -> PipelineRunSpec:
-    """Minimal specification — only the submission target matters here."""
+    """Minimal specification: only the submission target matters here."""
 
     return PipelineRunSpec(
         experiment_id="smoke-test",

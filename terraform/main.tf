@@ -249,7 +249,7 @@ resource "google_workflows_workflow" "pipeline_dev" {
   count = var.enable_dev_workflow ? 1 : 0
 
   name            = "${var.workflow_name}-dev"
-  description     = "Dev pipeline (blue/green) — rendered from workflow-dev.yaml"
+  description     = "Dev pipeline (blue/green), rendered from workflow-dev.yaml"
   region          = var.region
   service_account = google_service_account.workflows_runner.email
   source_contents = templatefile("${path.module}/workflow-dev.yaml", {

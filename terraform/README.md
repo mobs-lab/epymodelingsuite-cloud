@@ -60,7 +60,7 @@ Two workflows are deployed from one state:
 | `epymodelingsuite-pipeline-dev` | `workflow-dev.yaml` | `epycloud --env dev ...` |
 
 `workflow-dev.yaml` starts as a byte-identical copy of `workflow.yaml`. Editing it and
-applying changes **only** the dev workflow — the isolation is structural, so there is no
+applying changes **only** the dev workflow. The isolation is structural, so there is no
 `-target` flag to remember. Everything else (network, subnet, Artifact Registry, both
 service accounts) is shared; a workflow only reads those, and Batch jobs hold no shared
 state.
