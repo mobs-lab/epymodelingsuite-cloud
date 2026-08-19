@@ -1,0 +1,34 @@
+# Development environment configuration
+#
+# Location: ~/.config/epymodelingsuite-cloud/environments/dev.yaml
+#
+# Selected with `epycloud --env dev ...`. This is the blue/green dev pipeline:
+# a second Cloud Workflows workflow rendered from terraform/workflow-dev.yaml,
+# separate GCS paths, and a separate image tag. Production is untouched unless
+# a change is promoted (cp terraform/workflow-dev.yaml terraform/workflow.yaml).
+
+google_cloud:
+  # Second workflow deployed by terraform (var.enable_dev_workflow).
+  workflow_name: epymodelingsuite-pipeline-dev
+
+storage:
+  # {environment} resolves to "dev", so runs land under pipeline/dev/.
+  #
+  # CAVEAT: profiles are merged AFTER environments, so a profile that pins
+  # storage.dir_prefix (e.g. profiles/flu.yaml with "pipeline/flu") wins over
+  # this key and dev runs share the production prefix. Artifacts still cannot
+  # collide — run_id is unique per execution — but they interleave in the same
+  # tree. To separate them, either use a dev-only --exp-id, or drop a project
+  # config next to the worktree (./epycloud.yaml overrides the profile):
+  #   storage:
+  #     dir_prefix: "pipeline/dev/flu"
+  dir_prefix: "pipeline/{environment}/{profile}"
+
+docker:
+  # imageTag is a runtime workflow input, so pointing dev at its own tag needs
+  # no terraform apply. Build with `epycloud --env dev build cloud`.
+  image_tag: dev-test
+
+logging:
+  level: DEBUG
+  storage_verbose: true

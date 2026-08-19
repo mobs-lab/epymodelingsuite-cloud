@@ -1,0 +1,10 @@
+# Local environment configuration
+#
+# Location: ~/.config/epymodelingsuite-cloud/environments/local.yaml
+#
+# Selected with `epycloud --env local ...`, for docker-compose runs that write
+# to ./local/bucket/ instead of GCS.
+
+logging:
+  level: DEBUG
+  storage_verbose: true
