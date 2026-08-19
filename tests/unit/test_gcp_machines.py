@@ -10,10 +10,10 @@ from epycloud.execution.gcp_machines import (
     MACHINE_CHAINS_BY_SIZE,
     MACHINE_SPECS,
     STAGE_MACHINE_CHAINS,
-    chain_for,
+    get_fallback_chain,
+    get_machine_family,
+    get_machine_size,
     is_hyperdisk_family,
-    machine_family,
-    machine_size,
     validate_hyperdisk_family,
 )
 
@@ -71,7 +71,7 @@ class TestIsHyperdiskFamily:
         assert not (ARM_MACHINE_FAMILIES & HYPERDISK_MACHINE_FAMILIES)
 
 
-class TestMachineFamily:
+class TestGetMachineFamily:
     @pytest.mark.parametrize(
         "machine_type,expected",
         [
@@ -82,7 +82,7 @@ class TestMachineFamily:
         ],
     )
     def test_extracts_prefix(self, machine_type, expected):
-        assert machine_family(machine_type) == expected
+        assert get_machine_family(machine_type) == expected
 
 
 class TestValidateHyperdiskFamily:
@@ -199,12 +199,12 @@ class TestStageChains:
             assert mem >= MACHINE_SPECS["c4d-standard-8"][1], candidate
 
 
-class TestChainFor:
+class TestGetFallbackChain:
     """The fallback loop must chain on the *configured* size, not a fixed one."""
 
     def test_eight_vcpu_uses_its_standard_8_chain(self):
         """A configured standard-8 machine receives every compatible fallback."""
-        assert chain_for("c4d-standard-8") == (
+        assert get_fallback_chain("c4d-standard-8") == (
             "c4d-standard-8",
             "c3-standard-8",
             "c3d-standard-8",
@@ -212,13 +212,13 @@ class TestChainFor:
         )
 
     def test_highmem_4_chains_without_lowering_memory(self):
-        chain = chain_for("c3-highmem-4")
+        chain = get_fallback_chain("c3-highmem-4")
 
         assert chain[0] == "c3-highmem-4"
         assert all(MACHINE_SPECS[c][1] >= 31744 for c in chain)
 
     def test_configured_type_leads_its_own_chain(self):
-        assert chain_for("c4-standard-2") == (
+        assert get_fallback_chain("c4-standard-2") == (
             "c4-standard-2",
             "c4d-standard-2",
             "n4d-standard-2",
@@ -228,20 +228,20 @@ class TestChainFor:
     def test_chain_is_a_permutation_of_its_size_chain(self):
         for chain in MACHINE_CHAINS_BY_SIZE.values():
             for candidate in chain:
-                assert sorted(chain_for(candidate)) == sorted(chain)
+                assert sorted(get_fallback_chain(candidate)) == sorted(chain)
 
     def test_unknown_machine_type_pins_itself(self):
-        assert chain_for("c4d-highmem-8") == ("c4d-highmem-8",)
+        assert get_fallback_chain("c4d-highmem-8") == ("c4d-highmem-8",)
 
     def test_empty_means_auto_select_and_has_no_chain(self):
-        assert chain_for("") == ()
+        assert get_fallback_chain("") == ()
 
     @pytest.mark.parametrize(
         "machine_type,expected",
         [("c4d-standard-8", "standard-8"), ("n4-highmem-4", "highmem-4"), ("bogus", "")],
     )
     def test_machine_size_extracts_the_suffix(self, machine_type, expected):
-        assert machine_size(machine_type) == expected
+        assert get_machine_size(machine_type) == expected
 
 
 class TestBatchConfigBootDisk:

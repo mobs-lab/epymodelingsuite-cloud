@@ -60,7 +60,7 @@ MACHINE_CHAINS_BY_SIZE: dict[str, tuple[str, ...]] = {
 
 # Default chain per stage, matching the machine types in the shipped config
 # template. A profile that configures a different size gets its chain from
-# chain_for() instead, which is what the fallback loop must use.
+# get_fallback_chain() instead, which is what the fallback loop must use.
 STAGE_MACHINE_CHAINS: dict[str, tuple[str, ...]] = {
     "a": MACHINE_CHAINS_BY_SIZE["standard-2"],
     "b": MACHINE_CHAINS_BY_SIZE["standard-2"],
@@ -68,7 +68,7 @@ STAGE_MACHINE_CHAINS: dict[str, tuple[str, ...]] = {
 }
 
 
-def machine_family(machine_type: str) -> str:
+def get_machine_family(machine_type: str) -> str:
     """
     Extract the family prefix from a machine type.
 
@@ -85,15 +85,15 @@ def machine_family(machine_type: str) -> str:
 
     Examples
     --------
-    >>> machine_family("c4d-standard-2")
+    >>> get_machine_family("c4d-standard-2")
     'c4d'
-    >>> machine_family("")
+    >>> get_machine_family("")
     ''
     """
     return machine_type.strip().split("-", 1)[0].lower() if "-" in machine_type else ""
 
 
-def machine_size(machine_type: str) -> str:
+def get_machine_size(machine_type: str) -> str:
     """
     Extract the size suffix from a machine type.
 
@@ -110,16 +110,16 @@ def machine_size(machine_type: str) -> str:
 
     Examples
     --------
-    >>> machine_size("c4d-standard-8")
+    >>> get_machine_size("c4d-standard-8")
     'standard-8'
-    >>> machine_size("bogus")
+    >>> get_machine_size("bogus")
     ''
     """
     parts = machine_type.strip().lower().split("-", 1)
     return parts[1] if len(parts) == 2 and parts[1] else ""
 
 
-def chain_for(machine_type: str) -> tuple[str, ...]:
+def get_fallback_chain(machine_type: str) -> tuple[str, ...]:
     """
     Return the fallback candidates for a configured machine type.
 
@@ -141,18 +141,18 @@ def chain_for(machine_type: str) -> tuple[str, ...]:
 
     Examples
     --------
-    >>> chain_for("c4d-standard-8")
+    >>> get_fallback_chain("c4d-standard-8")
     ('c4d-standard-8', 'c3-standard-8', 'c3d-standard-8', 'n4d-standard-8')
-    >>> chain_for("c4-standard-2")
+    >>> get_fallback_chain("c4-standard-2")
     ('c4-standard-2', 'c4d-standard-2', 'n4d-standard-2', 'n4-standard-2')
-    >>> chain_for("")
+    >>> get_fallback_chain("")
     ()
     """
     machine_type = machine_type.strip().lower()
     if not machine_type:
         return ()
 
-    chain = MACHINE_CHAINS_BY_SIZE.get(machine_size(machine_type))
+    chain = MACHINE_CHAINS_BY_SIZE.get(get_machine_size(machine_type))
     if not chain:
         return (machine_type,)
     if machine_type not in chain:
@@ -186,10 +186,10 @@ def is_hyperdisk_family(machine_type: str) -> bool:
     >>> is_hyperdisk_family("")
     False
     """
-    return machine_family(machine_type) in HYPERDISK_MACHINE_FAMILIES
+    return get_machine_family(machine_type) in HYPERDISK_MACHINE_FAMILIES
 
 
-def _stage_key(stage_name: str) -> str | None:
+def _get_stage_key(stage_name: str) -> str | None:
     """Derive a chain key ("a"/"b"/"c") from a display name like "Stage B"."""
     key = stage_name.strip()[-1:].lower()
     return key if key in STAGE_MACHINE_CHAINS else None
@@ -234,7 +234,7 @@ def validate_hyperdisk_family(machine_type: str, stage_name: str = "Stage") -> s
     if is_hyperdisk_family(machine_type):
         return machine_type
 
-    family = machine_family(machine_type) or machine_type
+    family = get_machine_family(machine_type) or machine_type
     supported = ", ".join(sorted(HYPERDISK_MACHINE_FAMILIES))
 
     if family in ARM_MACHINE_FAMILIES:
@@ -250,7 +250,7 @@ def validate_hyperdisk_family(machine_type: str, stage_name: str = "Stage") -> s
             "blaming the disk type. 20 minutes lost for a typo."
         )
 
-    stage_key = _stage_key(stage_name)
+    stage_key = _get_stage_key(stage_name)
     suggestion = ""
     if stage_key:
         chain = STAGE_MACHINE_CHAINS[stage_key]

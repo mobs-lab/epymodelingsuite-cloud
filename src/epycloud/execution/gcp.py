@@ -22,10 +22,10 @@ from .gcp_machines import (
     MACHINE_CHAINS_BY_SIZE,
     MACHINE_SPECS,
     STAGE_MACHINE_CHAINS,
-    chain_for,
+    get_fallback_chain,
+    get_machine_family,
+    get_machine_size,
     is_hyperdisk_family,
-    machine_family,
-    machine_size,
     validate_hyperdisk_family,
 )
 from .models import (
@@ -47,10 +47,10 @@ __all__ = [
     "MACHINE_SPECS",
     "STAGE_MACHINE_CHAINS",
     "GcpExecutionBackend",
-    "chain_for",
+    "get_fallback_chain",
+    "get_machine_family",
+    "get_machine_size",
     "is_hyperdisk_family",
-    "machine_family",
-    "machine_size",
     "validate_hyperdisk_family",
 ]
 
