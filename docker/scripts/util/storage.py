@@ -388,6 +388,10 @@ def save_bytes(
         # Create parent directories if they don't exist
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Build the complete file in an exclusively created sibling, sync it
+        # to disk, then publish it with one atomic rename. Readers therefore
+        # see either the previous complete file or the new complete file. Any
+        # failed write removes its temporary file without touching the target.
         temp_path: Path | None = None
         try:
             while temp_path is None:
