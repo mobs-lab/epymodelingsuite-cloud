@@ -20,6 +20,23 @@ variable "bucket_name" {
   description = "GCS bucket name for data storage"
 }
 
+variable "workflow_name" {
+  type        = string
+  default     = "epymodelingsuite-pipeline"
+  description = "Name of the production Cloud Workflows workflow. The dev workflow is always this name suffixed with '-dev'."
+
+  validation {
+    condition     = !endswith(var.workflow_name, "-dev")
+    error_message = "workflow_name is the PRODUCTION workflow name; the dev workflow is derived as \"$${var.workflow_name}-dev\". A '-dev' suffix here means terraform was run under a dev environment (e.g. 'epycloud --env dev terraform apply'), which would rename the production workflow. Run terraform without --env dev."
+  }
+}
+
+variable "enable_dev_workflow" {
+  type        = bool
+  default     = true
+  description = "Deploy the blue/green dev workflow rendered from workflow-dev.yaml. Set false to tear it down."
+}
+
 variable "image_name" {
   type        = string
   default     = "epymodelingsuite"

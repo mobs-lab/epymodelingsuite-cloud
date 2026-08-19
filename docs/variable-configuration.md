@@ -29,6 +29,9 @@ google_cloud:
   region: us-central1                 # GCP region for resources
   bucket_name: your-bucket-name       # GCS bucket (must exist)
   billing_project: ""                   # Cost grouping label (optional, user-defined)
+  workflow_name: epymodelingsuite-pipeline  # Cloud Workflows workflow to submit to and query
+                                            # (environments/dev.yaml points this at
+                                            #  epymodelingsuite-pipeline-dev)
 
   # Cloud Batch Configuration
   batch:

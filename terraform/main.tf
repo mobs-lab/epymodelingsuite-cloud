@@ -199,37 +199,86 @@ resource "google_service_account_iam_member" "workflows_agent_use_runner" {
 
 # Workflows (deploy from local YAML with variable substitution)
 resource "google_workflows_workflow" "pipeline" {
-  name            = "epymodelingsuite-pipeline"
+  name            = var.workflow_name
   description     = "Stage A (gen) → list GCS → Stage B (array) → Stage C (output)"
   region          = var.region
   service_account = google_service_account.workflows_runner.email
   source_contents = templatefile("${path.module}/workflow.yaml", {
-    repo_name           = var.repo_name
-    image_name          = var.image_name
-    image_tag           = var.image_tag
-    stage_a_cpu_milli   = var.stage_a_cpu_milli
-    stage_a_memory_mib  = var.stage_a_memory_mib
-    stage_a_machine_type = var.stage_a_machine_type
+    repo_name                = var.repo_name
+    image_name               = var.image_name
+    image_tag                = var.image_tag
+    stage_a_cpu_milli        = var.stage_a_cpu_milli
+    stage_a_memory_mib       = var.stage_a_memory_mib
+    stage_a_machine_type     = var.stage_a_machine_type
     stage_a_max_run_duration = var.stage_a_max_run_duration
-    stage_b_cpu_milli   = var.stage_b_cpu_milli
-    stage_b_memory_mib  = var.stage_b_memory_mib
-    stage_b_machine_type = var.stage_b_machine_type
+    stage_b_cpu_milli        = var.stage_b_cpu_milli
+    stage_b_memory_mib       = var.stage_b_memory_mib
+    stage_b_machine_type     = var.stage_b_machine_type
     stage_b_max_run_duration = var.stage_b_max_run_duration
-    stage_c_cpu_milli   = var.stage_c_cpu_milli
-    stage_c_memory_mib  = var.stage_c_memory_mib
-    stage_c_machine_type = var.stage_c_machine_type
+    stage_c_cpu_milli        = var.stage_c_cpu_milli
+    stage_c_memory_mib       = var.stage_c_memory_mib
+    stage_c_machine_type     = var.stage_c_machine_type
     stage_c_max_run_duration = var.stage_c_max_run_duration
-    task_count_per_node = var.task_count_per_node
-    run_output_stage    = var.run_output_stage
-    network_self_link   = google_compute_network.batch_network.self_link
-    subnet_name         = google_compute_subnetwork.batch_subnet.name
-    subnet_self_link    = google_compute_subnetwork.batch_subnet.self_link
+    task_count_per_node      = var.task_count_per_node
+    run_output_stage         = var.run_output_stage
+    network_self_link        = google_compute_network.batch_network.self_link
+    subnet_name              = google_compute_subnetwork.batch_subnet.name
+    subnet_self_link         = google_compute_subnetwork.batch_subnet.self_link
   })
 
   labels = {
     component   = "epymodelingsuite"
     project     = "epymodelingsuite-cloud"
     environment = "production"
+    managed-by  = "terraform"
+  }
+
+  depends_on = [
+    google_project_service.workflows,
+    time_sleep.wait_for_workflows_agent,
+    google_service_account_iam_member.workflows_agent_use_runner
+  ]
+}
+
+# Dev workflow (blue/green). Renders workflow-dev.yaml so that editing the dev
+# template and applying cannot touch production. Promotion is a file copy:
+#   cp terraform/workflow-dev.yaml terraform/workflow.yaml && terraform apply
+# Shares the network, registry and service accounts with production; isolation
+# comes from the template source and the name, not from separate state.
+resource "google_workflows_workflow" "pipeline_dev" {
+  count = var.enable_dev_workflow ? 1 : 0
+
+  name            = "${var.workflow_name}-dev"
+  description     = "Dev pipeline (blue/green) — rendered from workflow-dev.yaml"
+  region          = var.region
+  service_account = google_service_account.workflows_runner.email
+  source_contents = templatefile("${path.module}/workflow-dev.yaml", {
+    repo_name                = var.repo_name
+    image_name               = var.image_name
+    image_tag                = var.image_tag
+    stage_a_cpu_milli        = var.stage_a_cpu_milli
+    stage_a_memory_mib       = var.stage_a_memory_mib
+    stage_a_machine_type     = var.stage_a_machine_type
+    stage_a_max_run_duration = var.stage_a_max_run_duration
+    stage_b_cpu_milli        = var.stage_b_cpu_milli
+    stage_b_memory_mib       = var.stage_b_memory_mib
+    stage_b_machine_type     = var.stage_b_machine_type
+    stage_b_max_run_duration = var.stage_b_max_run_duration
+    stage_c_cpu_milli        = var.stage_c_cpu_milli
+    stage_c_memory_mib       = var.stage_c_memory_mib
+    stage_c_machine_type     = var.stage_c_machine_type
+    stage_c_max_run_duration = var.stage_c_max_run_duration
+    task_count_per_node      = var.task_count_per_node
+    run_output_stage         = var.run_output_stage
+    network_self_link        = google_compute_network.batch_network.self_link
+    subnet_name              = google_compute_subnetwork.batch_subnet.name
+    subnet_self_link         = google_compute_subnetwork.batch_subnet.self_link
+  })
+
+  labels = {
+    component   = "epymodelingsuite"
+    project     = "epymodelingsuite-cloud"
+    environment = "dev"
     managed-by  = "terraform"
   }
 
