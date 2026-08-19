@@ -199,6 +199,7 @@ class TestRunJobCommand:
     """Test run job command integration."""
 
     def test_run_job_parser_accepts_fresh(self):
+        """The repair command parser records ``--fresh`` as an enabled flag."""
         args = create_parser().parse_args(
             [
                 "run",
@@ -271,6 +272,7 @@ class TestRunJobCommand:
 
     @patch("epycloud.commands.run.local.job.run_docker_compose_stage", return_value=0)
     def test_run_job_stage_b_resumes_by_default(self, mock_compose, mock_config):
+        """Naming a prior Stage B run enables digest-safe resume by default."""
         ctx = {
             "config": mock_config,
             "environment": "dev",
@@ -296,6 +298,7 @@ class TestRunJobCommand:
 
     @patch("epycloud.commands.run.local.job.run_docker_compose_stage", return_value=0)
     def test_run_job_stage_b_fresh_disables_resume(self, mock_compose, mock_config):
+        """The ``--fresh`` repair path sends an explicit false resume flag."""
         ctx = {
             "config": mock_config,
             "environment": "dev",

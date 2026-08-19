@@ -165,6 +165,7 @@ class TestExists:
     """Tests for storage.exists()."""
 
     def test_local_regular_file_exists(self, mock_env_local, temp_local_path):
+        """A completed local regular file is eligible for resume checks."""
         path = "bucket/test/file.txt"
         file_path = temp_local_path / path
         file_path.parent.mkdir(parents=True)
@@ -173,12 +174,14 @@ class TestExists:
         assert storage.exists(path) is True
 
     def test_local_directory_is_not_a_completed_file(self, mock_env_local, temp_local_path):
+        """A directory at the expected path must not count as a result file."""
         path = "bucket/test/directory"
         (temp_local_path / path).mkdir(parents=True)
 
         assert storage.exists(path) is False
 
     def test_cloud_uses_blob_head(self, mock_env_cloud):
+        """Cloud existence checks use the blob metadata request and its client."""
         client = MagicMock()
         blob = client.bucket.return_value.blob.return_value
         blob.exists.return_value = True
@@ -189,6 +192,11 @@ class TestExists:
         blob.exists.assert_called_once_with(client)
 
     def test_storage_error_fails_open(self, mock_env_local, caplog):
+        """An existence-check failure recomputes work instead of skipping it.
+
+        Returning false is the safe failure mode because an unnecessary rerun
+        is preferable to silently trusting an unverified result.
+        """
         with patch.object(storage, "_resolve_storage_location", side_effect=OSError("offline")):
             assert storage.exists("bucket/test/result.pkl.gz") is False
 

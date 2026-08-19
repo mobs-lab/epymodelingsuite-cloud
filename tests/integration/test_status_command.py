@@ -969,7 +969,7 @@ class TestFetchRecentFunctions:
 
     @patch("epycloud.commands.status.operations.subprocess.run")
     def test_fetch_recent_batch_jobs_with_exp_id_filter(self, mock_subprocess):
-        """Test recent batch jobs with exp_id filter."""
+        """The recent-job query combines the experiment and all terminal states."""
         mock_subprocess.return_value = Mock(
             returncode=0,
             stdout=json.dumps([]),

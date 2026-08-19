@@ -71,6 +71,11 @@ def runner_mocks(monkeypatch):
 
 @pytest.mark.unit
 def test_matching_marker_skips_deserialization_and_execution(runner_mocks):
+    """A matching digest proves the saved result is reusable.
+
+    Resume must return before deserializing the workload, dispatching the
+    simulation, or writing replacement artifacts.
+    """
     digest = sha256(b"input bytes").hexdigest()
 
     with (
@@ -89,6 +94,11 @@ def test_matching_marker_skips_deserialization_and_execution(runner_mocks):
 
 @pytest.mark.unit
 def test_changed_input_digest_recomputes_and_replaces_marker(runner_mocks):
+    """Changed builder input invalidates an otherwise complete result.
+
+    The runner must execute the new workload and publish a marker containing
+    the new input digest so later retries can safely resume.
+    """
     with (
         patch.object(main_runner.storage, "exists", return_value=True),
         patch.object(main_runner.storage, "load_json", return_value={"input_digest": "old"}),
@@ -107,6 +117,11 @@ def test_changed_input_digest_recomputes_and_replaces_marker(runner_mocks):
 
 @pytest.mark.unit
 def test_result_without_marker_recomputes(runner_mocks):
+    """A result without its completion marker is never trusted.
+
+    This covers results created before markers existed and interrupted writes
+    that did not reach the final marker publication step.
+    """
     with (
         patch.object(main_runner.storage, "exists", return_value=False) as exists,
         patch.object(main_runner.storage, "load_json") as load_json,
@@ -123,6 +138,11 @@ def test_result_without_marker_recomputes(runner_mocks):
 
 @pytest.mark.unit
 def test_false_string_disables_resume(runner_mocks, monkeypatch):
+    """The literal string ``false`` must parse as false.
+
+    Treating every non-empty environment value as true would make ``--fresh``
+    silently resume instead of recomputing the task.
+    """
     monkeypatch.setenv("SKIP_EXISTING", "false")
 
     with (
