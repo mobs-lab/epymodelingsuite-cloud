@@ -17,32 +17,26 @@ def workflow_source() -> str:
 def wait_job_source(workflow_source: str) -> str:
     """Isolate the waitJob subworkflow so assertions cannot match other stages."""
     return workflow_source.split("waitJob:\n", maxsplit=1)[1].split(
-        "\n# ========== SUBWORKFLOW: Wait for Files", maxsplit=1
+        "\n# ========== SUBWORKFLOW: Cancel and Drain", maxsplit=1
     )[0]
 
 
 @pytest.mark.parametrize("stage", ["A", "B", "C"])
 def test_instances_are_selected_from_the_runtime_machine_type(workflow_source, stage):
-    """Every stage must build its instance policy from the workflow input."""
-    expression = (
-        f'instances: $${{if(machineType{stage} == "", autoInstances, configuredInstances{stage})}}'
-    )
+    """Every stage must use the instance policy built for its current candidate."""
+    expression = f"instances: $${{candidateInstances{stage}}}"
 
     assert workflow_source.count(expression) == 1
 
 
 @pytest.mark.parametrize("stage", ["A", "B", "C"])
 def test_configured_policy_uses_the_runtime_machine_and_hyperdisk(workflow_source, stage):
-    """Every non-empty runtime selection must receive the Hyperdisk policy."""
-    policy_start = workflow_source.index(f"- configuredInstances{stage}:")
-    possible_ends = (
-        workflow_source.find("\n          - configuredInstances", policy_start + 1),
-        workflow_source.find("\n\n    #", policy_start + 1),
-    )
-    policy_end = min(end for end in possible_ends if end != -1)
+    """Every non-empty candidate must receive the Hyperdisk policy."""
+    policy_start = workflow_source.index(f"- configuredCandidateInstances{stage}:")
+    policy_end = workflow_source.index(f"- candidateInstances{stage}:", policy_start)
     policy = workflow_source[policy_start:policy_end]
 
-    assert f"machineType: $${{machineType{stage}}}" in policy
+    assert f"machineType: $${{candidateMachineType{stage}}}" in policy
     assert "provisioningModel: STANDARD" in policy
     assert "type: hyperdisk-balanced" in policy
     assert "sizeGb: 50" in policy
@@ -51,6 +45,22 @@ def test_configured_policy_uses_the_runtime_machine_and_hyperdisk(workflow_sourc
 def test_empty_machine_type_uses_an_unconstrained_policy(workflow_source):
     """Auto-selection must send an empty policy instead of an empty machine name."""
     assert "- autoInstances:\n              - policy: {}" in workflow_source
+
+
+@pytest.mark.parametrize("stage", ["A", "B", "C"])
+def test_legacy_submission_gets_one_default_candidate(workflow_source, stage):
+    """A client without candidate arrays must preserve its resolved stage resources."""
+    assert (
+        f'- candidates{stage}: $${{default(map.get(input, "stage{stage}Candidates"),'
+        in workflow_source
+    )
+    default_start = workflow_source.index(f"- defaultCandidates{stage}:")
+    default_end = workflow_source.index("\n          -", default_start + 1)
+    candidate = workflow_source[default_start:default_end]
+
+    assert f"machine_type: $${{machineType{stage}}}" in candidate
+    assert f"cpu_milli: $${{cpuMilli{stage}}}" in candidate
+    assert f"memory_mib: $${{memoryMib{stage}}}" in candidate
 
 
 @pytest.mark.parametrize("stage", ["a", "b", "c"])
@@ -185,7 +195,13 @@ def test_wait_bound_scales_with_task_waves(wait_job_source):
     assert (
         "- maxPolls: $${int((maxWaitSeconds + pollSeconds - 1) / pollSeconds)}" in wait_job_source
     )
-    assert "code: WAIT_TIMEOUT" in wait_job_source
+    assert '- outcome: "WAIT_TIMEOUT"' in wait_job_source
+
+
+def test_cancelled_batch_job_is_an_unsuccessful_terminal_outcome(wait_job_source):
+    """An externally cancelled candidate must advance instead of polling forever."""
+    assert 'currentState in ["FAILED", "CANCELLED", "DELETION_IN_PROGRESS"]' in wait_job_source
+    assert '- outcome: "FAILED"' in wait_job_source
 
 
 @pytest.mark.parametrize(
@@ -201,10 +217,62 @@ def test_each_stage_supplies_watchdog_demand_and_duration(
 ):
     """Every wait call must provide enough context for occupancy and timeout math."""
     call_start = workflow_source.index(f"- wait_for_stage{stage}_completion:")
-    call_end = workflow_source.index(f"- ensure_stage{stage}_completed:", call_start)
+    call_end = workflow_source.index(f"- accept_successful_stage{stage}:", call_start)
     call = workflow_source[call_start:call_end]
 
     assert f"expectedParallelism: {parallelism}" in call
     assert f"taskCount: {task_count}" in call
     assert "stallSeconds: 900" in call
     assert f"maxRunDurationSeconds: ${{{duration}}}" in call
+
+
+@pytest.mark.parametrize("stage", ["A", "B", "C"])
+def test_each_stage_iterates_suffixed_candidates(workflow_source, stage):
+    """Every attempt must have a stable candidate index in its Batch job ID."""
+    assert f"- run_stage{stage}_candidates:" in workflow_source
+    assert f"in: $${{candidates{stage}}}" in workflow_source
+    assert (
+        f'jobId: $${{"stage-{stage.lower()}-" + uniqueId + "-" + string(ci{stage})}}'
+        in workflow_source
+    )
+
+
+@pytest.mark.parametrize("stage", ["A", "B", "C"])
+def test_each_candidate_has_discovery_and_attribution_labels(workflow_source, stage):
+    """Job and VM labels must identify the execution and selected candidate."""
+    stage_start = workflow_source.index(f"- run_stage{stage}_candidates:")
+    stage_end = workflow_source.find("# ========== STAGE", stage_start + 1)
+    stage_source = workflow_source[stage_start : stage_end if stage_end != -1 else None]
+
+    assert stage_source.count("execution_id: $${executionIdShort}") == 2
+    assert stage_source.count(f"candidate_index: $${{string(ci{stage})}}") == 2
+    assert stage_source.count(f"machine_type: $${{machineLabel{stage}}}") == 2
+    assert stage_source.count(f"machine_selection: $${{machineSelection{stage}}}") == 2
+
+
+def test_stage_b_reuses_only_completed_results_after_failover(workflow_source):
+    """Only replacement candidates should skip digest-matching completed tasks."""
+    assert 'SKIP_EXISTING: $${if(ciB > 0, "true", "false")}' in workflow_source
+
+
+@pytest.mark.parametrize("stage", ["A", "B", "C"])
+def test_each_failed_attempt_is_cancelled_before_exhaustion(workflow_source, stage):
+    """The final attempt must be drained before the workflow reports exhaustion."""
+    stage_start = workflow_source.index(f"- run_stage{stage}_candidates:")
+    cancel_at = workflow_source.index(f"- cancel_unsuccessful_stage{stage}:", stage_start)
+    exhaust_at = workflow_source.index(f"- exhaust_stage{stage}_candidates:", stage_start)
+
+    assert cancel_at < exhaust_at
+    assert "call: cancelJob" in workflow_source[cancel_at:exhaust_at]
+
+
+def test_cancel_job_drains_before_returning(workflow_source):
+    """A replacement must wait until the previous job reaches a terminal state."""
+    cancel_source = workflow_source.split("cancelJob:\n", maxsplit=1)[1].split(
+        "\n# ========== SUBWORKFLOW: Wait for Files", maxsplit=1
+    )[0]
+
+    assert 'lastState in ["CANCELLED", "SUCCEEDED", "FAILED"]' in cancel_source
+    assert "range: $${[1, 40]}" in cancel_source
+    assert "code: CANCEL_DRAIN_TIMEOUT" in cancel_source
+    assert '"DELETION_IN_PROGRESS"' not in cancel_source

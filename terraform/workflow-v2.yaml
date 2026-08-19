@@ -91,134 +91,212 @@ main:
           - taskCountPerNodeOverride: $${default(map.get(input, "taskCountPerNode"), 0)}
           - taskCountPerNode: $${if(taskCountPerNodeOverride > 0, taskCountPerNodeOverride, ${task_count_per_node})}
 
-    # Build both policies as workflow values, then select one at runtime.
-    - initialize_instance_policies:
+    # Build default one-candidate chains for legacy submissions. Newer clients
+    # can provide stage{A,B,C}Candidates and an explicit pinned flag.
+    - initialize_candidates:
         assign:
           - autoInstances:
               - policy: {}
-          - configuredInstancesA:
-              - installGpuDrivers: false
-                policy:
-                  machineType: $${machineTypeA}
-                  provisioningModel: STANDARD
-                  bootDisk:
-                    type: hyperdisk-balanced
-                    sizeGb: 50
-          - configuredInstancesB:
-              - installGpuDrivers: false
-                policy:
-                  machineType: $${machineTypeB}
-                  provisioningModel: STANDARD
-                  bootDisk:
-                    type: hyperdisk-balanced
-                    sizeGb: 50
-          - configuredInstancesC:
-              - installGpuDrivers: false
-                policy:
-                  machineType: $${machineTypeC}
-                  provisioningModel: STANDARD
-                  bootDisk:
-                    type: hyperdisk-balanced
-                    sizeGb: 50
+          - defaultCandidatesA:
+              - machine_type: $${machineTypeA}
+                cpu_milli: $${cpuMilliA}
+                memory_mib: $${memoryMibA}
+          - defaultCandidatesB:
+              - machine_type: $${machineTypeB}
+                cpu_milli: $${cpuMilliB}
+                memory_mib: $${memoryMibB}
+          - defaultCandidatesC:
+              - machine_type: $${machineTypeC}
+                cpu_milli: $${cpuMilliC}
+                memory_mib: $${memoryMibC}
+          - candidatesA: $${default(map.get(input, "stageACandidates"), defaultCandidatesA)}
+          - candidatesB: $${default(map.get(input, "stageBCandidates"), defaultCandidatesB)}
+          - candidatesC: $${default(map.get(input, "stageCCandidates"), defaultCandidatesC)}
+          - pinnedA: $${default(map.get(input, "stageAPinned"), true)}
+          - pinnedB: $${default(map.get(input, "stageBPinned"), true)}
+          - pinnedC: $${default(map.get(input, "stageCPinned"), true)}
+          - numCandidatesA: $${len(candidatesA)}
+          - numCandidatesB: $${len(candidatesB)}
+          - numCandidatesC: $${len(candidatesC)}
+
+    - validate_candidates:
+        switch:
+          - condition: $${numCandidatesA <= 0 or numCandidatesB <= 0 or numCandidatesC <= 0}
+            raise: "Each stage requires at least one machine candidate"
+
+    # Variables assigned in a loop must exist outside it if later steps read them.
+    - initialize_stage_results:
+        assign:
+          - jobA: null
+          - jobB: null
+          - jobC: null
+          - stageAJobName: null
+          - stageBJobName: null
+          - stageCJobName: null
+          - waitA: null
+          - waitB: null
+          - waitC: null
+          - cancelStateA: null
+          - cancelStateB: null
+          - cancelStateC: null
 
     # ========== STAGE A: Generate Input Files ==========
-    - create_stageA_job:
-        call: http.post
-        args:
-          url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
-          auth:
-            type: OAuth2
-            scopes: https://www.googleapis.com/auth/cloud-platform
-          body:
-            labels:
-              component: epymodelingsuite
-              project: epymodelingsuite-cloud
-              environment: production
-              stage: builder
-              exp_id: $${expIdLabel}
-              run_id: $${runId}
-              managed-by: workflows
-              profile: $${profileLabel}
-              billing_project: $${billingProjectLabel}
-            taskGroups:
-              - taskCount: 1
-                taskSpec:
-                  runnables:
-                    - container:
-                        imageUri: $${repoUri}
-                        entrypoint: "/bin/bash"
-                        commands:
-                          - "/scripts/run_builder.sh"
-                  environment:
-                    variables:
-                      EXECUTION_MODE: "cloud"
-                      GCS_BUCKET: $${bucket}
-                      DIR_PREFIX: $${dirPrefix}
-                      EXP_ID: $${expId}
-                      RUN_ID: $${runId}
-                      GITHUB_FORECAST_REPO: $${githubForecastRepo}
-                      FORECAST_REPO_REF: $${forecastRepoRef}
-                      GCLOUD_PROJECT_ID: $${project}
-                      GITHUB_PAT_SECRET: "github-pat"
-                      FORECAST_REPO_DIR: "/data/forecast/"
-                  computeResource:
-                    cpuMilli: $${cpuMilliA}
-                    memoryMib: $${memoryMibA}
-                  maxRunDuration: $${maxRunDurationA}
-            logsPolicy:
-              destination: "CLOUD_LOGGING"
-            allocationPolicy:
-              location:
-                allowedLocations:
-                  - $${"regions/" + location}
-              serviceAccount:
-                email: $${batchSaEmail}
-              network:
-                networkInterfaces:
-                  - network: $${networkSelfLink}
-                    subnetwork: $${subnetSelfLink}
-                    noExternalIpAddress: true
-              instances: $${if(machineTypeA == "", autoInstances, configuredInstancesA)}
-              labels:
-                component: epymodelingsuite
-                project: epymodelingsuite-cloud
-                environment: production
-                stage: builder
-                managed-by: workflows
-                profile: $${profileLabel}
-                billing_project: $${billingProjectLabel}
-          query:
-            jobId: $${"stage-a-" + uniqueId}
-        result: jobA
+    - run_stageA_candidates:
+        for:
+          value: candidateA
+          index: ciA
+          in: $${candidatesA}
+          steps:
+            - select_stageA_candidate:
+                assign:
+                  - candidateMachineTypeA: $${default(map.get(candidateA, "machine_type"), "")}
+                  - candidateCpuMilliA: $${int(map.get(candidateA, "cpu_milli"))}
+                  - candidateMemoryMibA: $${int(map.get(candidateA, "memory_mib"))}
+                  - machineLabelA: $${if(candidateMachineTypeA == "", "auto", candidateMachineTypeA)}
+                  - machineSelectionA: $${if(pinnedA, "pinned", "auto")}
+                  - configuredCandidateInstancesA:
+                      - installGpuDrivers: false
+                        policy:
+                          machineType: $${candidateMachineTypeA}
+                          provisioningModel: STANDARD
+                          bootDisk:
+                            type: hyperdisk-balanced
+                            sizeGb: 50
+                  - candidateInstancesA: $${if(candidateMachineTypeA == "", autoInstances, configuredCandidateInstancesA)}
 
-    - wait_for_stageA_creation:
-        call: sys.sleep
-        args:
-          seconds: 5
+            - create_stageA_job:
+                call: http.post
+                args:
+                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+                  auth:
+                    type: OAuth2
+                    scopes: https://www.googleapis.com/auth/cloud-platform
+                  body:
+                    labels:
+                      component: epymodelingsuite
+                      project: epymodelingsuite-cloud
+                      environment: production
+                      stage: builder
+                      exp_id: $${expIdLabel}
+                      run_id: $${runId}
+                      execution_id: $${executionIdShort}
+                      machine_type: $${machineLabelA}
+                      candidate_index: $${string(ciA)}
+                      machine_selection: $${machineSelectionA}
+                      managed-by: workflows
+                      profile: $${profileLabel}
+                      billing_project: $${billingProjectLabel}
+                    taskGroups:
+                      - taskCount: 1
+                        taskSpec:
+                          runnables:
+                            - container:
+                                imageUri: $${repoUri}
+                                entrypoint: "/bin/bash"
+                                commands:
+                                  - "/scripts/run_builder.sh"
+                          environment:
+                            variables:
+                              EXECUTION_MODE: "cloud"
+                              GCS_BUCKET: $${bucket}
+                              DIR_PREFIX: $${dirPrefix}
+                              EXP_ID: $${expId}
+                              RUN_ID: $${runId}
+                              GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                              FORECAST_REPO_REF: $${forecastRepoRef}
+                              GCLOUD_PROJECT_ID: $${project}
+                              GITHUB_PAT_SECRET: "github-pat"
+                              FORECAST_REPO_DIR: "/data/forecast/"
+                          computeResource:
+                            cpuMilli: $${candidateCpuMilliA}
+                            memoryMib: $${candidateMemoryMibA}
+                          maxRunDuration: $${maxRunDurationA}
+                    logsPolicy:
+                      destination: "CLOUD_LOGGING"
+                    allocationPolicy:
+                      location:
+                        allowedLocations:
+                          - $${"regions/" + location}
+                      serviceAccount:
+                        email: $${batchSaEmail}
+                      network:
+                        networkInterfaces:
+                          - network: $${networkSelfLink}
+                            subnetwork: $${subnetSelfLink}
+                            noExternalIpAddress: true
+                      instances: $${candidateInstancesA}
+                      labels:
+                        component: epymodelingsuite
+                        project: epymodelingsuite-cloud
+                        environment: production
+                        stage: builder
+                        execution_id: $${executionIdShort}
+                        machine_type: $${machineLabelA}
+                        candidate_index: $${string(ciA)}
+                        machine_selection: $${machineSelectionA}
+                        managed-by: workflows
+                        profile: $${profileLabel}
+                        billing_project: $${billingProjectLabel}
+                  query:
+                    jobId: $${"stage-a-" + uniqueId + "-" + string(ciA)}
+                result: jobA
 
-    - wait_for_stageA_completion:
-        call: waitJob
-        args:
-          name: $${jobA.body.name}
-          expectedParallelism: 1
-          taskCount: 1
-          stallSeconds: 900
-          maxRunDurationSeconds: ${stage_a_max_run_duration}
-        result: waitA
+            - wait_for_stageA_creation:
+                call: sys.sleep
+                args:
+                  seconds: 5
 
-    - ensure_stageA_completed:
-        switch:
-          - condition: $${waitA.outcome == "STALLED"}
-            steps:
-              - build_stageA_stall_error:
-                  assign:
-                    - stallErrorA:
-                        code: PROVISIONING_STALLED
-                        job: $${jobA.body.name}
-                        status: $${waitA.status}
-                        counts: $${waitA.counts}
-              - raise_stageA_stall:
-                  raise: $${stallErrorA}
+            - wait_for_stageA_completion:
+                call: waitJob
+                args:
+                  name: $${jobA.body.name}
+                  expectedParallelism: 1
+                  taskCount: 1
+                  stallSeconds: 900
+                  maxRunDurationSeconds: ${stage_a_max_run_duration}
+                result: waitA
+
+            - accept_successful_stageA:
+                switch:
+                  - condition: $${waitA.outcome == "SUCCEEDED"}
+                    steps:
+                      - save_stageA_job:
+                          assign:
+                            - stageAJobName: $${jobA.body.name}
+                      - exit_stageA_candidates:
+                          next: break
+
+            - cancel_unsuccessful_stageA:
+                call: cancelJob
+                args:
+                  name: $${jobA.body.name}
+                result: cancelStateA
+
+            - accept_stageA_cancel_race:
+                switch:
+                  - condition: $${cancelStateA == "SUCCEEDED"}
+                    steps:
+                      - save_raced_stageA_job:
+                          assign:
+                            - stageAJobName: $${jobA.body.name}
+                      - exit_raced_stageA_candidates:
+                          next: break
+
+            - exhaust_stageA_candidates:
+                switch:
+                  - condition: $${ciA == numCandidatesA - 1}
+                    steps:
+                      - build_stageA_exhausted_error:
+                          assign:
+                            - stageAExhausted:
+                                code: ALL_CANDIDATES_EXHAUSTED
+                                stage: A
+                                job: $${jobA.body.name}
+                                outcome: $${waitA.outcome}
+                                status: $${waitA.status}
+                                counts: $${waitA.counts}
+                      - raise_stageA_exhausted:
+                          raise: $${stageAExhausted}
 
     - wait_for_file_upload:
         call: sys.sleep
@@ -249,213 +327,328 @@ main:
         assign:
           - parallelism: $${if(N > maxParallelism, maxParallelism, N)}
 
-    - create_stageB_job:
-        call: http.post
-        args:
-          url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
-          auth:
-            type: OAuth2
-          body:
-            labels:
-              component: epymodelingsuite
-              project: epymodelingsuite-cloud
-              environment: production
-              stage: runner
-              exp_id: $${expIdLabel}
-              run_id: $${runId}
-              managed-by: workflows
-              profile: $${profileLabel}
-              billing_project: $${billingProjectLabel}
-            taskGroups:
-              - taskCount: $${N}
-                parallelism: $${parallelism}
-                taskCountPerNode: $${taskCountPerNode}
-                taskSpec:
-                  runnables:
-                    - container:
-                        imageUri: $${repoUri}
-                        entrypoint: "/bin/bash"
-                        commands:
-                          - "/scripts/run_runner.sh"
-                  environment:
-                    variables:
-                      EXECUTION_MODE: "cloud"
-                      GCS_BUCKET: $${bucket}
-                      DIR_PREFIX: $${dirPrefix}
-                      EXP_ID: $${expId}
-                      RUN_ID: $${runId}
-                      GITHUB_FORECAST_REPO: $${githubForecastRepo}
-                      FORECAST_REPO_REF: $${forecastRepoRef}
-                      GCLOUD_PROJECT_ID: $${project}
-                      GITHUB_PAT_SECRET: "github-pat"
-                      FORECAST_REPO_DIR: "/data/forecast/"
-                  computeResource:
-                    cpuMilli: $${cpuMilliB}
-                    memoryMib: $${memoryMibB}
-                  maxRunDuration: $${maxRunDurationB}
-            logsPolicy:
-              destination: "CLOUD_LOGGING"
-            allocationPolicy:
-              location:
-                allowedLocations:
-                  - $${"regions/" + location}
-              serviceAccount:
-                email: $${batchSaEmail}
-              network:
-                networkInterfaces:
-                  - network: $${networkSelfLink}
-                    subnetwork: $${subnetSelfLink}
-                    noExternalIpAddress: true
-              instances: $${if(machineTypeB == "", autoInstances, configuredInstancesB)}
-              labels:
-                component: epymodelingsuite
-                project: epymodelingsuite-cloud
-                environment: production
-                stage: runner
-                managed-by: workflows
-                profile: $${profileLabel}
-                billing_project: $${billingProjectLabel}
-          query:
-            jobId: $${"stage-b-" + uniqueId}
-        result: jobB
+    - run_stageB_candidates:
+        for:
+          value: candidateB
+          index: ciB
+          in: $${candidatesB}
+          steps:
+            - select_stageB_candidate:
+                assign:
+                  - candidateMachineTypeB: $${default(map.get(candidateB, "machine_type"), "")}
+                  - candidateCpuMilliB: $${int(map.get(candidateB, "cpu_milli"))}
+                  - candidateMemoryMibB: $${int(map.get(candidateB, "memory_mib"))}
+                  - machineLabelB: $${if(candidateMachineTypeB == "", "auto", candidateMachineTypeB)}
+                  - machineSelectionB: $${if(pinnedB, "pinned", "auto")}
+                  - configuredCandidateInstancesB:
+                      - installGpuDrivers: false
+                        policy:
+                          machineType: $${candidateMachineTypeB}
+                          provisioningModel: STANDARD
+                          bootDisk:
+                            type: hyperdisk-balanced
+                            sizeGb: 50
+                  - candidateInstancesB: $${if(candidateMachineTypeB == "", autoInstances, configuredCandidateInstancesB)}
 
-    - wait_for_stageB_creation:
-        call: sys.sleep
-        args:
-          seconds: 5
+            - create_stageB_job:
+                call: http.post
+                args:
+                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+                  auth:
+                    type: OAuth2
+                  body:
+                    labels:
+                      component: epymodelingsuite
+                      project: epymodelingsuite-cloud
+                      environment: production
+                      stage: runner
+                      exp_id: $${expIdLabel}
+                      run_id: $${runId}
+                      execution_id: $${executionIdShort}
+                      machine_type: $${machineLabelB}
+                      candidate_index: $${string(ciB)}
+                      machine_selection: $${machineSelectionB}
+                      managed-by: workflows
+                      profile: $${profileLabel}
+                      billing_project: $${billingProjectLabel}
+                    taskGroups:
+                      - taskCount: $${N}
+                        parallelism: $${parallelism}
+                        taskCountPerNode: $${taskCountPerNode}
+                        taskSpec:
+                          runnables:
+                            - container:
+                                imageUri: $${repoUri}
+                                entrypoint: "/bin/bash"
+                                commands:
+                                  - "/scripts/run_runner.sh"
+                          environment:
+                            variables:
+                              EXECUTION_MODE: "cloud"
+                              GCS_BUCKET: $${bucket}
+                              DIR_PREFIX: $${dirPrefix}
+                              EXP_ID: $${expId}
+                              RUN_ID: $${runId}
+                              SKIP_EXISTING: $${if(ciB > 0, "true", "false")}
+                              GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                              FORECAST_REPO_REF: $${forecastRepoRef}
+                              GCLOUD_PROJECT_ID: $${project}
+                              GITHUB_PAT_SECRET: "github-pat"
+                              FORECAST_REPO_DIR: "/data/forecast/"
+                          computeResource:
+                            cpuMilli: $${candidateCpuMilliB}
+                            memoryMib: $${candidateMemoryMibB}
+                          maxRunDuration: $${maxRunDurationB}
+                    logsPolicy:
+                      destination: "CLOUD_LOGGING"
+                    allocationPolicy:
+                      location:
+                        allowedLocations:
+                          - $${"regions/" + location}
+                      serviceAccount:
+                        email: $${batchSaEmail}
+                      network:
+                        networkInterfaces:
+                          - network: $${networkSelfLink}
+                            subnetwork: $${subnetSelfLink}
+                            noExternalIpAddress: true
+                      instances: $${candidateInstancesB}
+                      labels:
+                        component: epymodelingsuite
+                        project: epymodelingsuite-cloud
+                        environment: production
+                        stage: runner
+                        execution_id: $${executionIdShort}
+                        machine_type: $${machineLabelB}
+                        candidate_index: $${string(ciB)}
+                        machine_selection: $${machineSelectionB}
+                        managed-by: workflows
+                        profile: $${profileLabel}
+                        billing_project: $${billingProjectLabel}
+                  query:
+                    jobId: $${"stage-b-" + uniqueId + "-" + string(ciB)}
+                result: jobB
 
-    - wait_for_stageB_completion:
-        call: waitJob
-        args:
-          name: $${jobB.body.name}
-          expectedParallelism: $${parallelism}
-          taskCount: $${N}
-          stallSeconds: 900
-          maxRunDurationSeconds: ${stage_b_max_run_duration}
-        result: waitB
+            - wait_for_stageB_creation:
+                call: sys.sleep
+                args:
+                  seconds: 5
 
-    - ensure_stageB_completed:
-        switch:
-          - condition: $${waitB.outcome == "STALLED"}
-            steps:
-              - build_stageB_stall_error:
-                  assign:
-                    - stallErrorB:
-                        code: PROVISIONING_STALLED
-                        job: $${jobB.body.name}
-                        status: $${waitB.status}
-                        counts: $${waitB.counts}
-              - raise_stageB_stall:
-                  raise: $${stallErrorB}
+            - wait_for_stageB_completion:
+                call: waitJob
+                args:
+                  name: $${jobB.body.name}
+                  expectedParallelism: $${parallelism}
+                  taskCount: $${N}
+                  stallSeconds: 900
+                  maxRunDurationSeconds: ${stage_b_max_run_duration}
+                result: waitB
+
+            - accept_successful_stageB:
+                switch:
+                  - condition: $${waitB.outcome == "SUCCEEDED"}
+                    steps:
+                      - save_stageB_job:
+                          assign:
+                            - stageBJobName: $${jobB.body.name}
+                      - exit_stageB_candidates:
+                          next: break
+
+            - cancel_unsuccessful_stageB:
+                call: cancelJob
+                args:
+                  name: $${jobB.body.name}
+                result: cancelStateB
+
+            - accept_stageB_cancel_race:
+                switch:
+                  - condition: $${cancelStateB == "SUCCEEDED"}
+                    steps:
+                      - save_raced_stageB_job:
+                          assign:
+                            - stageBJobName: $${jobB.body.name}
+                      - exit_raced_stageB_candidates:
+                          next: break
+
+            - exhaust_stageB_candidates:
+                switch:
+                  - condition: $${ciB == numCandidatesB - 1}
+                    steps:
+                      - build_stageB_exhausted_error:
+                          assign:
+                            - stageBExhausted:
+                                code: ALL_CANDIDATES_EXHAUSTED
+                                stage: B
+                                job: $${jobB.body.name}
+                                outcome: $${waitB.outcome}
+                                status: $${waitB.status}
+                                counts: $${waitB.counts}
+                      - raise_stageB_exhausted:
+                          raise: $${stageBExhausted}
 
     # ========== STAGE C: Generate Outputs (Conditional) ==========
     - check_run_output_stage:
         switch:
           - condition: $${runOutputStage == true}
             steps:
-              - create_stageC_job:
-                  call: http.post
-                  args:
-                    url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
-                    auth:
-                      type: OAuth2
-                      scopes: https://www.googleapis.com/auth/cloud-platform
-                    body:
-                      labels:
-                        component: epymodelingsuite
-                        project: epymodelingsuite-cloud
-                        environment: production
-                        stage: output
-                        exp_id: $${expIdLabel}
-                        run_id: $${runId}
-                        managed-by: workflows
-                        profile: $${profileLabel}
-                        billing_project: $${billingProjectLabel}
-                      taskGroups:
-                        - taskCount: 1
-                          taskSpec:
-                            runnables:
-                              - container:
-                                  imageUri: $${repoUri}
-                                  entrypoint: "/bin/bash"
-                                  commands:
-                                    - "/scripts/run_output.sh"
-                            environment:
-                              variables:
-                                EXECUTION_MODE: "cloud"
-                                GCS_BUCKET: $${bucket}
-                                DIR_PREFIX: $${dirPrefix}
-                                EXP_ID: $${expId}
-                                RUN_ID: $${runId}
-                                NUM_TASKS: $${string(N)}
-                                GITHUB_FORECAST_REPO: $${githubForecastRepo}
-                                FORECAST_REPO_REF: $${forecastRepoRef}
-                                GCLOUD_PROJECT_ID: $${project}
-                                GITHUB_PAT_SECRET: "github-pat"
-                                FORECAST_REPO_DIR: "/data/forecast/"
-                                OUTPUT_CONFIG_FILE: $${outputConfigFile}
-                            computeResource:
-                              cpuMilli: $${cpuMilliC}
-                              memoryMib: $${memoryMibC}
-                            maxRunDuration: $${maxRunDurationC}
-                      logsPolicy:
-                        destination: "CLOUD_LOGGING"
-                      allocationPolicy:
-                        location:
-                          allowedLocations:
-                            - $${"regions/" + location}
-                        serviceAccount:
-                          email: $${batchSaEmail}
-                        network:
-                          networkInterfaces:
-                            - network: $${networkSelfLink}
-                              subnetwork: $${subnetSelfLink}
-                              noExternalIpAddress: true
-                        instances: $${if(machineTypeC == "", autoInstances, configuredInstancesC)}
-                        labels:
-                          component: epymodelingsuite
-                          project: epymodelingsuite-cloud
-                          environment: production
-                          stage: output
-                          managed-by: workflows
-                          profile: $${profileLabel}
-                          billing_project: $${billingProjectLabel}
-                    query:
-                      jobId: $${"stage-c-" + uniqueId}
-                  result: jobC
+              - run_stageC_candidates:
+                  for:
+                    value: candidateC
+                    index: ciC
+                    in: $${candidatesC}
+                    steps:
+                      - select_stageC_candidate:
+                          assign:
+                            - candidateMachineTypeC: $${default(map.get(candidateC, "machine_type"), "")}
+                            - candidateCpuMilliC: $${int(map.get(candidateC, "cpu_milli"))}
+                            - candidateMemoryMibC: $${int(map.get(candidateC, "memory_mib"))}
+                            - machineLabelC: $${if(candidateMachineTypeC == "", "auto", candidateMachineTypeC)}
+                            - machineSelectionC: $${if(pinnedC, "pinned", "auto")}
+                            - configuredCandidateInstancesC:
+                                - installGpuDrivers: false
+                                  policy:
+                                    machineType: $${candidateMachineTypeC}
+                                    provisioningModel: STANDARD
+                                    bootDisk:
+                                      type: hyperdisk-balanced
+                                      sizeGb: 50
+                            - candidateInstancesC: $${if(candidateMachineTypeC == "", autoInstances, configuredCandidateInstancesC)}
 
-              - wait_for_stageC_creation:
-                  call: sys.sleep
-                  args:
-                    seconds: 5
+                      - create_stageC_job:
+                          call: http.post
+                          args:
+                            url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+                            auth:
+                              type: OAuth2
+                              scopes: https://www.googleapis.com/auth/cloud-platform
+                            body:
+                              labels:
+                                component: epymodelingsuite
+                                project: epymodelingsuite-cloud
+                                environment: production
+                                stage: output
+                                exp_id: $${expIdLabel}
+                                run_id: $${runId}
+                                execution_id: $${executionIdShort}
+                                machine_type: $${machineLabelC}
+                                candidate_index: $${string(ciC)}
+                                machine_selection: $${machineSelectionC}
+                                managed-by: workflows
+                                profile: $${profileLabel}
+                                billing_project: $${billingProjectLabel}
+                              taskGroups:
+                                - taskCount: 1
+                                  taskSpec:
+                                    runnables:
+                                      - container:
+                                          imageUri: $${repoUri}
+                                          entrypoint: "/bin/bash"
+                                          commands:
+                                            - "/scripts/run_output.sh"
+                                    environment:
+                                      variables:
+                                        EXECUTION_MODE: "cloud"
+                                        GCS_BUCKET: $${bucket}
+                                        DIR_PREFIX: $${dirPrefix}
+                                        EXP_ID: $${expId}
+                                        RUN_ID: $${runId}
+                                        NUM_TASKS: $${string(N)}
+                                        GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                                        FORECAST_REPO_REF: $${forecastRepoRef}
+                                        GCLOUD_PROJECT_ID: $${project}
+                                        GITHUB_PAT_SECRET: "github-pat"
+                                        FORECAST_REPO_DIR: "/data/forecast/"
+                                        OUTPUT_CONFIG_FILE: $${outputConfigFile}
+                                    computeResource:
+                                      cpuMilli: $${candidateCpuMilliC}
+                                      memoryMib: $${candidateMemoryMibC}
+                                    maxRunDuration: $${maxRunDurationC}
+                              logsPolicy:
+                                destination: "CLOUD_LOGGING"
+                              allocationPolicy:
+                                location:
+                                  allowedLocations:
+                                    - $${"regions/" + location}
+                                serviceAccount:
+                                  email: $${batchSaEmail}
+                                network:
+                                  networkInterfaces:
+                                    - network: $${networkSelfLink}
+                                      subnetwork: $${subnetSelfLink}
+                                      noExternalIpAddress: true
+                                instances: $${candidateInstancesC}
+                                labels:
+                                  component: epymodelingsuite
+                                  project: epymodelingsuite-cloud
+                                  environment: production
+                                  stage: output
+                                  execution_id: $${executionIdShort}
+                                  machine_type: $${machineLabelC}
+                                  candidate_index: $${string(ciC)}
+                                  machine_selection: $${machineSelectionC}
+                                  managed-by: workflows
+                                  profile: $${profileLabel}
+                                  billing_project: $${billingProjectLabel}
+                            query:
+                              jobId: $${"stage-c-" + uniqueId + "-" + string(ciC)}
+                          result: jobC
 
-              - wait_for_stageC_completion:
-                  call: waitJob
-                  args:
-                    name: $${jobC.body.name}
-                    expectedParallelism: 1
-                    taskCount: 1
-                    stallSeconds: 900
-                    maxRunDurationSeconds: ${stage_c_max_run_duration}
-                  result: waitC
+                      - wait_for_stageC_creation:
+                          call: sys.sleep
+                          args:
+                            seconds: 5
 
-              - ensure_stageC_completed:
-                  switch:
-                    - condition: $${waitC.outcome == "STALLED"}
-                      steps:
-                        - build_stageC_stall_error:
-                            assign:
-                              - stallErrorC:
-                                  code: PROVISIONING_STALLED
-                                  job: $${jobC.body.name}
-                                  status: $${waitC.status}
-                                  counts: $${waitC.counts}
-                        - raise_stageC_stall:
-                            raise: $${stallErrorC}
+                      - wait_for_stageC_completion:
+                          call: waitJob
+                          args:
+                            name: $${jobC.body.name}
+                            expectedParallelism: 1
+                            taskCount: 1
+                            stallSeconds: 900
+                            maxRunDurationSeconds: ${stage_c_max_run_duration}
+                          result: waitC
 
-              - assign_stageC_job:
-                  assign:
-                    - stageCJobName: $${jobC.body.name}
+                      - accept_successful_stageC:
+                          switch:
+                            - condition: $${waitC.outcome == "SUCCEEDED"}
+                              steps:
+                                - save_stageC_job:
+                                    assign:
+                                      - stageCJobName: $${jobC.body.name}
+                                - exit_stageC_candidates:
+                                    next: break
+
+                      - cancel_unsuccessful_stageC:
+                          call: cancelJob
+                          args:
+                            name: $${jobC.body.name}
+                          result: cancelStateC
+
+                      - accept_stageC_cancel_race:
+                          switch:
+                            - condition: $${cancelStateC == "SUCCEEDED"}
+                              steps:
+                                - save_raced_stageC_job:
+                                    assign:
+                                      - stageCJobName: $${jobC.body.name}
+                                - exit_raced_stageC_candidates:
+                                    next: break
+
+                      - exhaust_stageC_candidates:
+                          switch:
+                            - condition: $${ciC == numCandidatesC - 1}
+                              steps:
+                                - build_stageC_exhausted_error:
+                                    assign:
+                                      - stageCExhausted:
+                                          code: ALL_CANDIDATES_EXHAUSTED
+                                          stage: C
+                                          job: $${jobC.body.name}
+                                          outcome: $${waitC.outcome}
+                                          status: $${waitC.status}
+                                          counts: $${waitC.counts}
+                                - raise_stageC_exhausted:
+                                    raise: $${stageCExhausted}
           - condition: $${runOutputStage == false}
             steps:
               - log_output_skipped:
@@ -471,8 +664,8 @@ main:
     - return_results:
         return:
           N: $${N}
-          stageA_job: $${jobA.body.name}
-          stageB_job: $${jobB.body.name}
+          stageA_job: $${stageAJobName}
+          stageB_job: $${stageBJobName}
           stageC_job: $${stageCJobName}
 
 # ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
@@ -572,17 +765,14 @@ waitJob:
 
             - check_if_failed:
                 switch:
-                  - condition: $${currentState in ["FAILED", "DELETION_IN_PROGRESS"]}
+                  - condition: $${currentState in ["FAILED", "CANCELLED", "DELETION_IN_PROGRESS"]}
                     steps:
-                      - build_job_failure:
+                      - save_job_failure:
                           assign:
-                            - jobFailure:
-                                code: BATCH_JOB_FAILED
-                                job: $${name}
-                                state: $${currentState}
-                                counts: $${lastCounts}
-                      - raise_job_failure:
-                          raise: $${jobFailure}
+                            - finalStatus: $${j.body.status}
+                            - outcome: "FAILED"
+                      - exit_failed_job:
+                          next: break
 
             - check_if_stalled:
                 switch:
@@ -622,21 +812,91 @@ waitJob:
         switch:
           - condition: $${outcome == null}
             steps:
-              - build_wait_timeout:
+              - save_wait_timeout:
                   assign:
-                    - waitTimeout:
-                        code: WAIT_TIMEOUT
-                        job: $${name}
-                        state: $${currentState}
-                        counts: $${lastCounts}
-              - raise_wait_timeout:
-                  raise: $${waitTimeout}
+                    - outcome: "WAIT_TIMEOUT"
 
     - return_status:
         return:
           outcome: $${outcome}
           status: $${finalStatus}
           counts: $${lastCounts}
+
+# ========== SUBWORKFLOW: Cancel and Drain a Batch Job ==========
+cancelJob:
+  params: [name]
+  steps:
+    - initialize_cancel:
+        assign:
+          - lastState: "NO_STATUS"
+          - drained: false
+
+    - request_cancel:
+        try:
+          call: http.post
+          args:
+            url: $${"https://batch.googleapis.com/v1/" + name + ":cancel"}
+            auth:
+              type: OAuth2
+            body: {}
+        except:
+          as: e
+          steps:
+            # Batch returns 400 when the job reached a terminal state first.
+            # Polling below distinguishes that race from an incomplete cancel.
+            - log_cancel_response:
+                call: sys.log
+                args:
+                  text: $${"Cancel request did not return success for " + name + "; checking job state."}
+                  severity: WARNING
+
+    - drain_job:
+        for:
+          value: attempt
+          range: $${[1, 40]}
+          steps:
+            - get_cancelled_job:
+                call: http.get
+                args:
+                  url: $${"https://batch.googleapis.com/v1/" + name}
+                  auth:
+                    type: OAuth2
+                result: cancelledJob
+
+            - read_cancelled_job_state:
+                assign:
+                  - lastState: $${default(map.get(cancelledJob.body, ["status", "state"]), "NO_STATUS")}
+
+            - check_job_drained:
+                switch:
+                  - condition: $${lastState in ["CANCELLED", "SUCCEEDED", "FAILED"]}
+                    steps:
+                      - mark_job_drained:
+                          assign:
+                            - drained: true
+                      - exit_drain_loop:
+                          next: break
+
+            - sleep_before_drain_retry:
+                call: sys.sleep
+                args:
+                  seconds: 15
+
+    - require_drained_job:
+        switch:
+          - condition: $${drained == false}
+            steps:
+              - build_drain_timeout:
+                  assign:
+                    - drainTimeout:
+                        code: CANCEL_DRAIN_TIMEOUT
+                        job: $${name}
+                        state: $${lastState}
+              - raise_drain_timeout:
+                  raise: $${drainTimeout}
+
+    - return_cancelled_state:
+        return: $${lastState}
 
 # ========== SUBWORKFLOW: Wait for Files in GCS ==========
 waitForFiles:

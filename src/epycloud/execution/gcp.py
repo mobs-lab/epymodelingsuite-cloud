@@ -300,7 +300,7 @@ class GcpExecutionBackend:
         return self._record_from_execution(execution, fallback_ref=ref)
 
     def cancel_run(self, execution_id: str, include_jobs: bool = True) -> CancelResult:
-        """Cancel a workflow execution and its deterministic child Batch jobs."""
+        """Cancel a workflow execution and discover its child Batch jobs."""
 
         ref = self.resolve_run_ref(execution_id)
         token = self._get_token()
@@ -309,9 +309,25 @@ class GcpExecutionBackend:
         children: list[ChildCancellation] = []
         if include_jobs:
             prefix = ref.run_id[:8]
-            for stage in ("a", "b", "c"):
-                job_id = f"stage-{stage}-{prefix}"
-                job_name = f"projects/{self.project_id}/locations/{self.region}/jobs/{job_id}"
+            discovered = self._workflow_api.list_batch_jobs_for_execution(
+                self.project_id,
+                self.region,
+                ref.run_id,
+            )
+            job_names = {
+                str(job["name"]) for job in discovered if isinstance(job, dict) and job.get("name")
+            }
+
+            if not job_names:
+                # Jobs created before execution_id labels used unsuffixed names.
+                for stage in ("a", "b", "c"):
+                    legacy_id = f"stage-{stage}-{prefix}"
+                    job_names.add(
+                        f"projects/{self.project_id}/locations/{self.region}/jobs/{legacy_id}"
+                    )
+
+            for job_name in sorted(job_names):
+                job_id = job_name.rsplit("/", 1)[-1]
                 try:
                     self._workflow_api.cancel_batch_job(job_name, token)
                     children.append(ChildCancellation(job_id, "cancelled"))

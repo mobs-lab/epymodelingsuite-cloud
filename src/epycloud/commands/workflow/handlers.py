@@ -308,9 +308,7 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
                 status(f"Job already completed: {child.job_id}")
             else:
                 if child.status_code is not None:
-                    warning(
-                        f"Failed to cancel job {child.job_id}: HTTP {child.status_code}"
-                    )
+                    warning(f"Failed to cancel job {child.job_id}: HTTP {child.status_code}")
                 else:
                     warning(f"Failed to cancel job {child.job_id}: {child.message}")
                 failed_count += 1
@@ -319,6 +317,7 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
             success(f"Cancelled {cancelled_count} batch job(s)")
         if failed_count > 0:
             warning(f"Failed to cancel {failed_count} batch job(s)")
+            return 1
 
         return 0
 
