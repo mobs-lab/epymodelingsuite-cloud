@@ -40,6 +40,33 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
     "n4-standard-8": (8, 32768),
     "c3-standard-8": (8, 32768),
     "c3d-standard-8": (8, 32768),
+    "c3-highmem-4": (4, 32768),
+    "c3d-highmem-4": (4, 32768),
+    "n4d-highmem-4": (4, 32768),
+    "n4-highmem-4": (4, 32768),
+    "c4d-highmem-4": (4, 31744),
+    "c4-highmem-4": (4, 31744),
+}
+
+# Observed capacity in us-central1, newest first. "obtained" means a VM was
+# actually created; "starved" means CODE_GCE_ZONE_RESOURCE_POOL_EXHAUSTED and
+# the 1080s window elapsing without one.
+#
+# Read the vCPU column before the family column. On 2026-08-19, c3-standard-8
+# and c3-highmem-4 differ only in vCPU count (8 vs 4) at identical memory,
+# family and region, and one starved while the other was obtained in ~60s.
+# That controlled pair is why availability here is treated as a function of
+# size first and family second.
+MEASURED_AVAILABILITY: dict[str, str] = {
+    "c4-standard-2": "2026-08-19 obtained, 2 of 2 tasks in ~70-100s (also 10 of 10 on 2026-08-18)",
+    "c3-highmem-4": "2026-08-19 obtained in ~60s",
+    "c3-standard-4": "2026-08-18 obtained, 1 of 1",
+    "c4-standard-4": "2026-08-18 partial, 7 of 10",
+    "c3-standard-8": "2026-08-19 STARVED, full 1080s window",
+    "c4d-standard-8": "2026-08-19 STARVED, full 1080s window",
+    "c4d-standard-2": "2026-08-18 STARVED, 0 of 1",
+    "n4d-standard-2": "2026-08-18 STARVED, 0 of 1",
+    "n4-standard-2": "2026-08-18 STARVED, 0 of 10",
 }
 
 # Ordered in-region fallback candidates, keyed by machine size.
@@ -55,26 +82,30 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
 # spec-identical drop-in for C4D (2 / 7168 and 4 / 15360 respectively), so it
 # costs nothing in requested resources.
 #
-# C4 is deliberately absent from the standard-8 chain: c4-standard-8 is 30720
-# MiB against c4d-standard-8's 31744, so it would *lower* available memory.
-# Memory must be non-decreasing along a chain or fallback turns a capacity
-# failure into an OOM. C3 takes position 2 there instead, being the only other
-# family the probe found available in us-central1.
-#
 # Sizes below standard-4 cannot serve Stage C: 2 vCPU cannot satisfy its 4000
 # mCPU request. c3-standard-2 does not exist, which is why C3 appears only in
 # the larger chains.
 #
-# CAPACITY CAVEAT: only the standard-2 and standard-4 candidates were probed.
-# Capacity thins with machine size, so the standard-8 chain is ordered on specs
-# and family availability, not on a measurement. Re-probe whenever a chain is
-# edited or a region is added. A chain whose members are all starved is worse
-# than no chain, since it consumes the full stall budget per candidate and
-# still fails.
+# THERE IS DELIBERATELY NO standard-8 CHAIN. An earlier revision had one
+# (c4d -> c3 -> c3d -> n4d). Two of those four were then measured starved on
+# 2026-08-19 within an hour of each other, so the chain would have burned the
+# full stall budget per candidate and still failed, which is worse than no
+# chain at all. chain_for() therefore returns an 8-vCPU machine unchanged,
+# meaning "pinned, no fallback", rather than offering candidates that do not
+# exist in practice.
+#
+# The fix for a memory-bound 8-vCPU stage is not a different family at the same
+# size, it is a different SHAPE: highmem-4 delivers the same 32768 MiB on half
+# the vCPUs, and that is the tier that still has capacity. See the flu Stage C
+# note in MEASURED_AVAILABILITY.
+#
+# CAPACITY CAVEAT: c3d-highmem-4, n4d-highmem-4 and n4-highmem-4 are ordered on
+# specs, not measurement; only c3-highmem-4 has been observed. Re-probe whenever
+# a chain is edited or a region is added.
 MACHINE_CHAINS_BY_SIZE: dict[str, tuple[str, ...]] = {
     "standard-2": ("c4d-standard-2", "c4-standard-2", "n4d-standard-2", "n4-standard-2"),
     "standard-4": ("c4d-standard-4", "c4-standard-4", "n4d-standard-4", "c3-standard-4"),
-    "standard-8": ("c4d-standard-8", "c3-standard-8", "c3d-standard-8", "n4d-standard-8"),
+    "highmem-4": ("c3-highmem-4", "c3d-highmem-4", "n4d-highmem-4", "n4-highmem-4"),
 }
 
 # Default chain per stage, matching the machine types in the shipped config
