@@ -248,11 +248,6 @@ resource "google_workflows_workflow" "pipeline" {
 # branch, the dev image tag and github.modeling_suite_ref.
 # Shares the network, registry and service accounts with production; isolation
 # comes from the template source and the name, not from separate state.
-moved {
-  from = google_workflows_workflow.pipeline_dev
-  to   = google_workflows_workflow.pipeline_v2
-}
-
 resource "google_workflows_workflow" "pipeline_v2" {
   count = var.enable_v2_workflow ? 1 : 0
 
