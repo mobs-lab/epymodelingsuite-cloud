@@ -26,6 +26,7 @@ def build_batch_job_config(
     batch_sa_email: str,
     profile: str = "",
     billing_project: str = "",
+    skip_existing: bool = False,
 ) -> dict[str, Any]:
     """Build Cloud Batch job configuration.
 
@@ -69,6 +70,8 @@ def build_batch_job_config(
         Profile name (e.g., "flu", "covid")
     billing_project : str
         Billing project label (contract/org-level grouping)
+    skip_existing : bool
+        Reuse a completed Stage B result when its input digest matches
 
     Returns
     -------
@@ -96,6 +99,7 @@ def build_batch_job_config(
         commands = ["/scripts/run_builder.sh"]
     elif stage == "B":
         env_vars["TASK_INDEX"] = str(task_index)
+        env_vars["SKIP_EXISTING"] = str(skip_existing).lower()
         env_vars["GITHUB_FORECAST_REPO"] = github_forecast_repo
         env_vars["GCLOUD_PROJECT_ID"] = project_id
         env_vars["GITHUB_PAT_SECRET"] = "github-pat"

@@ -37,6 +37,7 @@ def run_job_gcp(
     run_id: str | None,
     task_index: int,
     num_tasks: int | None,
+    fresh: bool,
     output_config: str | None,
     machine_type_override: str | None,
     billing_project_override: str | None,
@@ -64,6 +65,8 @@ def run_job_gcp(
         Task index for stage B
     num_tasks : int | None
         Number of tasks for stage C
+    fresh : bool
+        Recompute Stage B even when a matching completed result exists
     output_config : str | None
         Output config filename for Stage C (e.g., "output_projection.yaml")
     machine_type_override : str | None
@@ -203,6 +206,7 @@ def run_job_gcp(
             execution_identity=batch_sa_email,
             profile=profile_name,
             billing_project=billing_project,
+            skip_existing=stage == "B" and not fresh,
         )
     )
 

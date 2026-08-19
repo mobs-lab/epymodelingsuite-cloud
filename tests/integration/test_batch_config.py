@@ -196,6 +196,7 @@ class TestBatchConfigStageB:
         env_vars = config["taskGroups"][0]["taskSpec"]["environment"]["variables"]
         assert env_vars["EXECUTION_MODE"] == "cloud"
         assert env_vars["TASK_INDEX"] == "5"
+        assert env_vars["SKIP_EXISTING"] == "false"
         # Stage B now includes GITHUB_FORECAST_REPO and other variables
         assert env_vars["GITHUB_FORECAST_REPO"] == "owner/forecast-repo"
         assert env_vars["GCLOUD_PROJECT_ID"] == "test-project"
@@ -207,6 +208,32 @@ class TestBatchConfigStageB:
         compute = config["taskGroups"][0]["taskSpec"]["computeResource"]
         assert compute["cpuMilli"] == 4000
         assert compute["memoryMib"] == 16384
+
+    def test_stage_b_can_resume_completed_result(self):
+        """Stage B receives an explicit true resume flag when requested."""
+        config = build_batch_job_config(
+            stage="B",
+            exp_id="test-sim",
+            run_id="20251107-100000-abc12345",
+            task_index=5,
+            num_tasks=None,
+            output_config=None,
+            image_uri="us-central1-docker.pkg.dev/test-project/repo/image:latest",
+            bucket_name="test-bucket",
+            dir_prefix="pipeline/flu/",
+            github_forecast_repo="owner/forecast-repo",
+            project_id="test-project",
+            cpu_milli=4000,
+            memory_mib=16384,
+            machine_type="",
+            max_run_duration=7200,
+            task_count_per_node=1,
+            batch_sa_email="batch-sa@test-project.iam.gserviceaccount.com",
+            skip_existing=True,
+        )
+
+        env_vars = config["taskGroups"][0]["taskSpec"]["environment"]["variables"]
+        assert env_vars["SKIP_EXISTING"] == "true"
 
     def test_stage_b_with_different_task_indices(self):
         """Test Stage B config with different task indices."""

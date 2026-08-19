@@ -6,6 +6,8 @@ Loads pickled input from storage (GCS or local), runs simulation, saves results.
 
 import os
 import sys
+from datetime import UTC, datetime
+from hashlib import sha256
 
 import dill  # Use dill instead of pickle for better serialization support
 
@@ -20,6 +22,14 @@ from util.logger import setup_logger
 
 # Task index formatting (supports up to 99999 tasks)
 INDEX_WIDTH = 5
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    """Parse an environment variable as an explicit boolean flag."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def main() -> None:
@@ -47,6 +57,8 @@ def main() -> None:
         Storage mode: "cloud" (GCS) or "local" (filesystem)
     DIR_PREFIX : str (optional)
         Base directory prefix (default: "pipeline/flu/")
+    SKIP_EXISTING : str (optional)
+        Reuse a completed result when its input digest still matches
     LOG_LEVEL : str (optional)
         Logging level: DEBUG, INFO, WARNING, ERROR (default: INFO)
 
@@ -58,7 +70,8 @@ def main() -> None:
     Outputs
     -------
     Saves to storage:
-        - runner-artifacts/result_{task_index:05d}.pkl : Pickled result
+        - runner-artifacts/result_{task_index:05d}.pkl.gz : Pickled result
+        - runner-artifacts/result_{task_index:05d}.done.json : Completion marker
         - summaries/json/runner_{task_index:05d}_summary.json : Telemetry metadata
         - summaries/txt/runner_{task_index:05d}_summary.txt : Human-readable telemetry
 
@@ -98,14 +111,55 @@ def main() -> None:
 
         # Load input file (workload from dispatcher)
         input_path = storage.get_path("builder-artifacts", f"input_{idx:0{INDEX_WIDTH}d}.pkl.gz")
+        output_path = storage.get_path("runner-artifacts", f"result_{idx:0{INDEX_WIDTH}d}.pkl.gz")
+        marker_path = storage.get_path(
+            "runner-artifacts", f"result_{idx:0{INDEX_WIDTH}d}.done.json"
+        )
         logger.debug(f"Loading input: {input_path}")
 
         try:
             raw_data = storage.load_bytes(input_path)
-            workload = dill.loads(raw_data)
             logger.debug(f"Input loaded: {len(raw_data):,} bytes")
         except Exception as e:
             logger.error(f"Failed to load input: {e}")
+            raise
+
+        input_digest = sha256(raw_data).hexdigest()
+        skip_existing = _env_flag("SKIP_EXISTING")
+
+        if skip_existing and storage.exists(marker_path) and storage.exists(output_path):
+            try:
+                marker = storage.load_json(marker_path)
+            except Exception as e:
+                logger.warning(
+                    "Completion marker could not be read; recomputing task",
+                    extra={"path": marker_path, "error": str(e), "task_index": idx},
+                )
+            else:
+                if marker.get("input_digest") == input_digest:
+                    telemetry_path = storage.get_path(
+                        "summaries", "json", f"runner_{idx:0{INDEX_WIDTH}d}_summary.json"
+                    )
+                    if not storage.exists(telemetry_path):
+                        logger.warning(
+                            "Completed result has no telemetry summary",
+                            extra={"path": telemetry_path, "task_index": idx},
+                        )
+                    logger.info(
+                        "Result complete and inputs unchanged; resuming past task",
+                        extra={"path": output_path, "task_index": idx},
+                    )
+                    return
+
+                logger.info(
+                    "Inputs changed since last run; recomputing task",
+                    extra={"path": output_path, "task_index": idx},
+                )
+
+        try:
+            workload = dill.loads(raw_data)
+        except Exception as e:
+            logger.error(f"Failed to deserialize input: {e}")
             raise
 
         # Wrap runner in telemetry context
@@ -118,7 +172,6 @@ def main() -> None:
                 raise
 
             # Save results
-            output_path = storage.get_path("runner-artifacts", f"result_{idx:0{INDEX_WIDTH}d}.pkl.gz")
             logger.debug(f"Saving results: {output_path}")
 
             try:
@@ -133,6 +186,13 @@ def main() -> None:
             storage.save_telemetry_summary(
                 runner_telemetry, f"runner_{idx:0{INDEX_WIDTH}d}_summary"
             )
+
+            marker = {
+                "input_digest": input_digest,
+                "image_digest": os.getenv("IMAGE_DIGEST", ""),
+                "completed_at": datetime.now(UTC).isoformat(),
+            }
+            storage.save_json(marker_path, marker)
 
         logger.info("Task complete")
 

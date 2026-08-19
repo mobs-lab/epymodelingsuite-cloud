@@ -7,6 +7,7 @@ Internal validation logic and helpers use real implementations.
 from argparse import Namespace
 from unittest.mock import Mock, patch
 
+from epycloud.cli import create_parser
 from epycloud.commands import run
 
 
@@ -197,6 +198,23 @@ class TestRunWorkflowCommand:
 class TestRunJobCommand:
     """Test run job command integration."""
 
+    def test_run_job_parser_accepts_fresh(self):
+        args = create_parser().parse_args(
+            [
+                "run",
+                "job",
+                "--stage",
+                "B",
+                "--exp-id",
+                "test-sim",
+                "--run-id",
+                "test-run",
+                "--fresh",
+            ]
+        )
+
+        assert args.fresh is True
+
     def test_run_job_stage_a_local(self, mock_config):
         """Test running stage A locally."""
         ctx = {
@@ -250,6 +268,57 @@ class TestRunJobCommand:
 
         # Should fail due to missing run_id
         assert exit_code == 1
+
+    @patch("epycloud.commands.run.local.job.run_docker_compose_stage", return_value=0)
+    def test_run_job_stage_b_resumes_by_default(self, mock_compose, mock_config):
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "verbose": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="job",
+                stage="B",
+                exp_id="test-sim",
+                run_id="test-run",
+                task_index=3,
+                num_tasks=None,
+                output_config=None,
+                local=True,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        assert run.handle(ctx) == 0
+        assert mock_compose.call_args.kwargs["env_vars"]["SKIP_EXISTING"] == "true"
+
+    @patch("epycloud.commands.run.local.job.run_docker_compose_stage", return_value=0)
+    def test_run_job_stage_b_fresh_disables_resume(self, mock_compose, mock_config):
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "verbose": False,
+            "dry_run": False,
+            "args": Namespace(
+                run_subcommand="job",
+                stage="B",
+                exp_id="test-sim",
+                run_id="test-run",
+                task_index=3,
+                num_tasks=None,
+                output_config=None,
+                local=True,
+                fresh=True,
+                wait=False,
+                yes=True,
+                project_directory=None,
+            ),
+        }
+
+        assert run.handle(ctx) == 0
+        assert mock_compose.call_args.kwargs["env_vars"]["SKIP_EXISTING"] == "false"
 
     def test_run_job_stage_c_missing_num_tasks(self, mock_config):
         """Test stage C requires num_tasks."""

@@ -157,6 +157,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     job_parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Recompute Stage B even when a matching completed result exists",
+    )
+
+    job_parser.add_argument(
         "--num-tasks",
         type=int,
         help="Number of tasks (required for stage C)",

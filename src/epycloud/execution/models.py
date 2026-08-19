@@ -68,6 +68,7 @@ class StageJobSpec:
     execution_identity: str
     profile: str = ""
     billing_project: str = ""
+    skip_existing: bool = False
 
 
 @dataclass(frozen=True)

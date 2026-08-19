@@ -191,6 +191,7 @@ class GcpExecutionBackend:
             batch_sa_email=spec.execution_identity,
             profile=spec.profile,
             billing_project=spec.billing_project,
+            skip_existing=spec.skip_existing,
         )
         target = f"projects/{self.project_id}/locations/{self.region}/jobs/{spec.job_id}"
         return SubmissionPlan(

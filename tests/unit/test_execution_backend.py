@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
@@ -249,6 +250,16 @@ def test_gcp_job_plan_matches_legacy_batch_document(mock_config):
             },
         },
     }
+
+
+def test_gcp_job_plan_forwards_runner_resume_flag(mock_config):
+    backend = GcpExecutionBackend(mock_config)
+    spec = replace(job_spec(), stage="B", skip_existing=True)
+
+    plan = backend.plan_job(spec)
+
+    variables = plan.payload["taskGroups"][0]["taskSpec"]["environment"]["variables"]
+    assert variables["SKIP_EXISTING"] == "true"
 
 
 def test_gcp_job_submit_uses_exact_gcloud_argv_and_removes_temp_file(mock_config):

@@ -22,6 +22,7 @@ def run_job_local(
     run_id: str | None,
     task_index: int,
     num_tasks: int | None,
+    fresh: bool,
     output_config: str | None,
     auto_confirm: bool,
     verbose: bool,
@@ -46,6 +47,8 @@ def run_job_local(
         Task index for stage B
     num_tasks : int | None
         Number of tasks for stage C
+    fresh : bool
+        Recompute Stage B even when a matching completed result exists
     output_config : str | None
         Output config filename for Stage C (e.g., "output_projection.yaml")
     auto_confirm : bool
@@ -119,6 +122,7 @@ def run_job_local(
             "EXP_ID": exp_id,
             "RUN_ID": run_id,
             "TASK_INDEX": str(task_index),
+            "SKIP_EXISTING": str(not fresh).lower(),
         }
     else:  # C
         service = "output"

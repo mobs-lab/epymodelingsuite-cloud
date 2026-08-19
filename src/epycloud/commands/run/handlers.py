@@ -181,6 +181,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
 
     task_index = args.task_index
     num_tasks = args.num_tasks
+    fresh = getattr(args, "fresh", False)
     local = args.local
     wait = args.wait
     auto_confirm = args.yes
@@ -214,6 +215,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            fresh=fresh,
             output_config=output_config,
             auto_confirm=auto_confirm,
             verbose=verbose,
@@ -236,6 +238,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            fresh=fresh,
             output_config=output_config,
             machine_type_override=machine_type_override,
             billing_project_override=billing_project_override,
