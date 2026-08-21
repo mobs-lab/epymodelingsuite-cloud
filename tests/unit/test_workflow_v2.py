@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 WORKFLOW_V2 = Path(__file__).resolve().parents[2] / "terraform" / "workflow-v2.yaml"
+TERRAFORM_MAIN = Path(__file__).resolve().parents[2] / "terraform" / "main.tf"
 
 
 @pytest.fixture(scope="module")
@@ -19,6 +20,12 @@ def wait_job_source(workflow_source: str) -> str:
     return workflow_source.split("waitJob:\n", maxsplit=1)[1].split(
         "\n# ========== SUBWORKFLOW: Cancel and Drain", maxsplit=1
     )[0]
+
+
+@pytest.fixture(scope="module")
+def terraform_main_source() -> str:
+    """Load the Terraform resources used by the staging workflow."""
+    return TERRAFORM_MAIN.read_text()
 
 
 @pytest.mark.parametrize("stage", ["A", "B", "C"])
@@ -248,6 +255,69 @@ def test_each_candidate_has_discovery_and_attribution_labels(workflow_source, st
     assert stage_source.count(f"candidate_index: $${{string(ci{stage})}}") == 2
     assert stage_source.count(f"machine_type: $${{machineLabel{stage}}}") == 2
     assert stage_source.count(f"machine_selection: $${{machineSelection{stage}}}") == 2
+
+
+@pytest.mark.parametrize("stage", ["A", "B", "C"])
+def test_each_candidate_resolves_records_and_pins_its_image(workflow_source, stage):
+    """Resolve and record every attempt before submitting its digest-pinned job."""
+    stage_start = workflow_source.index(f"- run_stage{stage}_candidates:")
+    stage_end = workflow_source.find("# ========== STAGE", stage_start + 1)
+    stage_source = workflow_source[stage_start : stage_end if stage_end != -1 else None]
+
+    resolve_at = stage_source.index(f"- resolve_stage{stage}_image:")
+    record_at = stage_source.index(f"- record_stage{stage}_image:")
+    create_at = stage_source.index(f"- create_stage{stage}_job:")
+
+    assert resolve_at < record_at < create_at
+    assert "https://artifactregistry.googleapis.com/v1/projects/" in stage_source
+    assert f"imageUri: $${{resolvedImage{stage}.uri}}" in stage_source
+    assert f"IMAGE_DIGEST: $${{resolvedImage{stage}.digest}}" in stage_source
+    assert stage_source.count(f"image_digest: $${{resolvedImage{stage}.short_digest}}") == 2
+    assert (
+        f'"run-metadata/image-provenance/stage-{stage.lower()}-candidate-"'
+        in stage_source
+    )
+
+
+def test_image_resolver_returns_a_validated_full_and_short_digest(workflow_source):
+    """The resolver must reject malformed versions and build an immutable image URI."""
+    resolver = workflow_source.split("resolveImage:\n", maxsplit=1)[1].split(
+        "\n# ========== SUBWORKFLOW: Persist Image Provenance", maxsplit=1
+    )[0]
+
+    assert "scopes: https://www.googleapis.com/auth/cloud-platform.read-only" in resolver
+    assert 'len(digest) != 71 or text.substring(digest, 0, 7) != "sha256:"' in resolver
+    assert "short_digest: $${text.substring(digest, 7, 19)}" in resolver
+    assert 'uri: $${repoUri + "@" + digest}' in resolver
+
+
+def test_full_digest_is_written_to_per_candidate_run_metadata(workflow_source):
+    """GCS provenance must retain the full digest that cannot fit in a label."""
+    recorder = workflow_source.split("recordImageProvenance:\n", maxsplit=1)[1].split(
+        "\n# ========== SUBWORKFLOW: Wait for Batch", maxsplit=1
+    )[0]
+
+    assert "uploadType: media" in recorder
+    assert "name: $${objectName}" in recorder
+    assert "image_digest: $${resolvedImage.digest}" in recorder
+    assert "image_uri: $${resolvedImage.uri}" in recorder
+    assert "candidate_index: $${candidateIndex}" in recorder
+
+
+def test_workflow_has_the_permissions_needed_for_image_provenance(
+    terraform_main_source,
+):
+    """Grant Artifact Registry read and GCS object create without write roles."""
+    assert (
+        'resource "google_project_iam_member" "wf_artifact_registry_reader"'
+        in terraform_main_source
+    )
+    assert 'role    = "roles/artifactregistry.reader"' in terraform_main_source
+    assert (
+        'resource "google_storage_bucket_iam_member" "wf_bucket_create"'
+        in terraform_main_source
+    )
+    assert 'role   = "roles/storage.objectCreator"' in terraform_main_source
 
 
 def test_stage_b_reuses_only_completed_results_after_failover(workflow_source):

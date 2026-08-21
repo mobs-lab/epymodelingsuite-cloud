@@ -11,7 +11,7 @@ main:
           - location: $${sys.get_env("GOOGLE_CLOUD_LOCATION")}
           # Allow runtime override of image tag (defaults to terraform variable if not provided)
           - imageTag: $${default(map.get(input, "imageTag"), "${image_tag}")}
-          - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}:" + imageTag}
+          - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}"}
           - githubForecastRepo: $${default(map.get(input, "githubForecastRepo"), "")}
           - forecastRepoRef: $${default(map.get(input, "forecastRepoRef"), "")}
           - outputConfigFile: $${default(map.get(input, "outputConfigFile"), "")}
@@ -164,6 +164,29 @@ main:
                             sizeGb: 50
                   - candidateInstancesA: $${if(candidateMachineTypeA == "", autoInstances, configuredCandidateInstancesA)}
 
+            # Resolve inside the fallback loop so each candidate records the
+            # image that it actually submits, even if the tag moves mid-run.
+            - resolve_stageA_image:
+                call: resolveImage
+                args:
+                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + location + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                  repoUri: $${repoUri}
+                result: resolvedImageA
+
+            - record_stageA_image:
+                call: recordImageProvenance
+                args:
+                  bucket: $${bucket}
+                  objectName: $${basePath + "run-metadata/image-provenance/stage-a-candidate-" + string(ciA) + ".json"}
+                  executionId: $${executionIdShort}
+                  runId: $${runId}
+                  stage: A
+                  candidateIndex: $${ciA}
+                  machineType: $${machineLabelA}
+                  machineSelection: $${machineSelectionA}
+                  imageTag: $${imageTag}
+                  resolvedImage: $${resolvedImageA}
+
             - create_stageA_job:
                 call: http.post
                 args:
@@ -183,6 +206,7 @@ main:
                       machine_type: $${machineLabelA}
                       candidate_index: $${string(ciA)}
                       machine_selection: $${machineSelectionA}
+                      image_digest: $${resolvedImageA.short_digest}
                       managed-by: workflows
                       profile: $${profileLabel}
                       billing_project: $${billingProjectLabel}
@@ -191,7 +215,7 @@ main:
                         taskSpec:
                           runnables:
                             - container:
-                                imageUri: $${repoUri}
+                                imageUri: $${resolvedImageA.uri}
                                 entrypoint: "/bin/bash"
                                 commands:
                                   - "/scripts/run_builder.sh"
@@ -202,6 +226,7 @@ main:
                               DIR_PREFIX: $${dirPrefix}
                               EXP_ID: $${expId}
                               RUN_ID: $${runId}
+                              IMAGE_DIGEST: $${resolvedImageA.digest}
                               GITHUB_FORECAST_REPO: $${githubForecastRepo}
                               FORECAST_REPO_REF: $${forecastRepoRef}
                               GCLOUD_PROJECT_ID: $${project}
@@ -234,6 +259,7 @@ main:
                         machine_type: $${machineLabelA}
                         candidate_index: $${string(ciA)}
                         machine_selection: $${machineSelectionA}
+                        image_digest: $${resolvedImageA.short_digest}
                         managed-by: workflows
                         profile: $${profileLabel}
                         billing_project: $${billingProjectLabel}
@@ -350,6 +376,27 @@ main:
                             sizeGb: 50
                   - candidateInstancesB: $${if(candidateMachineTypeB == "", autoInstances, configuredCandidateInstancesB)}
 
+            - resolve_stageB_image:
+                call: resolveImage
+                args:
+                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + location + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                  repoUri: $${repoUri}
+                result: resolvedImageB
+
+            - record_stageB_image:
+                call: recordImageProvenance
+                args:
+                  bucket: $${bucket}
+                  objectName: $${basePath + "run-metadata/image-provenance/stage-b-candidate-" + string(ciB) + ".json"}
+                  executionId: $${executionIdShort}
+                  runId: $${runId}
+                  stage: B
+                  candidateIndex: $${ciB}
+                  machineType: $${machineLabelB}
+                  machineSelection: $${machineSelectionB}
+                  imageTag: $${imageTag}
+                  resolvedImage: $${resolvedImageB}
+
             - create_stageB_job:
                 call: http.post
                 args:
@@ -368,6 +415,7 @@ main:
                       machine_type: $${machineLabelB}
                       candidate_index: $${string(ciB)}
                       machine_selection: $${machineSelectionB}
+                      image_digest: $${resolvedImageB.short_digest}
                       managed-by: workflows
                       profile: $${profileLabel}
                       billing_project: $${billingProjectLabel}
@@ -378,7 +426,7 @@ main:
                         taskSpec:
                           runnables:
                             - container:
-                                imageUri: $${repoUri}
+                                imageUri: $${resolvedImageB.uri}
                                 entrypoint: "/bin/bash"
                                 commands:
                                   - "/scripts/run_runner.sh"
@@ -389,6 +437,7 @@ main:
                               DIR_PREFIX: $${dirPrefix}
                               EXP_ID: $${expId}
                               RUN_ID: $${runId}
+                              IMAGE_DIGEST: $${resolvedImageB.digest}
                               SKIP_EXISTING: $${if(ciB > 0, "true", "false")}
                               GITHUB_FORECAST_REPO: $${githubForecastRepo}
                               FORECAST_REPO_REF: $${forecastRepoRef}
@@ -422,6 +471,7 @@ main:
                         machine_type: $${machineLabelB}
                         candidate_index: $${string(ciB)}
                         machine_selection: $${machineSelectionB}
+                        image_digest: $${resolvedImageB.short_digest}
                         managed-by: workflows
                         profile: $${profileLabel}
                         billing_project: $${billingProjectLabel}
@@ -514,6 +564,27 @@ main:
                                       sizeGb: 50
                             - candidateInstancesC: $${if(candidateMachineTypeC == "", autoInstances, configuredCandidateInstancesC)}
 
+                      - resolve_stageC_image:
+                          call: resolveImage
+                          args:
+                            tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + location + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                            repoUri: $${repoUri}
+                          result: resolvedImageC
+
+                      - record_stageC_image:
+                          call: recordImageProvenance
+                          args:
+                            bucket: $${bucket}
+                            objectName: $${basePath + "run-metadata/image-provenance/stage-c-candidate-" + string(ciC) + ".json"}
+                            executionId: $${executionIdShort}
+                            runId: $${runId}
+                            stage: C
+                            candidateIndex: $${ciC}
+                            machineType: $${machineLabelC}
+                            machineSelection: $${machineSelectionC}
+                            imageTag: $${imageTag}
+                            resolvedImage: $${resolvedImageC}
+
                       - create_stageC_job:
                           call: http.post
                           args:
@@ -533,6 +604,7 @@ main:
                                 machine_type: $${machineLabelC}
                                 candidate_index: $${string(ciC)}
                                 machine_selection: $${machineSelectionC}
+                                image_digest: $${resolvedImageC.short_digest}
                                 managed-by: workflows
                                 profile: $${profileLabel}
                                 billing_project: $${billingProjectLabel}
@@ -541,7 +613,7 @@ main:
                                   taskSpec:
                                     runnables:
                                       - container:
-                                          imageUri: $${repoUri}
+                                          imageUri: $${resolvedImageC.uri}
                                           entrypoint: "/bin/bash"
                                           commands:
                                             - "/scripts/run_output.sh"
@@ -552,6 +624,7 @@ main:
                                         DIR_PREFIX: $${dirPrefix}
                                         EXP_ID: $${expId}
                                         RUN_ID: $${runId}
+                                        IMAGE_DIGEST: $${resolvedImageC.digest}
                                         NUM_TASKS: $${string(N)}
                                         GITHUB_FORECAST_REPO: $${githubForecastRepo}
                                         FORECAST_REPO_REF: $${forecastRepoRef}
@@ -586,6 +659,7 @@ main:
                                   machine_type: $${machineLabelC}
                                   candidate_index: $${string(ciC)}
                                   machine_selection: $${machineSelectionC}
+                                  image_digest: $${resolvedImageC.short_digest}
                                   managed-by: workflows
                                   profile: $${profileLabel}
                                   billing_project: $${billingProjectLabel}
@@ -667,6 +741,63 @@ main:
           stageA_job: $${stageAJobName}
           stageB_job: $${stageBJobName}
           stageC_job: $${stageCJobName}
+
+# ========== SUBWORKFLOW: Resolve an Artifact Registry Tag ==========
+resolveImage:
+  params: [tagUrl, repoUri]
+  steps:
+    - get_tag:
+        call: http.get
+        args:
+          url: $${tagUrl}
+          auth:
+            type: OAuth2
+            scopes: https://www.googleapis.com/auth/cloud-platform.read-only
+        result: tag
+
+    - extract_digest:
+        assign:
+          - versionParts: $${text.split(tag.body.version, "/")}
+          - digest: $${versionParts[len(versionParts) - 1]}
+
+    - validate_digest:
+        switch:
+          - condition: $${len(digest) != 71 or text.substring(digest, 0, 7) != "sha256:"}
+            raise: '$${"Artifact Registry returned an invalid image digest: " + digest}'
+
+    - return_resolved_image:
+        return:
+          digest: $${digest}
+          short_digest: $${text.substring(digest, 7, 19)}
+          uri: $${repoUri + "@" + digest}
+
+# ========== SUBWORKFLOW: Persist Image Provenance ==========
+recordImageProvenance:
+  params: [bucket, objectName, executionId, runId, stage, candidateIndex, machineType, machineSelection, imageTag, resolvedImage]
+  steps:
+    - upload_provenance:
+        call: http.post
+        args:
+          url: $${"https://storage.googleapis.com/upload/storage/v1/b/" + bucket + "/o"}
+          auth:
+            type: OAuth2
+            scopes: https://www.googleapis.com/auth/cloud-platform
+          headers:
+            Content-Type: application/json
+          query:
+            uploadType: media
+            name: $${objectName}
+          body:
+            execution_id: $${executionId}
+            run_id: $${runId}
+            stage: $${stage}
+            candidate_index: $${candidateIndex}
+            machine_type: $${machineType}
+            machine_selection: $${machineSelection}
+            image_tag: $${imageTag}
+            image_digest: $${resolvedImage.digest}
+            image_uri: $${resolvedImage.uri}
+            recorded_at: $${time.format(sys.now())}
 
 # ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
 waitJob:

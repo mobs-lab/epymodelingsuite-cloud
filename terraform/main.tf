@@ -168,6 +168,20 @@ resource "google_storage_bucket_iam_member" "wf_bucket_view" {
   member = "serviceAccount:${google_service_account.workflows_runner.email}"
 }
 
+# Workflows runner: create immutable per-candidate provenance records
+resource "google_storage_bucket_iam_member" "wf_bucket_create" {
+  bucket = data.google_storage_bucket.data.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
+# Workflows runner: resolve image tags before submitting Batch jobs
+resource "google_project_iam_member" "wf_artifact_registry_reader" {
+  project = var.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
 # Workflows runner: write logs
 resource "google_project_iam_member" "wf_logs_writer" {
   project = var.project_id
