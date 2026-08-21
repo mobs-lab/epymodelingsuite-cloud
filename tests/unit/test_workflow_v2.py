@@ -28,6 +28,14 @@ def wait_job_source(workflow_source: str) -> str:
 
 
 @pytest.fixture(scope="module")
+def candidate_finalizer_source(workflow_source: str) -> str:
+    """Isolate the shared candidate finalizer from the other subworkflows."""
+    return workflow_source.split("waitAndFinalizeCandidate:\n", maxsplit=1)[1].split(
+        "\n# ========== SUBWORKFLOW: Wait for Files", maxsplit=1
+    )[0]
+
+
+@pytest.fixture(scope="module")
 def terraform_main_source() -> str:
     """Load the Terraform resources used by the staging workflow."""
     return TERRAFORM_MAIN.read_text()
@@ -313,11 +321,12 @@ def test_wait_job_distinguishes_child_cancellation_from_failure(wait_job_source)
 def test_each_stage_supplies_watchdog_demand_and_duration(
     workflow_source, stage, parallelism, task_count, duration
 ):
-    """Every wait call must provide enough context for occupancy and timeout math."""
-    call_start = workflow_source.index(f"- wait_for_stage{stage}_completion:")
-    call_end = workflow_source.index(f"- accept_successful_stage{stage}:", call_start)
+    """Every finalizer call must provide context for occupancy and timeout math."""
+    call_start = workflow_source.index(f"- finalize_stage{stage}_candidate:")
+    call_end = workflow_source.index(f"- accept_finalized_stage{stage}:", call_start)
     call = workflow_source[call_start:call_end]
 
+    assert "call: waitAndFinalizeCandidate" in call
     assert f"expectedParallelism: {parallelism}" in call
     assert f"taskCount: {task_count}" in call
     assert "stallSeconds: $${watchdogStallSeconds}" in call
@@ -418,29 +427,53 @@ def test_stage_b_reuses_only_completed_results_after_failover(workflow_source):
 
 
 @pytest.mark.parametrize("stage", ["A", "B", "C"])
-def test_child_cancellation_stops_before_candidate_fallback(workflow_source, stage):
-    """Manual child cancellation must stop before cancellation or replacement logic."""
+def test_each_stage_uses_the_shared_candidate_finalizer(workflow_source, stage):
+    """All stages must share one success, cancellation, and exhaustion path."""
     stage_start = workflow_source.index(f"- run_stage{stage}_candidates:")
-    stop_at = workflow_source.index(f"- stop_on_cancelled_stage{stage}:", stage_start)
-    cancel_at = workflow_source.index(f"- cancel_unsuccessful_stage{stage}:", stage_start)
-    stop_source = workflow_source[stop_at:cancel_at]
+    finalize_at = workflow_source.index(f"- finalize_stage{stage}_candidate:", stage_start)
+    accept_at = workflow_source.index(f"- accept_finalized_stage{stage}:", finalize_at)
+    stage_end = workflow_source.find("# ========== STAGE", accept_at)
+    call_source = workflow_source[finalize_at:accept_at]
+    accept_source = workflow_source[accept_at : stage_end if stage_end != -1 else None]
+
+    assert "call: waitAndFinalizeCandidate" in call_source
+    assert f"stage: {stage}" in call_source
+    assert f"candidateIndex: $${{ci{stage}}}" in call_source
+    assert f"numCandidates: $${{numCandidates{stage}}}" in call_source
+    assert f"result: candidateSucceeded{stage}" in call_source
+    assert f"condition: $${{candidateSucceeded{stage}}}" in accept_source
+    assert f"stage{stage}JobName: $${{job{stage}.body.name}}" in accept_source
+    assert "next: break" in accept_source
+
+
+def test_child_cancellation_stops_before_candidate_fallback(candidate_finalizer_source):
+    """Manual child cancellation must raise before cancellation or replacement."""
+    stop_at = candidate_finalizer_source.index("- stop_on_cancelled_child:")
+    cancel_at = candidate_finalizer_source.index("- cancel_unsuccessful_candidate:")
+    stop_source = candidate_finalizer_source[stop_at:cancel_at]
 
     assert stop_at < cancel_at
-    assert f'condition: $${{wait{stage}.outcome == "CHILD_JOB_CANCELLED"}}' in stop_source
+    assert 'condition: $${waitResult.outcome == "CHILD_JOB_CANCELLED"}' in stop_source
     assert "code: CHILD_JOB_CANCELLED" in stop_source
-    assert f"stage: {stage}" in stop_source
-    assert f"raise: $${{childCancelled}}" in stop_source
+    assert "stage: $${stage}" in stop_source
+    assert "raise: $${childCancelled}" in stop_source
 
 
-@pytest.mark.parametrize("stage", ["A", "B", "C"])
-def test_each_failed_attempt_is_cancelled_before_exhaustion(workflow_source, stage):
+def test_failed_candidate_is_drained_before_exhaustion(candidate_finalizer_source):
     """The final attempt must be drained before the workflow reports exhaustion."""
-    stage_start = workflow_source.index(f"- run_stage{stage}_candidates:")
-    cancel_at = workflow_source.index(f"- cancel_unsuccessful_stage{stage}:", stage_start)
-    exhaust_at = workflow_source.index(f"- exhaust_stage{stage}_candidates:", stage_start)
+    cancel_at = candidate_finalizer_source.index("- cancel_unsuccessful_candidate:")
+    exhaust_at = candidate_finalizer_source.index("- raise_if_candidates_exhausted:")
 
     assert cancel_at < exhaust_at
-    assert "call: cancelJob" in workflow_source[cancel_at:exhaust_at]
+    assert "call: cancelJob" in candidate_finalizer_source[cancel_at:exhaust_at]
+
+
+def test_candidate_finalizer_returns_whether_the_loop_should_stop(
+    candidate_finalizer_source,
+):
+    """Success exits the stage loop while a drained nonfinal failure continues it."""
+    assert candidate_finalizer_source.count("return: true") == 2
+    assert "- continue_to_next_candidate:\n        return: false" in candidate_finalizer_source
 
 
 def test_cancel_job_drains_before_returning(workflow_source):

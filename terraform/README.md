@@ -69,6 +69,12 @@ Terraform joins them into one definition. Editing either and applying changes **
 the v2 workflow. Everything else (network, subnet, Artifact Registry, both service
 accounts) is shared; a workflow only reads those, and Batch jobs hold no shared state.
 
+The three stage loops keep their stage-specific Batch job bodies explicit. Their shared
+post-submission lifecycle lives in `waitAndFinalizeCandidate`, which owns completion
+waiting, manual-child-cancellation handling, cancellation and draining, terminal-state
+races, and candidate exhaustion. Keep those semantics in the subworkflow so the three
+stages cannot drift apart.
+
 Workflow changes therefore go: edit the v2 templates, apply, exercise with
 `--env v2pipeline`, then promote the assembled definition.
 

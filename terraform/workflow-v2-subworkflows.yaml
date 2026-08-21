@@ -298,6 +298,76 @@ cancelJob:
     - return_cancelled_state:
         return: $${lastState}
 
+# ========== SUBWORKFLOW: Finalize One Fallback Candidate ==========
+waitAndFinalizeCandidate:
+  params: [name, stage, candidateIndex, numCandidates, expectedParallelism, taskCount, stallSeconds, zeroFillGraceSeconds, maxRunDurationSeconds]
+  steps:
+    - wait_for_job_creation:
+        call: sys.sleep
+        args:
+          seconds: 5
+
+    - wait_for_job_completion:
+        call: waitJob
+        args:
+          name: $${name}
+          expectedParallelism: $${expectedParallelism}
+          taskCount: $${taskCount}
+          stallSeconds: $${stallSeconds}
+          zeroFillGraceSeconds: $${zeroFillGraceSeconds}
+          maxRunDurationSeconds: $${maxRunDurationSeconds}
+        result: waitResult
+
+    - return_successful_candidate:
+        switch:
+          - condition: $${waitResult.outcome == "SUCCEEDED"}
+            return: true
+
+    - stop_on_cancelled_child:
+        switch:
+          - condition: $${waitResult.outcome == "CHILD_JOB_CANCELLED"}
+            steps:
+              - build_child_cancelled_error:
+                  assign:
+                    - childCancelled:
+                        code: CHILD_JOB_CANCELLED
+                        stage: $${stage}
+                        job: $${name}
+                        status: $${waitResult.status}
+                        counts: $${waitResult.counts}
+              - raise_child_cancelled:
+                  raise: $${childCancelled}
+
+    - cancel_unsuccessful_candidate:
+        call: cancelJob
+        args:
+          name: $${name}
+        result: cancelState
+
+    - return_successful_cancel_race:
+        switch:
+          - condition: $${cancelState == "SUCCEEDED"}
+            return: true
+
+    - raise_if_candidates_exhausted:
+        switch:
+          - condition: $${candidateIndex == numCandidates - 1}
+            steps:
+              - build_candidates_exhausted_error:
+                  assign:
+                    - candidatesExhausted:
+                        code: ALL_CANDIDATES_EXHAUSTED
+                        stage: $${stage}
+                        job: $${name}
+                        outcome: $${waitResult.outcome}
+                        status: $${waitResult.status}
+                        counts: $${waitResult.counts}
+              - raise_candidates_exhausted:
+                  raise: $${candidatesExhausted}
+
+    - continue_to_next_candidate:
+        return: false
+
 # ========== SUBWORKFLOW: Wait for Files in GCS ==========
 waitForFiles:
   params: [bucket, prefix, maxRetries, sleepSeconds]

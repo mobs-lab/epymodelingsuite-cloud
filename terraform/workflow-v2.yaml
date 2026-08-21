@@ -159,12 +159,6 @@ main:
           - stageAJobName: null
           - stageBJobName: null
           - stageCJobName: null
-          - waitA: null
-          - waitB: null
-          - waitC: null
-          - cancelStateA: null
-          - cancelStateB: null
-          - cancelStateC: null
 
     # ========== STAGE A: Generate Input Files ==========
     - run_stageA_candidates:
@@ -293,78 +287,29 @@ main:
                     jobId: $${"stage-a-" + uniqueId + "-" + string(ciA)}
                 result: jobA
 
-            - wait_for_stageA_creation:
-                call: sys.sleep
-                args:
-                  seconds: 5
-
-            - wait_for_stageA_completion:
-                call: waitJob
+            - finalize_stageA_candidate:
+                call: waitAndFinalizeCandidate
                 args:
                   name: $${jobA.body.name}
+                  stage: A
+                  candidateIndex: $${ciA}
+                  numCandidates: $${numCandidatesA}
                   expectedParallelism: 1
                   taskCount: 1
                   stallSeconds: $${watchdogStallSeconds}
                   zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
                   maxRunDurationSeconds: ${stage_a_max_run_duration}
-                result: waitA
+                result: candidateSucceededA
 
-            - accept_successful_stageA:
+            - accept_finalized_stageA:
                 switch:
-                  - condition: $${waitA.outcome == "SUCCEEDED"}
+                  - condition: $${candidateSucceededA}
                     steps:
                       - save_stageA_job:
                           assign:
                             - stageAJobName: $${jobA.body.name}
                       - exit_stageA_candidates:
                           next: break
-
-            - stop_on_cancelled_stageA:
-                switch:
-                  - condition: $${waitA.outcome == "CHILD_JOB_CANCELLED"}
-                    steps:
-                      - build_stageA_child_cancelled_error:
-                          assign:
-                            - childCancelled:
-                                code: CHILD_JOB_CANCELLED
-                                stage: A
-                                job: $${jobA.body.name}
-                                status: $${waitA.status}
-                                counts: $${waitA.counts}
-                      - raise_stageA_child_cancelled:
-                          raise: $${childCancelled}
-
-            - cancel_unsuccessful_stageA:
-                call: cancelJob
-                args:
-                  name: $${jobA.body.name}
-                result: cancelStateA
-
-            - accept_stageA_cancel_race:
-                switch:
-                  - condition: $${cancelStateA == "SUCCEEDED"}
-                    steps:
-                      - save_raced_stageA_job:
-                          assign:
-                            - stageAJobName: $${jobA.body.name}
-                      - exit_raced_stageA_candidates:
-                          next: break
-
-            - exhaust_stageA_candidates:
-                switch:
-                  - condition: $${ciA == numCandidatesA - 1}
-                    steps:
-                      - build_stageA_exhausted_error:
-                          assign:
-                            - stageAExhausted:
-                                code: ALL_CANDIDATES_EXHAUSTED
-                                stage: A
-                                job: $${jobA.body.name}
-                                outcome: $${waitA.outcome}
-                                status: $${waitA.status}
-                                counts: $${waitA.counts}
-                      - raise_stageA_exhausted:
-                          raise: $${stageAExhausted}
 
     - wait_for_file_upload:
         call: sys.sleep
@@ -521,78 +466,29 @@ main:
                     jobId: $${"stage-b-" + uniqueId + "-" + string(ciB)}
                 result: jobB
 
-            - wait_for_stageB_creation:
-                call: sys.sleep
-                args:
-                  seconds: 5
-
-            - wait_for_stageB_completion:
-                call: waitJob
+            - finalize_stageB_candidate:
+                call: waitAndFinalizeCandidate
                 args:
                   name: $${jobB.body.name}
+                  stage: B
+                  candidateIndex: $${ciB}
+                  numCandidates: $${numCandidatesB}
                   expectedParallelism: $${parallelism}
                   taskCount: $${N}
                   stallSeconds: $${watchdogStallSeconds}
                   zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
                   maxRunDurationSeconds: ${stage_b_max_run_duration}
-                result: waitB
+                result: candidateSucceededB
 
-            - accept_successful_stageB:
+            - accept_finalized_stageB:
                 switch:
-                  - condition: $${waitB.outcome == "SUCCEEDED"}
+                  - condition: $${candidateSucceededB}
                     steps:
                       - save_stageB_job:
                           assign:
                             - stageBJobName: $${jobB.body.name}
                       - exit_stageB_candidates:
                           next: break
-
-            - stop_on_cancelled_stageB:
-                switch:
-                  - condition: $${waitB.outcome == "CHILD_JOB_CANCELLED"}
-                    steps:
-                      - build_stageB_child_cancelled_error:
-                          assign:
-                            - childCancelled:
-                                code: CHILD_JOB_CANCELLED
-                                stage: B
-                                job: $${jobB.body.name}
-                                status: $${waitB.status}
-                                counts: $${waitB.counts}
-                      - raise_stageB_child_cancelled:
-                          raise: $${childCancelled}
-
-            - cancel_unsuccessful_stageB:
-                call: cancelJob
-                args:
-                  name: $${jobB.body.name}
-                result: cancelStateB
-
-            - accept_stageB_cancel_race:
-                switch:
-                  - condition: $${cancelStateB == "SUCCEEDED"}
-                    steps:
-                      - save_raced_stageB_job:
-                          assign:
-                            - stageBJobName: $${jobB.body.name}
-                      - exit_raced_stageB_candidates:
-                          next: break
-
-            - exhaust_stageB_candidates:
-                switch:
-                  - condition: $${ciB == numCandidatesB - 1}
-                    steps:
-                      - build_stageB_exhausted_error:
-                          assign:
-                            - stageBExhausted:
-                                code: ALL_CANDIDATES_EXHAUSTED
-                                stage: B
-                                job: $${jobB.body.name}
-                                outcome: $${waitB.outcome}
-                                status: $${waitB.status}
-                                counts: $${waitB.counts}
-                      - raise_stageB_exhausted:
-                          raise: $${stageBExhausted}
 
     # ========== STAGE C: Generate Outputs (Conditional) ==========
     - check_run_output_stage:
@@ -725,78 +621,29 @@ main:
                               jobId: $${"stage-c-" + uniqueId + "-" + string(ciC)}
                           result: jobC
 
-                      - wait_for_stageC_creation:
-                          call: sys.sleep
-                          args:
-                            seconds: 5
-
-                      - wait_for_stageC_completion:
-                          call: waitJob
+                      - finalize_stageC_candidate:
+                          call: waitAndFinalizeCandidate
                           args:
                             name: $${jobC.body.name}
+                            stage: C
+                            candidateIndex: $${ciC}
+                            numCandidates: $${numCandidatesC}
                             expectedParallelism: 1
                             taskCount: 1
                             stallSeconds: $${watchdogStallSeconds}
                             zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
                             maxRunDurationSeconds: ${stage_c_max_run_duration}
-                          result: waitC
+                          result: candidateSucceededC
 
-                      - accept_successful_stageC:
+                      - accept_finalized_stageC:
                           switch:
-                            - condition: $${waitC.outcome == "SUCCEEDED"}
+                            - condition: $${candidateSucceededC}
                               steps:
                                 - save_stageC_job:
                                     assign:
                                       - stageCJobName: $${jobC.body.name}
                                 - exit_stageC_candidates:
                                     next: break
-
-                      - stop_on_cancelled_stageC:
-                          switch:
-                            - condition: $${waitC.outcome == "CHILD_JOB_CANCELLED"}
-                              steps:
-                                - build_stageC_child_cancelled_error:
-                                    assign:
-                                      - childCancelled:
-                                          code: CHILD_JOB_CANCELLED
-                                          stage: C
-                                          job: $${jobC.body.name}
-                                          status: $${waitC.status}
-                                          counts: $${waitC.counts}
-                                - raise_stageC_child_cancelled:
-                                    raise: $${childCancelled}
-
-                      - cancel_unsuccessful_stageC:
-                          call: cancelJob
-                          args:
-                            name: $${jobC.body.name}
-                          result: cancelStateC
-
-                      - accept_stageC_cancel_race:
-                          switch:
-                            - condition: $${cancelStateC == "SUCCEEDED"}
-                              steps:
-                                - save_raced_stageC_job:
-                                    assign:
-                                      - stageCJobName: $${jobC.body.name}
-                                - exit_raced_stageC_candidates:
-                                    next: break
-
-                      - exhaust_stageC_candidates:
-                          switch:
-                            - condition: $${ciC == numCandidatesC - 1}
-                              steps:
-                                - build_stageC_exhausted_error:
-                                    assign:
-                                      - stageCExhausted:
-                                          code: ALL_CANDIDATES_EXHAUSTED
-                                          stage: C
-                                          job: $${jobC.body.name}
-                                          outcome: $${waitC.outcome}
-                                          status: $${waitC.status}
-                                          counts: $${waitC.counts}
-                                - raise_stageC_exhausted:
-                                    raise: $${stageCExhausted}
           - condition: $${runOutputStage == false}
             steps:
               - log_output_skipped:
