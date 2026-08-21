@@ -194,7 +194,7 @@ class TestStageChains:
         """Highmem-4 preserves memory while meeting Stage C's CPU minimum."""
         chain = MACHINE_CHAINS_BY_REQUIREMENT[(4000, 32768)]
 
-        assert chain[0] == "c3-highmem-4"
+        assert chain[:2] == ("c4d-highmem-4", "c3-highmem-4")
         for candidate in chain:
             vcpu, mem = MACHINE_SPECS[candidate]
             assert vcpu == 4, candidate
@@ -217,6 +217,7 @@ class TestGetCandidateChain:
     def test_memory_bound_stage_prefers_highmem_four(self):
         """A 31744 MiB stage must use 4-vCPU highmem before any 8-vCPU shape."""
         assert get_candidate_chain(4000, 31744) == (
+            "c4d-highmem-4",
             "c3-highmem-4",
             "c3d-highmem-4",
             "n4d-highmem-4",

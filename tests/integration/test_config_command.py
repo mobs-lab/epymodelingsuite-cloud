@@ -595,7 +595,7 @@ class TestConfigMigrateCommand:
         assert base["google_cloud"]["batch"]["stage_a"]["machine_types"][0] == ("c4d-standard-2")
         assert profile["storage"]["dir_prefix"] == "pipeline/flu"
         assert profile["google_cloud"]["batch"]["stage_c"]["cpu_milli"] == 4000
-        assert profile["google_cloud"]["batch"]["stage_c"]["machine_types"][0] == ("c3-highmem-4")
+        assert profile["google_cloud"]["batch"]["stage_c"]["machine_types"][0] == ("c4d-highmem-4")
         assert base_path.with_suffix(".yaml.pre-machine-chains.bak").exists()
         assert profile_path.with_suffix(".yaml.pre-machine-chains.bak").exists()
 

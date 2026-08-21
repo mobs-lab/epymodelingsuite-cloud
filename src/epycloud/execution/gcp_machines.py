@@ -66,6 +66,7 @@ MACHINE_CHAINS_BY_REQUIREMENT: dict[tuple[int, int], tuple[str, ...]] = {
         "n4-standard-4",
     ),
     (4000, 32768): (
+        "c4d-highmem-4",
         "c3-highmem-4",
         "c3d-highmem-4",
         "n4d-highmem-4",
@@ -135,7 +136,7 @@ def get_candidate_chain(min_cpu_milli: int, min_memory_mib: int) -> tuple[str, .
     >>> get_candidate_chain(2000, 7168)
     ('c4d-standard-2', 'c3-highcpu-4', 'n4d-standard-2', 'n4-standard-2')
     >>> get_candidate_chain(4000, 31744)
-    ('c3-highmem-4', 'c3d-highmem-4', 'n4d-highmem-4', 'n4-highmem-4')
+    ('c4d-highmem-4', 'c3-highmem-4', 'c3d-highmem-4', 'n4d-highmem-4', 'n4-highmem-4')
     """
     if min_cpu_milli <= 0 or min_memory_mib <= 0:
         return ()
