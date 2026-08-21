@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from epycloud.cli import create_parser
 from epycloud.commands import terraform
 from epycloud.exceptions import ConfigError
 
@@ -137,6 +138,14 @@ class TestTerraformInitCommand:
 class TestTerraformPlanCommand:
     """Test terraform plan command."""
 
+    def test_parser_accepts_repeated_targets(self):
+        """The CLI must preserve every repeated target needed by state moves."""
+        args = create_parser().parse_args(
+            ["terraform", "plan", "--target", "first", "--target", "second"]
+        )
+
+        assert args.target == ["first", "second"]
+
     @patch("epycloud.commands.terraform.operations.subprocess.run")
     # Removed unnecessary patch
     def test_terraform_plan_success(
@@ -195,6 +204,45 @@ class TestTerraformPlanCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert "-target" in call_args
         assert "google_storage_bucket.data_bucket" in call_args
+
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    def test_terraform_plan_with_multiple_targets(
+        self, mock_subprocess, mock_config, tmp_path
+    ):
+        """Repeated target flags include every resource in one Terraform plan."""
+        terraform_dir = tmp_path / "terraform"
+        terraform_dir.mkdir()
+        mock_subprocess.return_value = Mock(returncode=0)
+        targets = [
+            "google_compute_subnetwork.batch_subnet",
+            "google_compute_router.batch_router",
+        ]
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(
+                terraform_subcommand="plan",
+                target=targets,
+                terraform_dir=str(terraform_dir),
+            ),
+        }
+
+        exit_code = terraform.handle(ctx)
+
+        assert exit_code == 0
+        call_args = mock_subprocess.call_args[0][0]
+        assert call_args == [
+            "terraform",
+            "plan",
+            "-target",
+            targets[0],
+            "-target",
+            targets[1],
+        ]
 
     # Removed unnecessary patch
     def test_terraform_plan_dry_run(

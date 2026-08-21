@@ -47,6 +47,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     plan_parser.add_argument(
         "--target",
+        action="append",
         help="Target specific resource (e.g., google_storage_bucket.data_bucket)",
     )
 
@@ -70,6 +71,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     apply_parser.add_argument(
         "--target",
+        action="append",
         help="Target specific resource",
     )
 
@@ -93,6 +95,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     destroy_parser.add_argument(
         "--target",
+        action="append",
         help="Target specific resource",
     )
 
