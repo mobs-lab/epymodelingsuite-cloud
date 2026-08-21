@@ -57,12 +57,11 @@ recordImageProvenance:
 
 # ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
 waitJob:
-  params: [name, expectedParallelism, taskCount, stallSeconds, maxRunDurationSeconds]
+  params: [name, expectedParallelism, taskCount, stallSeconds, zeroFillGraceSeconds, maxRunDurationSeconds]
   steps:
     - init_wait:
         assign:
           - pollSeconds: 15
-          - zeroFillGraceSeconds: 1500
           - provisioningMarginSeconds: 1800
           - safeParallelism: $${if(expectedParallelism > 0, expectedParallelism, 1)}
           - waves: $${int((taskCount + safeParallelism - 1) / safeParallelism)}

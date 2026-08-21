@@ -90,6 +90,10 @@ main:
           # Task count per node - allow runtime override
           - taskCountPerNodeOverride: $${default(map.get(input, "taskCountPerNode"), 0)}
           - taskCountPerNode: $${if(taskCountPerNodeOverride > 0, taskCountPerNodeOverride, ${task_count_per_node})}
+          # Defaults protect production runs; direct staging executions can
+          # shorten them to exercise watchdog transitions.
+          - watchdogStallSeconds: $${int(default(map.get(input, "watchdogStallSeconds"), 900))}
+          - watchdogZeroFillGraceSeconds: $${int(default(map.get(input, "watchdogZeroFillGraceSeconds"), 1500))}
 
     # Build default one-candidate chains for legacy submissions. Newer clients
     # can provide stage{A,B,C}Candidates and an explicit pinned flag.
@@ -123,6 +127,11 @@ main:
         switch:
           - condition: $${numCandidatesA <= 0 or numCandidatesB <= 0 or numCandidatesC <= 0}
             raise: "Each stage requires at least one machine candidate"
+
+    - validate_watchdog_timings:
+        switch:
+          - condition: $${watchdogStallSeconds < 15 or watchdogZeroFillGraceSeconds < 15}
+            raise: "Watchdog timings must be at least 15 seconds"
 
     # Variables assigned in a loop must exist outside it if later steps read them.
     - initialize_stage_results:
@@ -278,7 +287,8 @@ main:
                   name: $${jobA.body.name}
                   expectedParallelism: 1
                   taskCount: 1
-                  stallSeconds: 900
+                  stallSeconds: $${watchdogStallSeconds}
+                  zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
                   maxRunDurationSeconds: ${stage_a_max_run_duration}
                 result: waitA
 
@@ -490,7 +500,8 @@ main:
                   name: $${jobB.body.name}
                   expectedParallelism: $${parallelism}
                   taskCount: $${N}
-                  stallSeconds: 900
+                  stallSeconds: $${watchdogStallSeconds}
+                  zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
                   maxRunDurationSeconds: ${stage_b_max_run_duration}
                 result: waitB
 
@@ -678,7 +689,8 @@ main:
                             name: $${jobC.body.name}
                             expectedParallelism: 1
                             taskCount: 1
-                            stallSeconds: 900
+                            stallSeconds: $${watchdogStallSeconds}
+                            zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
                             maxRunDurationSeconds: ${stage_c_max_run_duration}
                           result: waitC
 

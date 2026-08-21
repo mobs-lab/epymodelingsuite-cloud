@@ -199,10 +199,27 @@ def test_watchdog_resets_the_timer_during_healthy_occupancy(wait_job_source):
     assert "- flatPolls: $${if(filled >= 0.9 or madeProgress, 0, flatPolls + 1)}" in wait_job_source
 
 
-def test_zero_fill_grace_outlasts_batch_vm_creation_window(wait_job_source):
+def test_zero_fill_grace_outlasts_batch_vm_creation_window(
+    workflow_source, wait_job_source
+):
     """Zero fill must wait past Batch's 1080-second hard-error reporting window."""
-    assert "- zeroFillGraceSeconds: 1500" in wait_job_source
+    assert (
+        '- watchdogZeroFillGraceSeconds: $${int(default(map.get(input, '
+        '"watchdogZeroFillGraceSeconds"), 1500))}' in workflow_source
+    )
     assert "everStarted == 0 and zeroFillSeconds >= zeroFillGraceSeconds" in wait_job_source
+
+
+def test_watchdog_timings_allow_bounded_staging_overrides(workflow_source):
+    """Direct staging runs may shorten timers without changing normal defaults."""
+    assert (
+        '- watchdogStallSeconds: $${int(default(map.get(input, '
+        '"watchdogStallSeconds"), 900))}' in workflow_source
+    )
+    assert (
+        "watchdogStallSeconds < 15 or watchdogZeroFillGraceSeconds < 15"
+        in workflow_source
+    )
 
 
 def test_wait_bound_scales_with_task_waves(wait_job_source):
@@ -244,7 +261,8 @@ def test_each_stage_supplies_watchdog_demand_and_duration(
 
     assert f"expectedParallelism: {parallelism}" in call
     assert f"taskCount: {task_count}" in call
-    assert "stallSeconds: 900" in call
+    assert "stallSeconds: $${watchdogStallSeconds}" in call
+    assert "zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}" in call
     assert f"maxRunDurationSeconds: ${{{duration}}}" in call
 
 
