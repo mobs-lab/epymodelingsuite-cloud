@@ -46,20 +46,20 @@ google_cloud:
 
     stage_a:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: "c4d-standard-2"
+      memory_mib: 7168
+      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
       max_run_duration: 3600
 
     stage_b:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: ""
+      memory_mib: 7168
+      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
       max_run_duration: 36000
 
     stage_c:
       cpu_milli: 4000
       memory_mib: 15360
-      machine_type: "c4d-standard-4"
+      machine_types: [c4d-standard-4, c4-standard-4, n4d-standard-4, c3-standard-4]
       max_run_duration: 7200
       run_output_stage: true
 

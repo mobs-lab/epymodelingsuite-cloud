@@ -7,6 +7,8 @@ import pytest
 
 from epycloud.exceptions import ValidationError
 from epycloud.lib.validation import (
+    _list_region_machine_types,
+    get_machine_type_specs,
     validate_exp_id,
     validate_github_token,
     validate_local_path,
@@ -97,7 +99,7 @@ class TestValidateRunId:
 
     def test_invalid_run_id_wrong_format(self):
         """Test run ID with invalid characters."""
-        # "2025-11-07" is actually valid as a user-defined run_id (contains only alphanumeric + dash)
+        # "2025-11-07" is valid as a user-defined run_id because dashes are allowed.
         # Test with actually invalid characters instead
         with pytest.raises(ValidationError, match="Invalid run ID format"):
             validate_run_id("run@id!")  # Special characters
@@ -223,6 +225,15 @@ class TestValidateStageName:
 class TestValidateMachineType:
     """Test Google Cloud machine type validation."""
 
+    @pytest.fixture(autouse=True)
+    def clear_machine_type_caches(self):
+        """Keep subprocess outcomes isolated while production lookups stay cached."""
+        _list_region_machine_types.cache_clear()
+        get_machine_type_specs.cache_clear()
+        yield
+        _list_region_machine_types.cache_clear()
+        get_machine_type_specs.cache_clear()
+
     def test_valid_machine_type_format(self):
         """Test machine types with valid format pass format validation."""
         # Mock successful gcloud call
@@ -275,8 +286,8 @@ class TestValidateMachineType:
             assert "machine-types" in call_args
             assert "--project=test-project" in call_args
             assert "--zones=us-east1-a" in call_args
-            assert "--filter=name=c2-standard-8" in call_args
-            assert "--limit=1" in call_args
+            assert "--format=value(name)" in call_args
+            assert not any(arg.startswith("--filter=") for arg in call_args)
 
     def test_machine_type_not_found_with_suggestions(self):
         """Test machine type not found provides suggestions."""
@@ -290,10 +301,7 @@ class TestValidateMachineType:
 
             # Check suggestions are included
             assert "n2-standard-4" in str(exc_info.value) or "n2-standard-8" in str(exc_info.value)
-            suggestion_args = mock_run.call_args_list[1][0][0]
-            assert "--zones=us-central1-a" in suggestion_args
-            assert "--filter=name~^n2-" in suggestion_args
-            assert "--limit=5" in suggestion_args
+            mock_run.assert_called_once()
 
     def test_machine_type_not_found_no_similar(self):
         """Test machine type not found when no similar types exist."""
@@ -328,3 +336,32 @@ class TestValidateMachineType:
         with patch("subprocess.run", side_effect=FileNotFoundError("gcloud not found")):
             with pytest.raises(ValidationError, match="gcloud CLI not found"):
                 validate_machine_type("n2-standard-4", "my-project", "us-central1")
+
+    def test_region_machine_list_is_reused_across_candidates(self):
+        """A chain should perform one regional list call rather than one per candidate."""
+        mock_result = MagicMock(
+            returncode=0,
+            stdout="c4d-standard-2\nc4-standard-2\n",
+            stderr="",
+        )
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            validate_machine_type("c4d-standard-2", "my-project", "us-central1")
+            validate_machine_type("c4-standard-2", "my-project", "us-central1")
+
+        mock_run.assert_called_once()
+
+    def test_machine_specs_are_reused_for_repeated_stage_candidates(self):
+        """Stages A and B sharing a candidate should issue one describe request."""
+        mock_result = MagicMock(
+            returncode=0,
+            stdout='{"guestCpus": 2, "memoryMb": 7168}',
+            stderr="",
+        )
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            first = get_machine_type_specs("c4d-standard-2", "my-project", "us-central1")
+            second = get_machine_type_specs("c4d-standard-2", "my-project", "us-central1")
+
+        assert first == second == (2000, 7168)
+        mock_run.assert_called_once()

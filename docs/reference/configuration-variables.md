@@ -50,7 +50,7 @@ These keys are read each time you run `epycloud run workflow`. Changes **take ef
 | `google_cloud.billing_project` | Cost grouping label for billing reports | N/A (runtime only) |
 | `google_cloud.batch.max_parallelism` | Max parallel tasks | Yes |
 | `google_cloud.batch.task_count_per_node` | Tasks per VM | Yes |
-| `google_cloud.batch.stage_*/machine_type` | Machine type per stage (empty = auto-select based on CPU/memory) | Yes (via CLI flags) |
+| `google_cloud.batch.stage_*/machine_types` | Ordered fallback candidates per stage | Yes |
 | `google_cloud.batch.stage_*/cpu_milli`, `memory_mib` | CPU/memory per stage | Yes (via CLI flags, together with machine type) |
 
 !!! tip
@@ -118,8 +118,8 @@ Compute resources for Stage A (Builder). Single-task job that generates input fi
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.batch.stage_a.cpu_milli` | integer | `2000` | CPU allocation in millicores (2000 = 2 vCPUs). |
-| `google_cloud.batch.stage_a.memory_mib` | integer | `8192` | Memory allocation in MiB (8192 = 8 GB). |
-| `google_cloud.batch.stage_a.machine_type` | string | `"c4d-standard-2"` | Google Cloud machine type. Empty string (`""`) lets Cloud Batch auto-select based on CPU/memory requirements. |
+| `google_cloud.batch.stage_a.memory_mib` | integer | `7168` | Minimum memory allocation in MiB. |
+| `google_cloud.batch.stage_a.machine_types` | list | C4D, C4, N4D, N4 standard-2 | Ordered fallback candidates. Every candidate must meet the stage minimums. |
 | `google_cloud.batch.stage_a.max_run_duration` | integer | `3600` | Maximum execution time in seconds (3600 = 1 hour). Tasks exceeding this limit are terminated. |
 
 ### google_cloud.batch.stage_b
@@ -129,8 +129,8 @@ Compute resources for Stage B (Runner). Parallel tasks, each processing one inpu
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.batch.stage_b.cpu_milli` | integer | `2000` | CPU allocation in millicores (2000 = 2 vCPUs). |
-| `google_cloud.batch.stage_b.memory_mib` | integer | `8192` | Memory allocation in MiB (8192 = 8 GB). |
-| `google_cloud.batch.stage_b.machine_type` | string | `""` | Google Cloud machine type. Empty string lets Cloud Batch auto-select. Set explicitly (e.g., `"e2-standard-2"`) for predictable scaling. |
+| `google_cloud.batch.stage_b.memory_mib` | integer | `7168` | Minimum memory allocation in MiB. |
+| `google_cloud.batch.stage_b.machine_types` | list | C4D, C4, N4D, N4 standard-2 | Ordered fallback candidates. |
 | `google_cloud.batch.stage_b.max_run_duration` | integer | `36000` | Maximum execution time in seconds (36000 = 10 hours). See [sizing guidelines](#sizing-guidelines) below. |
 
 ### google_cloud.batch.stage_c
@@ -141,7 +141,7 @@ Compute resources for Stage C (Output). Runs as a single task that loads all Sta
 |-----|------|---------|-------------|
 | `google_cloud.batch.stage_c.cpu_milli` | integer | `4000` | CPU allocation in millicores (4000 = 4 vCPUs). |
 | `google_cloud.batch.stage_c.memory_mib` | integer | `15360` | Memory allocation in MiB (15360 = 15 GB). |
-| `google_cloud.batch.stage_c.machine_type` | string | `"c4d-standard-4"` | Google Cloud machine type. Empty string lets Cloud Batch auto-select. |
+| `google_cloud.batch.stage_c.machine_types` | list | C4D, C4, N4D, C3 standard-4 | Ordered fallback candidates. A memory-bound profile can replace this list with highmem-4 candidates. |
 | `google_cloud.batch.stage_c.max_run_duration` | integer | `7200` | Maximum execution time in seconds (7200 = 2 hours). See [sizing guidelines](#sizing-guidelines) below. |
 | `google_cloud.batch.stage_c.run_output_stage` | boolean | `true` | Whether to run Stage C after Stage B completes. Set to `false` to skip output generation (e.g., when only raw runner artifacts are needed). |
 
@@ -166,15 +166,18 @@ Compute resources for Stage C (Output). Runs as a single task that loads all Sta
 
 ### Machine type selection
 
-When `machine_type` is set to a specific value (e.g., `"c4d-standard-2"`):
+When `machine_types` contains multiple values:
 
-- Cloud Batch provisions that exact machine type
-- `cpu_milli` and `memory_mib` act as task-level constraints (must fit within the machine)
+- The workflow tries candidates in order
+- Each candidate carries its own resolved CPU and memory
+- An unsuccessful candidate is cancelled and drained before replacement
 
-When `machine_type` is empty (`""`):
+When a `--stage-*-machine-type` CLI option is supplied:
 
-- Cloud Batch auto-selects a VM based on `cpu_milli` and `memory_mib`
-- Recommended when you don't need a specific machine family
+- The stage is pinned to that one candidate
+- The candidate must still meet the configured stage minimums
+
+The legacy singular `machine_type` key remains a one-candidate compatibility path. Run `epycloud config migrate` to replace legacy keys with requirement-based chains.
 
 For available machine types, pricing, and sizing recommendations, see [Machine Types](google-cloud/machine-types.md).
 
@@ -256,20 +259,20 @@ google_cloud:
 
     stage_a:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: "c4d-standard-2"
+      memory_mib: 7168
+      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
       max_run_duration: 3600
 
     stage_b:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: ""
+      memory_mib: 7168
+      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
       max_run_duration: 36000
 
     stage_c:
       cpu_milli: 4000
       memory_mib: 15360
-      machine_type: "c4d-standard-4"
+      machine_types: [c4d-standard-4, c4-standard-4, n4d-standard-4, c3-standard-4]
       max_run_duration: 7200
       run_output_stage: true
 

@@ -9,6 +9,16 @@ from epycloud.lib.command_helpers import find_terraform_dir
 from epycloud.lib.output import error, info
 
 
+def _get_terraform_machine_type(stage_config: dict[str, Any]) -> str | None:
+    """Return the first configured candidate for Terraform's legacy defaults."""
+    machine_types = stage_config.get("machine_types")
+    if isinstance(machine_types, list) and machine_types:
+        first = machine_types[0]
+        return first if isinstance(first, str) else None
+    machine_type = stage_config.get("machine_type")
+    return machine_type if isinstance(machine_type, str) else None
+
+
 def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
     """Build TF_VAR_* environment variables from config.
 
@@ -71,8 +81,9 @@ def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
         env_vars["TF_VAR_stage_a_cpu_milli"] = str(stage_a_config["cpu_milli"])
     if "memory_mib" in stage_a_config:
         env_vars["TF_VAR_stage_a_memory_mib"] = str(stage_a_config["memory_mib"])
-    if "machine_type" in stage_a_config:
-        env_vars["TF_VAR_stage_a_machine_type"] = stage_a_config["machine_type"]
+    stage_a_machine_type = _get_terraform_machine_type(stage_a_config)
+    if stage_a_machine_type is not None:
+        env_vars["TF_VAR_stage_a_machine_type"] = stage_a_machine_type
     if "max_run_duration" in stage_a_config:
         env_vars["TF_VAR_stage_a_max_run_duration"] = str(stage_a_config["max_run_duration"])
 
@@ -82,8 +93,9 @@ def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
         env_vars["TF_VAR_stage_b_cpu_milli"] = str(stage_b_config["cpu_milli"])
     if "memory_mib" in stage_b_config:
         env_vars["TF_VAR_stage_b_memory_mib"] = str(stage_b_config["memory_mib"])
-    if "machine_type" in stage_b_config:
-        env_vars["TF_VAR_stage_b_machine_type"] = stage_b_config["machine_type"]
+    stage_b_machine_type = _get_terraform_machine_type(stage_b_config)
+    if stage_b_machine_type is not None:
+        env_vars["TF_VAR_stage_b_machine_type"] = stage_b_machine_type
     if "max_run_duration" in stage_b_config:
         env_vars["TF_VAR_stage_b_max_run_duration"] = str(stage_b_config["max_run_duration"])
 
@@ -93,8 +105,9 @@ def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
         env_vars["TF_VAR_stage_c_cpu_milli"] = str(stage_c_config["cpu_milli"])
     if "memory_mib" in stage_c_config:
         env_vars["TF_VAR_stage_c_memory_mib"] = str(stage_c_config["memory_mib"])
-    if "machine_type" in stage_c_config:
-        env_vars["TF_VAR_stage_c_machine_type"] = stage_c_config["machine_type"]
+    stage_c_machine_type = _get_terraform_machine_type(stage_c_config)
+    if stage_c_machine_type is not None:
+        env_vars["TF_VAR_stage_c_machine_type"] = stage_c_machine_type
     if "max_run_duration" in stage_c_config:
         env_vars["TF_VAR_stage_c_max_run_duration"] = str(stage_c_config["max_run_duration"])
     if "run_output_stage" in stage_c_config:

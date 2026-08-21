@@ -41,22 +41,22 @@ google_cloud:
     # Stage A (Builder) Resources
     stage_a:
       cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
-      memory_mib: 4096                # Memory (4096 = 4 GB)
-      machine_type: ""                # VM type (empty = auto-select)
+      memory_mib: 7168                # Minimum memory
+      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
       max_run_duration: 3600          # Timeout in seconds (1 hour)
 
     # Stage B (Runner) Resources
     stage_b:
       cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
-      memory_mib: 4096                # Memory (4096 = 4 GB)
-      machine_type: ""                # VM type (e.g., "e2-standard-2", empty = auto-select)
+      memory_mib: 7168                # Minimum memory
+      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
       max_run_duration: 36000         # Timeout in seconds (10 hours)
 
     # Stage C (Output) Resources
     stage_c:
-      cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
-      memory_mib: 8192                # Memory (8192 = 8 GB)
-      machine_type: ""                # VM type (empty = auto-select)
+      cpu_milli: 4000                 # CPU (4000 = 4 vCPUs)
+      memory_mib: 15360               # Minimum memory
+      machine_types: [c4d-standard-4, c4-standard-4, n4d-standard-4, c3-standard-4]
       max_run_duration: 7200          # Timeout in seconds (2 hours)
 
     run_output_stage: true            # Enable/disable Stage C
@@ -115,9 +115,9 @@ google_cloud:
   batch:
     task_count_per_node: 1            # One task per VM (no queueing)
     stage_b:
-      machine_type: "e2-standard-2"   # Explicit type for predictable scaling
       cpu_milli: 2000
-      memory_mib: 8192
+      memory_mib: 7168
+      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
 ```
 
 
@@ -386,14 +386,14 @@ If you have existing `.env` files, migrate to the unified config system:
 | `TASK_COUNT_PER_NODE` | `google_cloud.batch.task_count_per_node` |
 | `STAGE_A_CPU_MILLI` | `google_cloud.batch.stage_a.cpu_milli` |
 | `STAGE_A_MEMORY_MIB` | `google_cloud.batch.stage_a.memory_mib` |
-| `STAGE_A_MACHINE_TYPE` | `google_cloud.batch.stage_a.machine_type` |
+| `STAGE_A_MACHINE_TYPE` | First value in `google_cloud.batch.stage_a.machine_types` |
 | `STAGE_B_CPU_MILLI` | `google_cloud.batch.stage_b.cpu_milli` |
 | `STAGE_B_MEMORY_MIB` | `google_cloud.batch.stage_b.memory_mib` |
-| `STAGE_B_MACHINE_TYPE` | `google_cloud.batch.stage_b.machine_type` |
+| `STAGE_B_MACHINE_TYPE` | First value in `google_cloud.batch.stage_b.machine_types` |
 | `STAGE_B_MAX_RUN_DURATION` | `google_cloud.batch.stage_b.max_run_duration` |
 | `STAGE_C_CPU_MILLI` | `google_cloud.batch.stage_c.cpu_milli` |
 | `STAGE_C_MEMORY_MIB` | `google_cloud.batch.stage_c.memory_mib` |
-| `STAGE_C_MACHINE_TYPE` | `google_cloud.batch.stage_c.machine_type` |
+| `STAGE_C_MACHINE_TYPE` | First value in `google_cloud.batch.stage_c.machine_types` |
 | `STAGE_C_MAX_RUN_DURATION` | `google_cloud.batch.stage_c.max_run_duration` |
 | `RUN_OUTPUT_STAGE` | `google_cloud.batch.run_output_stage` |
 | `LOG_LEVEL` | `logging.level` |
@@ -404,4 +404,3 @@ If you have existing `.env` files, migrate to the unified config system:
 | Old .env.local Variable | New secrets.yaml Path |
 |------------------------|----------------------|
 | `GITHUB_PAT` | `github.personal_access_token` |
-

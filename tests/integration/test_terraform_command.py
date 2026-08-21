@@ -638,6 +638,24 @@ class TestTerraformEnvVars:
         # Check GitHub
         assert env_vars["TF_VAR_github_forecast_repo"] == "mobs-lab/flu-forecast"
 
+    def test_terraform_uses_the_first_candidate_as_its_legacy_default(self):
+        """Terraform renders one default machine while runtime fallback stays in the CLI."""
+        config = {
+            "google_cloud": {
+                "batch": {
+                    "stage_c": {
+                        "cpu_milli": 4000,
+                        "memory_mib": 31744,
+                        "machine_types": ["c3-highmem-4", "c3d-highmem-4"],
+                    }
+                }
+            }
+        }
+
+        env_vars = terraform.operations.get_terraform_env_vars(config)
+
+        assert env_vars["TF_VAR_stage_c_machine_type"] == "c3-highmem-4"
+
     def test_get_terraform_env_vars_partial_config(self):
         """Test constructing TF_VAR environment variables with partial config."""
         config = {

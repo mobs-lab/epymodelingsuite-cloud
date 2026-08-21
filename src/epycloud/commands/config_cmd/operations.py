@@ -5,6 +5,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import yaml
+
+from epycloud.execution.gcp_machines import get_candidate_chain
 from epycloud.lib.output import ask_confirmation, error, info, status, success, warning
 from epycloud.lib.paths import (
     get_config_dir,
@@ -73,6 +76,160 @@ def initialize_config_dir() -> int:
     info("  3. Review environment configs in environments/")
     info("  4. Run 'epycloud config validate' to check configuration")
 
+    return 0
+
+
+def _migrate_stage_block(stage: str, stage_config: dict) -> tuple[dict, bool, str | None]:
+    """Return one stage block with a requirement-based candidate chain."""
+    if "machine_types" in stage_config:
+        if "machine_type" not in stage_config:
+            return stage_config, False, None
+        return (
+            {key: value for key, value in stage_config.items() if key != "machine_type"},
+            True,
+            None,
+        )
+    if "machine_type" not in stage_config:
+        return stage_config, False, None
+
+    migrated = dict(stage_config)
+    machine_type = migrated.get("machine_type")
+    if not isinstance(machine_type, str):
+        return stage_config, False, "machine_type must be a string"
+
+    # Correct defaults that represented the selected VM maximum rather than
+    # the workload minimum. These exact legacy values shipped with epycloud.
+    if stage in ("a", "b") and machine_type == "c4d-standard-2":
+        if migrated.get("cpu_milli", 2000) == 2000 and migrated.get("memory_mib") == 8192:
+            migrated["memory_mib"] = 7168
+    if stage == "c" and machine_type == "c4d-standard-8":
+        if migrated.get("cpu_milli") == 8000 and migrated.get("memory_mib") == 31744:
+            migrated["cpu_milli"] = 4000
+
+    defaults = {
+        "a": (2000, 7168),
+        "b": (2000, 7168),
+        "c": (4000, 15360),
+    }
+    default_cpu, default_memory = defaults[stage]
+    min_cpu = migrated.get("cpu_milli", default_cpu)
+    min_memory = migrated.get("memory_mib", default_memory)
+    if (
+        isinstance(min_cpu, bool)
+        or not isinstance(min_cpu, int)
+        or isinstance(min_memory, bool)
+        or not isinstance(min_memory, int)
+    ):
+        return stage_config, False, "cpu_milli and memory_mib must be integers"
+
+    chain = get_candidate_chain(min_cpu, min_memory)
+    if not chain:
+        return (
+            stage_config,
+            False,
+            f"no maintained chain satisfies {min_cpu} mCPU and {min_memory} MiB",
+        )
+
+    result = {}
+    for key, value in migrated.items():
+        if key == "machine_type":
+            result["machine_types"] = list(chain)
+        else:
+            result[key] = value
+    return result, True, None
+
+
+def _write_yaml_atomically(path: Path, content: dict) -> None:
+    """Replace a YAML file atomically while preserving its permission bits."""
+    mode = path.stat().st_mode & 0o777
+    temp_path: Path | None = None
+    try:
+        for index in range(100):
+            candidate = path.with_name(f".{path.name}.{os.getpid()}.{index}.tmp")
+            try:
+                handle = candidate.open("x")
+                temp_path = candidate
+                with handle:
+                    yaml.safe_dump(content, handle, default_flow_style=False, sort_keys=False)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                break
+            except FileExistsError:
+                continue
+        if temp_path is None:
+            raise OSError(f"Unable to create a temporary file next to {path}")
+        os.chmod(temp_path, mode)
+        os.replace(temp_path, path)
+    except Exception:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise
+
+
+def migrate_machine_type_chains(config_dir: Path | None = None) -> int:
+    """Migrate legacy stage machine types in base, environment, and profile files."""
+    config_dir = config_dir or get_config_dir()
+    config_file = (
+        get_config_file() if config_dir == get_config_dir() else config_dir / "config.yaml"
+    )
+    if not config_file.exists():
+        error("Config file not found. Run 'epycloud config init' first.")
+        return 1
+
+    paths = [config_file]
+    for subdirectory in ("environments", "profiles"):
+        directory = config_dir / subdirectory
+        if directory.exists():
+            paths.extend(sorted(directory.glob("*.yaml")))
+            paths.extend(sorted(directory.glob("*.yml")))
+
+    planned: dict[Path, dict] = {}
+    failures: list[str] = []
+    for path in paths:
+        try:
+            content = yaml.safe_load(path.read_text()) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            failures.append(f"{path}: {exc}")
+            continue
+        batch = content.get("google_cloud", {}).get("batch")
+        if not isinstance(batch, dict):
+            continue
+
+        changed = False
+        for stage in ("a", "b", "c"):
+            key = f"stage_{stage}"
+            stage_config = batch.get(key)
+            if not isinstance(stage_config, dict):
+                continue
+            migrated, stage_changed, failure = _migrate_stage_block(stage, stage_config)
+            if failure:
+                failures.append(f"{path}: {key}: {failure}")
+                continue
+            if stage_changed:
+                batch[key] = migrated
+                changed = True
+        if changed:
+            planned[path] = content
+
+    if failures:
+        error("Configuration migration failed; no files were changed:")
+        for failure in failures:
+            error(f"  - {failure}")
+        return 1
+
+    if not planned:
+        success("Configuration is already migrated")
+        return 0
+
+    for path, content in planned.items():
+        backup = path.with_suffix(path.suffix + ".pre-machine-chains.bak")
+        if not backup.exists():
+            shutil.copy2(path, backup)
+        _write_yaml_atomically(path, content)
+        success(f"Migrated {path}")
+        info(f"  Backup: {backup}")
+
+    success("Machine fallback chain migration complete")
     return 0
 
 
@@ -183,7 +340,10 @@ def edit_secrets_file() -> int:
     if not file_path.exists():
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(
-            '# Secrets configuration\n# Store sensitive credentials here\n\ngithub:\n  personal_access_token: ""\n'
+            "# Secrets configuration\n"
+            "# Store sensitive credentials here\n\n"
+            "github:\n"
+            '  personal_access_token: ""\n'
         )
         os.chmod(file_path, 0o600)
         status(f"Created {file_path} with secure permissions (0600)")

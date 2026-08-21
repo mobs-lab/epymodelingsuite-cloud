@@ -111,13 +111,13 @@ def mock_config():
                 "stage_a": {
                     "machine_type": "c4d-standard-2",
                     "cpu_milli": 2000,
-                    "memory_mib": 8192,
+                    "memory_mib": 7168,
                     "max_run_duration": 3600,
                 },
                 "stage_b": {
                     "machine_type": "c4d-standard-4",
                     "cpu_milli": 4000,
-                    "memory_mib": 16384,
+                    "memory_mib": 15360,
                     "max_run_duration": 7200,
                 },
                 "stage_c": {

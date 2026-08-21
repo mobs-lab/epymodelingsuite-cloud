@@ -7,8 +7,32 @@ Internal validation logic and helpers use real implementations.
 from argparse import Namespace
 from unittest.mock import Mock, patch
 
-from epycloud.cli import create_parser
+import pytest
+
+from epycloud.cli import _is_dry_run, create_parser
 from epycloud.commands import run
+from epycloud.exceptions import ValidationError
+from epycloud.execution.gcp_machines import MACHINE_SPECS
+
+
+@pytest.fixture(autouse=True)
+def machine_metadata_without_gcloud(monkeypatch):
+    """Keep command tests at the submission boundary while candidate tests cover lookup I/O."""
+    from epycloud.commands.run import validation
+
+    def validate(machine_type, project_id, region):
+        del project_id, region
+        if machine_type.startswith("invalid"):
+            raise ValidationError(f"Machine type '{machine_type}' not found")
+        return machine_type
+
+    def specs(machine_type, project_id, region):
+        del project_id, region
+        vcpus, memory_mib = MACHINE_SPECS[machine_type]
+        return vcpus * 1000, memory_mib
+
+    monkeypatch.setattr(validation, "validate_machine_type", validate)
+    monkeypatch.setattr(validation, "get_machine_type_specs", specs)
 
 
 class TestRunWorkflowCommand:
@@ -17,15 +41,19 @@ class TestRunWorkflowCommand:
     @patch("epycloud.lib.command_helpers.subprocess.run")
     @patch("epycloud.commands.run.cloud.workflow.requests.post")
     def test_run_workflow_cloud_success(self, mock_post, mock_subprocess, mock_config):
-        """Test successful workflow submission to cloud."""
+        """A normal workflow submission forwards resolved chains and their legacy heads."""
+        for stage in ("stage_a", "stage_b", "stage_c"):
+            stage_config = mock_config["google_cloud"]["batch"][stage]
+            stage_config["machine_types"] = [stage_config.pop("machine_type")]
+        mock_config["google_cloud"]["batch"]["stage_b"]["machine_types"].append("c4-standard-4")
         # Mock only external boundaries
         mock_subprocess.return_value = Mock(returncode=0, stdout="mock-access-token\n", stderr="")
 
         mock_response = Mock()
         mock_response.json.return_value = {
             "name": "projects/test-project/locations/us-central1/"
-                    "workflows/epymodelingsuite-pipeline/executions/abc123",
-            "state": "ACTIVE"
+            "workflows/epymodelingsuite-pipeline/executions/abc123",
+            "state": "ACTIVE",
         }
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
@@ -72,13 +100,18 @@ class TestRunWorkflowCommand:
         parsed_arg = json.loads(mock_post.call_args[1]["json"]["argument"])
         assert parsed_arg["stageAMachineType"] == "c4d-standard-2"
         assert parsed_arg["stageACpuMilli"] == 2000
-        assert parsed_arg["stageAMemoryMib"] == 8192
+        assert parsed_arg["stageAMemoryMib"] == 7168
         assert parsed_arg["stageBMachineType"] == "c4d-standard-4"
         assert parsed_arg["stageBCpuMilli"] == 4000
-        assert parsed_arg["stageBMemoryMib"] == 16384
+        assert parsed_arg["stageBMemoryMib"] == 15360
         assert parsed_arg["stageCMachineType"] == "c4d-standard-8"
         assert parsed_arg["stageCCpuMilli"] == 8000
         assert parsed_arg["stageCMemoryMib"] == 31744
+        assert parsed_arg["stageBCandidates"] == [
+            {"machine_type": "c4d-standard-4", "cpu_milli": 4000, "memory_mib": 15360},
+            {"machine_type": "c4-standard-4", "cpu_milli": 4000, "memory_mib": 15360},
+        ]
+        assert parsed_arg["stageBPinned"] is False
 
     def test_run_workflow_missing_config(self):
         """Test error handling when config is missing."""
@@ -93,6 +126,19 @@ class TestRunWorkflowCommand:
         exit_code = run.handle(ctx)
 
         assert exit_code == 2  # Config error
+
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            ["--dry-run", "run", "workflow", "--exp-id", "test-sim"],
+            ["run", "workflow", "--exp-id", "test-sim", "--dry-run"],
+        ],
+    )
+    def test_dry_run_is_honored_before_or_after_the_subcommand(self, arguments):
+        """A command-level default must never shadow a global no-write request."""
+        args = create_parser().parse_args(arguments)
+
+        assert _is_dry_run(args) is True
 
     def test_run_workflow_invalid_exp_id(self, mock_config):
         """Test validation error for invalid exp_id."""
@@ -473,27 +519,22 @@ class TestRunWorkflowMachineTypeOverride:
 
         # Mock gcloud compute machine-types commands
         def subprocess_side_effect(*args, **kwargs):
-            cmd = args[0] if args else kwargs.get('args', [])
-            cmd_str = ' '.join(cmd)
+            cmd = args[0] if args else kwargs.get("args", [])
+            cmd_str = " ".join(cmd)
 
-            if 'machine-types describe' in cmd_str:
+            if "machine-types describe" in cmd_str:
                 # Return machine type specs in JSON format
                 import json
+
                 return Mock(
                     returncode=0,
-                    stdout=json.dumps({
-                        "guestCpus": 8,
-                        "memoryMb": 32768,
-                        "name": "c4-standard-8"
-                    }),
-                    stderr=""
+                    stdout=json.dumps({"guestCpus": 8, "memoryMb": 32768, "name": "c4-standard-8"}),
+                    stderr="",
                 )
-            elif 'machine-types list' in cmd_str:
+            elif "machine-types list" in cmd_str:
                 # Return machine type list output (format=value(name) returns just names)
                 return Mock(
-                    returncode=0,
-                    stdout='c4-standard-8\nn2-standard-4\nn2-standard-8\n',
-                    stderr=""
+                    returncode=0, stdout="c4-standard-8\nn2-standard-4\nn2-standard-8\n", stderr=""
                 )
             # Default: return token
             return Mock(returncode=0, stdout="mock-token\n", stderr="")
@@ -542,6 +583,10 @@ class TestRunWorkflowMachineTypeOverride:
         # CLI override takes precedence over the fixture's profile value
         # (mock_config sets stage_b.machine_type = "c4d-standard-4").
         assert parsed_arg["stageBMachineType"] == "c4-standard-8"
+        assert parsed_arg["stageBCandidates"] == [
+            {"machine_type": "c4-standard-8", "cpu_milli": 8000, "memory_mib": 30720}
+        ]
+        assert parsed_arg["stageBPinned"] is True
 
     @patch("epycloud.lib.validation.subprocess.run")
     def test_workflow_with_invalid_machine_type_rejects(self, mock_subprocess, mock_config):
@@ -549,8 +594,8 @@ class TestRunWorkflowMachineTypeOverride:
         # Mock gcloud to return empty list (machine type not found)
         mock_subprocess.return_value = Mock(
             returncode=0,
-            stdout='',  # Empty output = machine type not found
-            stderr=""
+            stdout="",  # Empty output = machine type not found
+            stderr="",
         )
 
         ctx = {
@@ -646,8 +691,8 @@ class TestRunWorkflowMachineTypeOverride:
         assert parsed_arg["stageACpuMilli"] == 2000
         assert parsed_arg["stageBCpuMilli"] == 4000
         assert parsed_arg["stageCCpuMilli"] == 8000
-        assert parsed_arg["stageAMemoryMib"] == 8192
-        assert parsed_arg["stageBMemoryMib"] == 16384
+        assert parsed_arg["stageAMemoryMib"] == 7168
+        assert parsed_arg["stageBMemoryMib"] == 15360
         assert parsed_arg["stageCMemoryMib"] == 31744
 
     @patch("epycloud.lib.command_helpers.subprocess.run")

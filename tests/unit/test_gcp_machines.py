@@ -7,12 +7,11 @@ from epycloud.exceptions import ValidationError
 from epycloud.execution.gcp_machines import (
     ARM_MACHINE_FAMILIES,
     HYPERDISK_MACHINE_FAMILIES,
-    MACHINE_CHAINS_BY_SIZE,
+    MACHINE_CHAINS_BY_REQUIREMENT,
     MACHINE_SPECS,
     STAGE_MACHINE_CHAINS,
-    get_fallback_chain,
+    get_candidate_chain,
     get_machine_family,
-    get_machine_size,
     is_hyperdisk_family,
     validate_hyperdisk_family,
 )
@@ -141,17 +140,18 @@ class TestStageChains:
 
     def test_c4_is_the_first_equivalent_fallback(self):
         """C4 follows C4D where both machine types have identical resources."""
-        assert MACHINE_CHAINS_BY_SIZE["standard-2"][1] == "c4-standard-2"
-        assert MACHINE_CHAINS_BY_SIZE["standard-4"][1] == "c4-standard-4"
+        assert MACHINE_CHAINS_BY_REQUIREMENT[(2000, 8192)][1] == "c4-standard-2"
+        assert MACHINE_CHAINS_BY_REQUIREMENT[(4000, 16384)][1] == "c4-standard-4"
 
     def test_every_candidate_can_boot_hyperdisk(self):
         """A candidate that cannot boot the pipeline's disk is a guaranteed failure."""
-        for size, chain in MACHINE_CHAINS_BY_SIZE.items():
+        for requirement, chain in MACHINE_CHAINS_BY_REQUIREMENT.items():
             for candidate in chain:
-                assert is_hyperdisk_family(candidate), f"{size}: {candidate}"
+                assert is_hyperdisk_family(candidate), f"{requirement}: {candidate}"
 
     def test_every_candidate_has_recorded_specs(self):
-        for chain in MACHINE_CHAINS_BY_SIZE.values():
+        """Requirement filtering needs local specs for every maintained candidate."""
+        for chain in MACHINE_CHAINS_BY_REQUIREMENT.values():
             for candidate in chain:
                 assert candidate in MACHINE_SPECS, candidate
 
@@ -161,14 +161,15 @@ class TestStageChains:
         This is what excludes c4-standard-8 (30720 MiB) from the standard-8
         chain, whose head c4d-standard-8 is 31744 MiB.
         """
-        for size, chain in MACHINE_CHAINS_BY_SIZE.items():
+        for requirement, chain in MACHINE_CHAINS_BY_REQUIREMENT.items():
             memories = [MACHINE_SPECS[c][1] for c in chain]
-            assert memories == sorted(memories), f"{size}: {list(zip(chain, memories))}"
+            assert memories == sorted(memories), f"{requirement}: {list(zip(chain, memories))}"
 
     def test_vcpu_is_constant_along_every_chain(self):
-        for size, chain in MACHINE_CHAINS_BY_SIZE.items():
+        """A maintained pool changes family, except for requirement-driven shape selection."""
+        for requirement, chain in MACHINE_CHAINS_BY_REQUIREMENT.items():
             vcpus = {MACHINE_SPECS[c][0] for c in chain}
-            assert len(vcpus) == 1, f"{size}: {vcpus}"
+            assert len(vcpus) == 1, f"{requirement}: {vcpus}"
 
     def test_c4_standard_8_lowers_memory(self):
         """Regression guard for the plan's 'C4 is a spec-identical drop-in' claim.
@@ -179,17 +180,17 @@ class TestStageChains:
 
     def test_standard_8_chain_preserves_resources_and_excludes_c4(self):
         """The 8-vCPU chain must not include memory-lowering c4-standard-8."""
-        assert MACHINE_CHAINS_BY_SIZE["standard-8"] == (
+        assert MACHINE_CHAINS_BY_REQUIREMENT[(8000, 32768)] == (
             "c4d-standard-8",
             "c3-standard-8",
             "c3d-standard-8",
             "n4d-standard-8",
         )
-        assert "c4-standard-8" not in MACHINE_CHAINS_BY_SIZE["standard-8"]
+        assert "c4-standard-8" not in MACHINE_CHAINS_BY_REQUIREMENT[(8000, 32768)]
 
     def test_highmem_4_chain_serves_a_memory_bound_stage_c(self):
         """Highmem-4 preserves memory while meeting Stage C's CPU minimum."""
-        chain = MACHINE_CHAINS_BY_SIZE["highmem-4"]
+        chain = MACHINE_CHAINS_BY_REQUIREMENT[(4000, 32768)]
 
         assert chain[0] == "c3-highmem-4"
         for candidate in chain:
@@ -199,49 +200,46 @@ class TestStageChains:
             assert mem >= MACHINE_SPECS["c4d-standard-8"][1], candidate
 
 
-class TestGetFallbackChain:
-    """The fallback loop must chain on the *configured* size, not a fixed one."""
+class TestGetCandidateChain:
+    """Requirement lookup must prefer smaller shapes without lowering resources."""
 
-    def test_eight_vcpu_uses_its_standard_8_chain(self):
-        """A configured standard-8 machine receives every compatible fallback."""
-        assert get_fallback_chain("c4d-standard-8") == (
+    def test_standard_two_chain_serves_builder_and_runner(self):
+        """The 2000 mCPU and 7168 MiB workload keeps the measured standard-2 order."""
+        assert get_candidate_chain(2000, 7168) == (
+            "c4d-standard-2",
+            "c4-standard-2",
+            "n4d-standard-2",
+            "n4-standard-2",
+        )
+
+    def test_memory_bound_stage_prefers_highmem_four(self):
+        """A 31744 MiB stage must use 4-vCPU highmem before any 8-vCPU shape."""
+        assert get_candidate_chain(4000, 31744) == (
+            "c3-highmem-4",
+            "c3d-highmem-4",
+            "n4d-highmem-4",
+            "n4-highmem-4",
+        )
+
+    def test_eight_core_requirement_uses_standard_eight(self):
+        """An actual 8000 mCPU minimum cannot be served by highmem-4."""
+        assert get_candidate_chain(8000, 31744) == (
             "c4d-standard-8",
             "c3-standard-8",
             "c3d-standard-8",
             "n4d-standard-8",
         )
 
-    def test_highmem_4_chains_without_lowering_memory(self):
-        chain = get_fallback_chain("c3-highmem-4")
-
-        assert chain[0] == "c3-highmem-4"
-        assert all(MACHINE_SPECS[c][1] >= 31744 for c in chain)
-
-    def test_configured_type_leads_its_own_chain(self):
-        assert get_fallback_chain("c4-standard-2") == (
-            "c4-standard-2",
-            "c4d-standard-2",
+    def test_candidates_below_the_memory_minimum_are_filtered(self):
+        """A pool may contain mixed memory sizes, so each member is checked."""
+        assert get_candidate_chain(2000, 8192) == (
             "n4d-standard-2",
             "n4-standard-2",
         )
 
-    def test_chain_is_a_permutation_of_its_size_chain(self):
-        for chain in MACHINE_CHAINS_BY_SIZE.values():
-            for candidate in chain:
-                assert sorted(get_fallback_chain(candidate)) == sorted(chain)
-
-    def test_unknown_machine_type_pins_itself(self):
-        assert get_fallback_chain("c4d-highmem-8") == ("c4d-highmem-8",)
-
-    def test_empty_means_auto_select_and_has_no_chain(self):
-        assert get_fallback_chain("") == ()
-
-    @pytest.mark.parametrize(
-        "machine_type,expected",
-        [("c4d-standard-8", "standard-8"), ("n4-highmem-4", "highmem-4"), ("bogus", "")],
-    )
-    def test_machine_size_extracts_the_suffix(self, machine_type, expected):
-        assert get_machine_size(machine_type) == expected
+    def test_unsupported_requirement_has_no_implicit_downgrade(self):
+        """An unknown larger workload must require an explicit safe configuration."""
+        assert get_candidate_chain(16000, 65536) == ()
 
 
 class TestBatchConfigBootDisk:

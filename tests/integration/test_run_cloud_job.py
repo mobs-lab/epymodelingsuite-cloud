@@ -8,7 +8,31 @@ import json
 from argparse import Namespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 from epycloud.commands import run
+from epycloud.exceptions import ValidationError
+from epycloud.execution.gcp_machines import MACHINE_SPECS
+
+
+@pytest.fixture(autouse=True)
+def machine_metadata_without_gcloud(monkeypatch):
+    """Keep job tests at the submit boundary while candidate tests cover lookup I/O."""
+    from epycloud.commands.run import validation
+
+    def validate(machine_type, project_id, region):
+        del project_id, region
+        if machine_type.startswith("invalid"):
+            raise ValidationError(f"Machine type '{machine_type}' not found")
+        return machine_type
+
+    def specs(machine_type, project_id, region):
+        del project_id, region
+        vcpus, memory_mib = MACHINE_SPECS[machine_type]
+        return vcpus * 1000, memory_mib
+
+    monkeypatch.setattr(validation, "validate_machine_type", validate)
+    monkeypatch.setattr(validation, "get_machine_type_specs", specs)
 
 
 class TestRunJobCloud:
@@ -342,6 +366,7 @@ class TestRunJobCloudMachineType:
     @patch("epycloud.lib.validation.subprocess.run")
     def test_run_job_cloud_with_machine_type_override(self, mock_subprocess, mock_config):
         """Test job submission with machine type override."""
+
         # Mock machine type validation and job submission
         def subprocess_side_effect(*args, **kwargs):
             cmd = args[0] if args else kwargs.get("args", [])

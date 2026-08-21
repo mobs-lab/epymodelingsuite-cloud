@@ -7,7 +7,6 @@ from epycloud.execution import (
     ExecutionBackend,
     ExecutionBackendError,
     StageJobSpec,
-    StageResources,
 )
 from epycloud.lib.command_helpers import (
     generate_run_id,
@@ -23,8 +22,7 @@ from ..validation import (
     add_stage_specific_info,
     build_base_confirmation_info,
     prompt_user_confirmation,
-    validate_and_get_machine_specs,
-    validate_stage_machine_family,
+    resolve_stage_candidates,
 )
 
 
@@ -108,23 +106,12 @@ def run_job_gcp(
     # Get stage-specific resources
     stage_key = f"stage_{stage.lower()}"
     stage_config = batch_config.get(stage_key, {})
-    cpu_milli = stage_config.get("cpu_milli", 2000)
-    memory_mib = stage_config.get("memory_mib", 8192)
-    machine_type = stage_config.get("machine_type", "")
-    max_run_duration = stage_config.get("max_run_duration", 3600)
-
-    # Apply machine type override if provided
-    if machine_type_override:
-        result = validate_and_get_machine_specs(
-            machine_type_override, f"Stage {stage}", project_id, region
-        )
-        if result is None:
-            return 1
-        cpu_milli, memory_mib = result
-        machine_type = machine_type_override
-    elif not validate_stage_machine_family(machine_type, f"Stage {stage}"):
-        # Config-supplied machine types never reach validate_and_get_machine_specs
-        return 1
+    stage_defaults = {
+        "A": (2000, 7168, 3600),
+        "B": (2000, 7168, 36000),
+        "C": (4000, 15360, 7200),
+    }
+    default_cpu, default_memory, default_duration = stage_defaults[stage]
 
     # Set default for task_count_per_node if not provided
     if not task_count_per_node:
@@ -134,6 +121,33 @@ def run_job_gcp(
     if not project_id or not bucket_name:
         error("Missing required configuration: project_id or bucket_name")
         return 2
+
+    job_stage_config = stage_config
+    configured_chain = stage_config.get("machine_types")
+    if machine_type_override is None and isinstance(configured_chain, list) and configured_chain:
+        # A manual job is intentionally one attempt. The workflow owns
+        # fallback, while run job uses the configured head as an explicit
+        # repair/debug choice.
+        job_stage_config = {**stage_config, "machine_types": [configured_chain[0]]}
+
+    resolved = resolve_stage_candidates(
+        job_stage_config,
+        machine_type_override,
+        f"Stage {stage}",
+        project_id,
+        region,
+        default_cpu_milli=default_cpu,
+        default_memory_mib=default_memory,
+        default_max_run_duration=default_duration,
+    )
+    if resolved is None:
+        return 1
+    candidates, _ = resolved
+    resources = candidates[0]
+    cpu_milli = resources.cpu_milli
+    memory_mib = resources.memory_mib
+    machine_type = resources.machine_type
+    max_run_duration = resources.max_run_duration
 
     # Get batch service account
     batch_sa_email = get_batch_service_account(project_id)
@@ -196,12 +210,7 @@ def run_job_gcp(
             storage_bucket=bucket_name,
             storage_prefix=dir_prefix,
             forecast_repo=github_forecast_repo,
-            resources=StageResources(
-                machine_type=machine_type,
-                cpu_milli=cpu_milli,
-                memory_mib=memory_mib,
-                max_run_duration=max_run_duration,
-            ),
+            resources=resources,
             task_count_per_node=task_count_per_node,
             execution_identity=batch_sa_email,
             profile=profile_name,

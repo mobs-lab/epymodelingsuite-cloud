@@ -34,14 +34,14 @@ For details on each machine families and pricing, see:
 
 ### How it works
 
-When Cloud Batch runs a job, it provisions VMs to execute tasks. There are two approaches to control which VMs get provisioned:
+When Cloud Batch runs a job, it provisions VMs to execute tasks. The workflow accepts an ordered candidate chain per stage. If a candidate cannot obtain enough capacity, the workflow cancels and drains that Batch job before trying the next candidate.
 
-**Auto-select**: Specify only [CPU and memory requirements](cloud-batch.md#resource-units). Cloud Batch picks a machine type that satisfies them. This is simpler but less predictable, as Google may choose slower machine families (e.g., E2) when requirements are low.
+**Automatic fallback**: Configure `machine_types` in preferred order. Every candidate is validated against the stage's CPU and memory minimums before submission.
 
-**Explicit machine type**: Specify the exact machine type (e.g., `c4d-standard-2`). Cloud Batch provisions that specific VM. The CPU and memory values become task-level constraints and must not exceed the machine's capacity. If the values are smaller than the machine's capacity, Cloud Batch may pack multiple tasks onto the same VM (controlled by `task_count_per_node`). This gives predictable provisioning and consistent performance.
+**Explicit CLI pin**: Pass a `--stage-*-machine-type` option to use exactly one machine type and disable fallback for that stage. This is useful for controlled benchmarks and debugging.
 
 !!! tip
-    For production workloads, we recommend setting an explicit `machine_type` with `task_count_per_node: 1`. This gives each task a dedicated VM and ensures predictable scaling.
+    Use `machine_types` with `task_count_per_node: 1` for production. Run `epycloud config migrate` once after upgrading a config that still uses singular `machine_type` keys.
 
 For details on how Batch automatically creates and deltes resources that meet specification, see:
 
@@ -55,18 +55,7 @@ For details on how Batch automatically creates and deltes resources that meet sp
 
 In the pipeline, machine type selection is configured per stage:
 
-=== "Auto-select"
-
-    ```yaml
-    google_cloud:
-      batch:
-        stage_b:
-          cpu_milli: 2000
-          memory_mib: 4096
-          machine_type: ""  # Cloud Batch picks the VM
-    ```
-
-=== "Explicit machine type"
+=== "Automatic fallback"
 
     ```yaml
     google_cloud:
@@ -74,7 +63,18 @@ In the pipeline, machine type selection is configured per stage:
         stage_b:
           cpu_milli: 2000
           memory_mib: 7168
-          machine_type: "c4d-standard-2"
+          machine_types:
+            - c4d-standard-2
+            - c4-standard-2
+            - n4d-standard-2
+            - n4-standard-2
+    ```
+
+=== "Explicit CLI pin"
+
+    ```bash
+    epycloud run workflow --exp-id EXAMPLE \
+      --stage-b-machine-type c4d-standard-2
     ```
 
 See [Configuration Variables](../configuration-variables.md#google_cloudbatch) for all per-stage resource settings.

@@ -48,23 +48,43 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
     "c4-highmem-4": (4, 31744),
 }
 
-# Ordered in-region fallbacks. Each chain keeps vCPU constant and memory
-# non-decreasing. C4 is excluded from standard-8 because it has less memory
-# than C4D. Revalidate specs and capacity when candidates or regions change.
-MACHINE_CHAINS_BY_SIZE: dict[str, tuple[str, ...]] = {
-    "standard-2": ("c4d-standard-2", "c4-standard-2", "n4d-standard-2", "n4-standard-2"),
-    "standard-4": ("c4d-standard-4", "c4-standard-4", "n4d-standard-4", "c3-standard-4"),
-    "standard-8": ("c4d-standard-8", "c3-standard-8", "c3d-standard-8", "n4d-standard-8"),
-    "highmem-4": ("c3-highmem-4", "c3d-highmem-4", "n4d-highmem-4", "n4-highmem-4"),
+# Ordered candidate pools, keyed by the largest workload requirement each pool
+# can serve. Choosing by CPU and memory allows a memory-bound workload to move
+# from standard-8 to highmem-4 without lowering either requirement.
+MACHINE_CHAINS_BY_REQUIREMENT: dict[tuple[int, int], tuple[str, ...]] = {
+    (2000, 8192): (
+        "c4d-standard-2",
+        "c4-standard-2",
+        "n4d-standard-2",
+        "n4-standard-2",
+    ),
+    (4000, 16384): (
+        "c4d-standard-4",
+        "c4-standard-4",
+        "n4d-standard-4",
+        "c3-standard-4",
+    ),
+    (4000, 32768): (
+        "c3-highmem-4",
+        "c3d-highmem-4",
+        "n4d-highmem-4",
+        "n4-highmem-4",
+    ),
+    (8000, 32768): (
+        "c4d-standard-8",
+        "c3-standard-8",
+        "c3d-standard-8",
+        "n4d-standard-8",
+    ),
 }
 
 # Default chain per stage, matching the machine types in the shipped config
-# template. A profile that configures a different size gets its chain from
-# get_fallback_chain() instead, which is what the fallback loop must use.
+# template. Migration chooses a different pool when a profile raises a stage's
+# CPU or memory requirement.
 STAGE_MACHINE_CHAINS: dict[str, tuple[str, ...]] = {
-    "a": MACHINE_CHAINS_BY_SIZE["standard-2"],
-    "b": MACHINE_CHAINS_BY_SIZE["standard-2"],
-    "c": MACHINE_CHAINS_BY_SIZE["standard-4"],
+    "a": MACHINE_CHAINS_BY_REQUIREMENT[(2000, 8192)],
+    "b": MACHINE_CHAINS_BY_REQUIREMENT[(2000, 8192)],
+    "c": MACHINE_CHAINS_BY_REQUIREMENT[(4000, 16384)],
 }
 
 
@@ -93,73 +113,45 @@ def get_machine_family(machine_type: str) -> str:
     return machine_type.strip().split("-", 1)[0].lower() if "-" in machine_type else ""
 
 
-def get_machine_size(machine_type: str) -> str:
-    """
-    Extract the size suffix from a machine type.
+def get_candidate_chain(min_cpu_milli: int, min_memory_mib: int) -> tuple[str, ...]:
+    """Return the smallest candidate pool that satisfies a workload.
 
     Parameters
     ----------
-    machine_type : str
-        Machine type such as ``"c4d-standard-8"``.
-
-    Returns
-    -------
-    str
-        Size suffix (``"standard-8"``), or an empty string when the value has
-        no ``family-size`` shape.
-
-    Examples
-    --------
-    >>> get_machine_size("c4d-standard-8")
-    'standard-8'
-    >>> get_machine_size("bogus")
-    ''
-    """
-    parts = machine_type.strip().lower().split("-", 1)
-    return parts[1] if len(parts) == 2 and parts[1] else ""
-
-
-def get_fallback_chain(machine_type: str) -> tuple[str, ...]:
-    """
-    Return the fallback candidates for a configured machine type.
-
-    Candidates keep the size and vary only the family, so memory and vCPU never
-    drop mid-fallback. A machine type with no known chain falls back to itself,
-    which is the same behaviour as pinning it.
-
-    Parameters
-    ----------
-    machine_type : str
-        Configured machine type. An empty string means auto-select, which has
-        no chain.
+    min_cpu_milli : int
+        Minimum CPU required by the stage.
+    min_memory_mib : int
+        Minimum memory required by the stage.
 
     Returns
     -------
     tuple of str
-        Ordered candidates, starting with ``machine_type`` when it is a member
-        of its size's chain. Empty when ``machine_type`` is empty.
+        Ordered candidates whose recorded resources meet both minima. Empty
+        when no maintained pool can serve the workload.
 
     Examples
     --------
-    >>> get_fallback_chain("c4d-standard-8")
-    ('c4d-standard-8', 'c3-standard-8', 'c3d-standard-8', 'n4d-standard-8')
-    >>> get_fallback_chain("c4-standard-2")
-    ('c4-standard-2', 'c4d-standard-2', 'n4d-standard-2', 'n4-standard-2')
-    >>> get_fallback_chain("")
-    ()
+    >>> get_candidate_chain(2000, 7168)
+    ('c4d-standard-2', 'c4-standard-2', 'n4d-standard-2', 'n4-standard-2')
+    >>> get_candidate_chain(4000, 31744)
+    ('c3-highmem-4', 'c3d-highmem-4', 'n4d-highmem-4', 'n4-highmem-4')
     """
-    machine_type = machine_type.strip().lower()
-    if not machine_type:
+    if min_cpu_milli <= 0 or min_memory_mib <= 0:
         return ()
 
-    chain = MACHINE_CHAINS_BY_SIZE.get(get_machine_size(machine_type))
-    if not chain:
-        return (machine_type,)
-    if machine_type not in chain:
-        return (machine_type,)
+    for (max_cpu_milli, max_memory_mib), pool in MACHINE_CHAINS_BY_REQUIREMENT.items():
+        if min_cpu_milli > max_cpu_milli or min_memory_mib > max_memory_mib:
+            continue
+        candidates = tuple(
+            machine_type
+            for machine_type in pool
+            if MACHINE_SPECS[machine_type][0] * 1000 >= min_cpu_milli
+            and MACHINE_SPECS[machine_type][1] >= min_memory_mib
+        )
+        if candidates:
+            return candidates
 
-    # Start from the configured type, then preserve the declared chain order.
-    return (machine_type,) + tuple(c for c in chain if c != machine_type)
+    return ()
 
 
 def is_hyperdisk_family(machine_type: str) -> bool:

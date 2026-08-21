@@ -150,6 +150,51 @@ def test_gcp_pipeline_plan_matches_legacy_request(mock_config):
     http_post.assert_not_called()
 
 
+def test_gcp_pipeline_plan_dual_emits_candidate_chains(mock_config):
+    """V2 receives candidate arrays while singular head fields preserve old workflows."""
+    backend = GcpExecutionBackend(mock_config)
+    candidates = (
+        StageResources("c4d-standard-2", 2000, 7168, 36000),
+        StageResources("c4-standard-2", 2000, 7168, 36000),
+        StageResources("n4d-standard-2", 2000, 8192, 36000),
+    )
+    spec = replace(
+        pipeline_spec(),
+        stage_candidates={"b": candidates},
+        stage_pinned={"b": False},
+    )
+
+    arguments = backend.plan_pipeline(spec).metadata["arguments"]
+
+    assert arguments["stageBMachineType"] == "c4d-standard-2"
+    assert arguments["stageBCpuMilli"] == 2000
+    assert arguments["stageBMemoryMib"] == 7168
+    assert arguments["stageBCandidates"] == [
+        {"machine_type": "c4d-standard-2", "cpu_milli": 2000, "memory_mib": 7168},
+        {"machine_type": "c4-standard-2", "cpu_milli": 2000, "memory_mib": 7168},
+        {"machine_type": "n4d-standard-2", "cpu_milli": 2000, "memory_mib": 8192},
+    ]
+    assert arguments["stageBPinned"] is False
+
+
+def test_gcp_pipeline_plan_does_not_infer_pin_from_chain_length(mock_config):
+    """Pin state is explicit because a one-candidate config is not a CLI override."""
+    backend = GcpExecutionBackend(mock_config)
+    candidate = StageResources("c4-standard-4", 4000, 15360, 7200)
+    spec = replace(
+        pipeline_spec(),
+        stage_candidates={"c": (candidate,)},
+        stage_pinned={"c": False},
+    )
+
+    arguments = backend.plan_pipeline(spec).metadata["arguments"]
+
+    assert arguments["stageCCandidates"] == [
+        {"machine_type": "c4-standard-4", "cpu_milli": 4000, "memory_mib": 15360}
+    ]
+    assert arguments["stageCPinned"] is False
+
+
 def test_gcp_pipeline_submit_uses_planned_request(mock_config):
     response = Mock()
     response.json.return_value = {
@@ -231,9 +276,7 @@ def test_gcp_job_plan_matches_legacy_batch_document(mock_config):
         ],
         "logsPolicy": {"destination": "CLOUD_LOGGING"},
         "allocationPolicy": {
-            "serviceAccount": {
-                "email": "batch@test-project.iam.gserviceaccount.com"
-            },
+            "serviceAccount": {"email": "batch@test-project.iam.gserviceaccount.com"},
             "instances": [
                 {
                     "policy": {

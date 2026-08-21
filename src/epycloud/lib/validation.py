@@ -6,6 +6,7 @@ and correctness. All validation functions raise ValidationError on invalid input
 
 import re
 import subprocess
+from functools import cache
 from pathlib import Path
 
 from epycloud.exceptions import ValidationError
@@ -57,7 +58,8 @@ def validate_exp_id(exp_id: str) -> str:
     # Must be alphanumeric + dash/underscore/forward-slash only
     if not re.match(r"^[a-zA-Z0-9_/-]+$", exp_id):
         raise ValidationError(
-            f"Invalid experiment ID: {exp_id}. Must contain only letters, numbers, dash, underscore, and forward slash"
+            f"Invalid experiment ID: {exp_id}. Must contain only letters, numbers, "
+            "dash, underscore, and forward slash"
         )
 
     # Reasonable length limit
@@ -355,6 +357,45 @@ def sanitize_label_value(value: str) -> str:
     return sanitized
 
 
+@cache
+def _list_region_machine_types(project_id: str, region: str) -> frozenset[str]:
+    """Return machine types in one representative zone, cached per region."""
+    zone = f"{region}-a"
+    try:
+        result = subprocess.run(
+            [
+                "gcloud",
+                "compute",
+                "machine-types",
+                "list",
+                f"--project={project_id}",
+                f"--zones={zone}",
+                "--format=value(name)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        raise ValidationError(
+            f"Timeout while listing machine types in region {region}. "
+            "Check your network connection and gcloud configuration."
+        )
+    except FileNotFoundError:
+        raise ValidationError(
+            "gcloud CLI not found. Please install Google Cloud SDK to validate machine types."
+        )
+
+    if result.returncode != 0:
+        raise ValidationError(
+            f"Unable to list machine types in region {region}: "
+            f"gcloud command failed. Error: {result.stderr.strip()}"
+        )
+
+    return frozenset(name for name in result.stdout.splitlines() if name)
+
+
 def validate_machine_type(machine_type: str, project_id: str, region: str) -> str:
     """Validate Google Cloud machine type against available types in the region.
 
@@ -401,91 +442,23 @@ def validate_machine_type(machine_type: str, project_id: str, region: str) -> st
             "Expected format like 'n2-standard-4' or 'c2-standard-8'"
         )
 
-    # Use the same representative zone as get_machine_type_specs. The regional
-    # command uses the aggregated-list API, which is slow enough to exceed the
-    # subprocess timeout even when its output is filtered to one region.
-    zone = f"{region}-a"
-    try:
-        result = subprocess.run(
-            [
-                "gcloud",
-                "compute",
-                "machine-types",
-                "list",
-                f"--project={project_id}",
-                f"--zones={zone}",
-                f"--filter=name={machine_type}",
-                "--limit=1",
-                "--format=value(name)",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=30,
-        )
-
-        if result.returncode != 0:
-            # If gcloud fails, log warning but allow the machine type
-            # (it might still be valid, just can't verify)
-            raise ValidationError(
-                f"Unable to validate machine type '{machine_type}': "
-                f"gcloud command failed. Error: {result.stderr.strip()}"
-            )
-
-        # Parse available machine types
-        available_types = set(result.stdout.strip().split("\n"))
-
-        if machine_type not in available_types:
-            # Keep the exact-match query fast, then make a second bounded query
-            # only when suggestions are needed for an invalid machine type.
-            machine_family = machine_type.split("-", maxsplit=1)[0]
-            suggestion_result = subprocess.run(
-                [
-                    "gcloud",
-                    "compute",
-                    "machine-types",
-                    "list",
-                    f"--project={project_id}",
-                    f"--zones={zone}",
-                    f"--filter=name~^{machine_family}-",
-                    "--limit=5",
-                    "--format=value(name)",
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=30,
-            )
-            suggestions = []
-            if suggestion_result.returncode == 0:
-                suggestions = sorted(
-                    {
-                        mt
-                        for mt in suggestion_result.stdout.strip().split("\n")
-                        if mt.startswith(f"{machine_family}-")
-                    }
-                )
-            suggestion_msg = ""
-            if suggestions:
-                suggestion_msg = f" Available similar types: {', '.join(suggestions)}"
-
-            raise ValidationError(
-                f"Machine type '{machine_type}' not found in region {region}.{suggestion_msg}"
-            )
-
-        return machine_type
-
-    except subprocess.TimeoutExpired:
+    available_types = _list_region_machine_types(project_id, region)
+    if machine_type not in available_types:
+        machine_family = machine_type.split("-", maxsplit=1)[0]
+        suggestions = sorted(
+            candidate for candidate in available_types if candidate.startswith(f"{machine_family}-")
+        )[:5]
+        suggestion_msg = ""
+        if suggestions:
+            suggestion_msg = f" Available similar types: {', '.join(suggestions)}"
         raise ValidationError(
-            f"Timeout while validating machine type '{machine_type}'. "
-            "Check your network connection and gcloud configuration."
-        )
-    except FileNotFoundError:
-        raise ValidationError(
-            "gcloud CLI not found. Please install Google Cloud SDK to validate machine types."
+            f"Machine type '{machine_type}' not found in region {region}.{suggestion_msg}"
         )
 
+    return machine_type
 
+
+@cache
 def get_machine_type_specs(machine_type: str, project_id: str, region: str) -> tuple[int, int]:
     """Query machine type specifications and return CPU and memory.
 

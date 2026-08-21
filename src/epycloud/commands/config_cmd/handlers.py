@@ -11,7 +11,12 @@ from epycloud.lib.command_helpers import require_config
 from epycloud.lib.output import error, info, print_dict, success, warning
 from epycloud.lib.paths import get_config_dir, get_config_file, list_environments
 
-from .operations import edit_config_file, edit_secrets_file, initialize_config_dir
+from .operations import (
+    edit_config_file,
+    edit_secrets_file,
+    initialize_config_dir,
+    migrate_machine_type_chains,
+)
 
 
 def handle(ctx: dict) -> int:
@@ -48,6 +53,8 @@ def handle(ctx: dict) -> int:
         return handle_edit_secrets(ctx)
     elif subcommand == "validate":
         return handle_validate(ctx)
+    elif subcommand == "migrate":
+        return migrate_machine_type_chains()
     elif subcommand == "path":
         return handle_path(ctx)
     elif subcommand == "get":
@@ -209,6 +216,46 @@ def handle_validate(ctx: dict) -> int:
             value = get_config_value(config, field)
             if not value or (isinstance(value, str) and value.startswith("your-")):
                 errors.append(f"Missing or placeholder value: {field}")
+
+        if provider == "gcp":
+            batch = config.get("google_cloud", {}).get("batch")
+            if isinstance(batch, dict):
+                for stage in ("a", "b", "c"):
+                    stage_key = f"stage_{stage}"
+                    if stage_key not in batch:
+                        continue
+                    stage_config = batch[stage_key]
+                    if not isinstance(stage_config, dict):
+                        errors.append(f"google_cloud.batch.{stage_key} must be a mapping")
+                        continue
+                    if "machine_types" not in stage_config:
+                        errors.append(
+                            f"google_cloud.batch.{stage_key} has no fallback chain. "
+                            "Run 'epycloud config migrate'."
+                        )
+                        continue
+                    machine_types = stage_config["machine_types"]
+                    if not isinstance(machine_types, list) or not machine_types:
+                        errors.append(
+                            f"google_cloud.batch.{stage_key}.machine_types must be a non-empty list"
+                        )
+                    elif any(
+                        not isinstance(item, str) or not item.strip() for item in machine_types
+                    ):
+                        errors.append(
+                            f"google_cloud.batch.{stage_key}.machine_types must contain "
+                            "only non-empty strings"
+                        )
+                    elif len(machine_types) != len(set(machine_types)):
+                        errors.append(
+                            f"google_cloud.batch.{stage_key}.machine_types must not "
+                            "contain duplicates"
+                        )
+                    if "machine_type" in stage_config:
+                        warnings_list.append(
+                            f"google_cloud.batch.{stage_key}.machine_type is ignored because "
+                            "machine_types is configured"
+                        )
 
         # Check GitHub token
         github_token = get_config_value(config, "github.personal_access_token")

@@ -3,8 +3,9 @@
 from typing import Any
 
 from epycloud.exceptions import ValidationError
+from epycloud.execution import StageResources
 from epycloud.execution.gcp_machines import validate_hyperdisk_family
-from epycloud.lib.output import error, info, status, success
+from epycloud.lib.output import error, info, status, success, warning
 from epycloud.lib.validation import get_machine_type_specs, validate_machine_type
 from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
 
@@ -71,7 +72,9 @@ def add_stage_specific_info(
         confirmation_info["output_config"] = output_config
 
 
-def prompt_user_confirmation(auto_confirm: bool, confirmation_info: dict[str, Any], mode: str) -> bool:
+def prompt_user_confirmation(
+    auto_confirm: bool, confirmation_info: dict[str, Any], mode: str
+) -> bool:
     """Prompt user for confirmation and handle response.
 
     Parameters
@@ -133,6 +136,115 @@ def validate_and_get_machine_specs(
     except ValidationError as e:
         error(str(e))
         return None
+
+
+def resolve_stage_candidates(
+    stage_config: dict[str, Any],
+    override: str | None,
+    stage_name: str,
+    project_id: str,
+    region: str,
+    *,
+    default_cpu_milli: int,
+    default_memory_mib: int,
+    default_max_run_duration: int,
+) -> tuple[tuple[StageResources, ...], bool] | None:
+    """Resolve and validate one stage's ordered machine candidates.
+
+    A CLI override is an explicit pin. Configured ``machine_types`` form an
+    ordered fallback chain, while the legacy singular key remains a one-attempt
+    compatibility path. Each resolved candidate carries its own machine specs.
+    """
+    if not isinstance(stage_config, dict):
+        error(f"{stage_name} configuration must be a mapping")
+        return None
+
+    min_cpu_milli = stage_config.get("cpu_milli", default_cpu_milli)
+    min_memory_mib = stage_config.get("memory_mib", default_memory_mib)
+    max_run_duration = stage_config.get("max_run_duration", default_max_run_duration)
+
+    for field, value in (
+        ("cpu_milli", min_cpu_milli),
+        ("memory_mib", min_memory_mib),
+        ("max_run_duration", max_run_duration),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            error(f"{stage_name} {field} must be a positive integer")
+            return None
+
+    pinned = override is not None
+    if override is not None:
+        if not override.strip():
+            error(f"{stage_name} machine type override must not be empty")
+            return None
+        configured = [override.strip()]
+    elif "machine_types" in stage_config:
+        raw_candidates = stage_config["machine_types"]
+        if not isinstance(raw_candidates, list) or not raw_candidates:
+            error(f"{stage_name} machine_types must be a non-empty list of strings")
+            return None
+        if any(not isinstance(item, str) or not item.strip() for item in raw_candidates):
+            error(f"{stage_name} machine_types must contain only non-empty strings")
+            return None
+        configured = [item.strip() for item in raw_candidates]
+        if len(configured) != len(set(configured)):
+            error(f"{stage_name} machine_types must not contain duplicates")
+            return None
+        if "machine_type" in stage_config:
+            warning(
+                f"{stage_name} machine_types takes precedence over the legacy machine_type value"
+            )
+    else:
+        legacy = stage_config.get("machine_type", "")
+        if not isinstance(legacy, str):
+            error(f"{stage_name} machine_type must be a string")
+            return None
+        configured = [legacy.strip()]
+
+    resources: list[StageResources] = []
+    for machine_type in configured:
+        if not machine_type:
+            resources.append(
+                StageResources(
+                    machine_type="",
+                    cpu_milli=min_cpu_milli,
+                    memory_mib=min_memory_mib,
+                    max_run_duration=max_run_duration,
+                )
+            )
+            continue
+
+        specs = validate_and_get_machine_specs(machine_type, stage_name, project_id, region)
+        if specs is None:
+            return None
+        cpu_milli, memory_mib = specs
+        if cpu_milli < min_cpu_milli:
+            error(
+                f"{stage_name} candidate '{machine_type}' has {cpu_milli} mCPU, "
+                f"below the {min_cpu_milli} mCPU stage minimum"
+            )
+            return None
+        if memory_mib < min_memory_mib:
+            error(
+                f"{stage_name} candidate '{machine_type}' has {memory_mib} MiB, "
+                f"below the {min_memory_mib} MiB stage minimum"
+            )
+            return None
+        resources.append(
+            StageResources(
+                machine_type=machine_type,
+                cpu_milli=cpu_milli,
+                memory_mib=memory_mib,
+                max_run_duration=max_run_duration,
+            )
+        )
+
+    memories = [candidate.memory_mib for candidate in resources]
+    if memories != sorted(memories):
+        error(f"{stage_name} machine_types must be non-decreasing in memory")
+        return None
+
+    return tuple(resources), pinned
 
 
 def validate_stage_machine_family(machine_type: str, stage_name: str) -> bool:

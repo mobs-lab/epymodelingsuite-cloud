@@ -209,6 +209,45 @@ class TestFormatWorkflowDetails:
         stage_b = [l for l in lines if "Stage B:" in l][0]
         assert " *" not in stage_b
 
+    def test_workflow_displays_ordered_fallback_chain(self):
+        """Operators must see every machine that an automatic submission may use."""
+        info = {
+            "stage_b_cpu_milli": 2000,
+            "stage_b_memory_mib": 7168,
+            "stage_b_machine_type": "c4d-standard-2",
+            "stage_b_machine_types": [
+                "c4d-standard-2",
+                "c4-standard-2",
+                "n4d-standard-2",
+            ],
+            "stage_b_pinned": False,
+            "stage_b_max_run_duration": 36000,
+        }
+
+        lines = _format_workflow_details(info, "test-exp", "test-run", "cloud")
+
+        assert (
+            "    Fallback chain: c4d-standard-2 -> c4-standard-2 -> n4d-standard-2"
+            in lines
+        )
+
+    def test_workflow_labels_cli_override_as_pinned(self):
+        """A one-candidate CLI override must be distinguishable from automatic selection."""
+        info = {
+            "stage_c_cpu_milli": 4000,
+            "stage_c_memory_mib": 15360,
+            "stage_c_machine_type": "c4-standard-4",
+            "stage_c_machine_types": ["c4-standard-4"],
+            "stage_c_pinned": True,
+            "stage_c_machine_type_override": "c4-standard-4",
+            "stage_c_max_run_duration": 7200,
+        }
+
+        lines = _format_workflow_details(info, "test-exp", "test-run", "cloud")
+        stage_c = next(line for line in lines if "Stage C:" in line)
+
+        assert "c4-standard-4 (pinned)" in stage_c
+
     def test_duration_conversion(self):
         """Test duration 3600s displays as 1.0h."""
         info = {

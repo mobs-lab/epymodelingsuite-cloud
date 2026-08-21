@@ -26,8 +26,7 @@ from epycloud.lib.output import error, info, status, success, warning
 from ..validation import (
     build_base_confirmation_info,
     prompt_user_confirmation,
-    validate_and_get_machine_specs,
-    validate_stage_machine_family,
+    resolve_stage_candidates,
 )
 
 
@@ -138,57 +137,36 @@ def run_workflow_gcp(
     docker_config = config.get("docker", {})
     image_tag = docker_config.get("image_tag", "latest")
 
-    # Process machine type overrides for all stages
-    # Stage A
-    stage_a_config = batch_config.get("stage_a", {})
-    stage_a_machine_type = stage_a_machine_type_override or stage_a_config.get("machine_type", "")
-    stage_a_cpu_milli = stage_a_config.get("cpu_milli", 2000)
-    stage_a_memory_mib = stage_a_config.get("memory_mib", 8192)
-
-    if stage_a_machine_type_override:
-        result = validate_and_get_machine_specs(
-            stage_a_machine_type_override, "Stage A", project_id, region
+    stage_configs = {stage: batch_config.get(f"stage_{stage}", {}) for stage in ("a", "b", "c")}
+    stage_defaults = {
+        "a": (2000, 7168, 3600),
+        "b": (2000, 7168, 36000),
+        "c": (4000, 15360, 7200),
+    }
+    stage_overrides = {
+        "a": stage_a_machine_type_override,
+        "b": stage_b_machine_type_override,
+        "c": stage_c_machine_type_override,
+    }
+    stage_candidates: dict[str, tuple[StageResources, ...]] = {}
+    stage_pinned: dict[str, bool] = {}
+    for stage in ("a", "b", "c"):
+        default_cpu, default_memory, default_duration = stage_defaults[stage]
+        resolved = resolve_stage_candidates(
+            stage_configs[stage],
+            stage_overrides[stage],
+            f"Stage {stage.upper()}",
+            project_id,
+            region,
+            default_cpu_milli=default_cpu,
+            default_memory_mib=default_memory,
+            default_max_run_duration=default_duration,
         )
-        if result is None:
+        if resolved is None:
             return 1
-        stage_a_cpu_milli, stage_a_memory_mib = result
-    elif not validate_stage_machine_family(stage_a_machine_type, "Stage A"):
-        # Config-supplied machine types never reach validate_and_get_machine_specs
-        return 1
+        stage_candidates[stage], stage_pinned[stage] = resolved
 
-    # Stage B
-    stage_b_config = batch_config.get("stage_b", {})
-    stage_b_machine_type = stage_b_machine_type_override or stage_b_config.get("machine_type", "")
-    stage_b_cpu_milli = stage_b_config.get("cpu_milli", 2000)
-    stage_b_memory_mib = stage_b_config.get("memory_mib", 8192)
-
-    if stage_b_machine_type_override:
-        result = validate_and_get_machine_specs(
-            stage_b_machine_type_override, "Stage B", project_id, region
-        )
-        if result is None:
-            return 1
-        stage_b_cpu_milli, stage_b_memory_mib = result
-    elif not validate_stage_machine_family(stage_b_machine_type, "Stage B"):
-        # Config-supplied machine types never reach validate_and_get_machine_specs
-        return 1
-
-    # Stage C
-    stage_c_config = batch_config.get("stage_c", {})
-    stage_c_machine_type = stage_c_machine_type_override or stage_c_config.get("machine_type", "")
-    stage_c_cpu_milli = stage_c_config.get("cpu_milli", 2000)
-    stage_c_memory_mib = stage_c_config.get("memory_mib", 8192)
-
-    if stage_c_machine_type_override:
-        result = validate_and_get_machine_specs(
-            stage_c_machine_type_override, "Stage C", project_id, region
-        )
-        if result is None:
-            return 1
-        stage_c_cpu_milli, stage_c_memory_mib = result
-    elif not validate_stage_machine_family(stage_c_machine_type, "Stage C"):
-        # Config-supplied machine types never reach validate_and_get_machine_specs
-        return 1
+    stage_resources = {stage: candidates[0] for stage, candidates in stage_candidates.items()}
 
     # Extract labels
     profile_meta = config.get("_meta", {}).get("profile") or {}
@@ -218,21 +196,27 @@ def run_workflow_gcp(
             "pat_configured": bool(github["personal_access_token"]),
             "max_parallelism": max_parallelism,
             "task_count_per_node": task_count_per_node,
-            "stage_a_machine_type": stage_a_machine_type,
+            "stage_a_machine_type": stage_resources["a"].machine_type,
             "stage_a_machine_type_override": stage_a_machine_type_override,
-            "stage_a_cpu_milli": stage_a_cpu_milli,
-            "stage_a_memory_mib": stage_a_memory_mib,
-            "stage_a_max_run_duration": stage_a_config.get("max_run_duration", 3600),
-            "stage_b_machine_type": stage_b_machine_type,
+            "stage_a_machine_types": [item.machine_type for item in stage_candidates["a"]],
+            "stage_a_pinned": stage_pinned["a"],
+            "stage_a_cpu_milli": stage_resources["a"].cpu_milli,
+            "stage_a_memory_mib": stage_resources["a"].memory_mib,
+            "stage_a_max_run_duration": stage_resources["a"].max_run_duration,
+            "stage_b_machine_type": stage_resources["b"].machine_type,
             "stage_b_machine_type_override": stage_b_machine_type_override,
-            "stage_b_cpu_milli": stage_b_cpu_milli,
-            "stage_b_memory_mib": stage_b_memory_mib,
-            "stage_b_max_run_duration": stage_b_config.get("max_run_duration", 36000),
-            "stage_c_machine_type": stage_c_machine_type,
+            "stage_b_machine_types": [item.machine_type for item in stage_candidates["b"]],
+            "stage_b_pinned": stage_pinned["b"],
+            "stage_b_cpu_milli": stage_resources["b"].cpu_milli,
+            "stage_b_memory_mib": stage_resources["b"].memory_mib,
+            "stage_b_max_run_duration": stage_resources["b"].max_run_duration,
+            "stage_c_machine_type": stage_resources["c"].machine_type,
             "stage_c_machine_type_override": stage_c_machine_type_override,
-            "stage_c_cpu_milli": stage_c_cpu_milli,
-            "stage_c_memory_mib": stage_c_memory_mib,
-            "stage_c_max_run_duration": stage_c_config.get("max_run_duration", 7200),
+            "stage_c_machine_types": [item.machine_type for item in stage_candidates["c"]],
+            "stage_c_pinned": stage_pinned["c"],
+            "stage_c_cpu_milli": stage_resources["c"].cpu_milli,
+            "stage_c_memory_mib": stage_resources["c"].memory_mib,
+            "stage_c_max_run_duration": stage_resources["c"].max_run_duration,
             "skip_output": skip_output,
             "output_config": output_config,
             "image_uri": image_uri,
@@ -264,26 +248,9 @@ def run_workflow_gcp(
             execution_identity=batch_sa_email,
             max_parallelism=max_parallelism,
             task_count_per_node=task_count_per_node,
-            stage_resources={
-                "a": StageResources(
-                    stage_a_machine_type,
-                    stage_a_cpu_milli,
-                    stage_a_memory_mib,
-                    stage_a_config.get("max_run_duration", 3600),
-                ),
-                "b": StageResources(
-                    stage_b_machine_type,
-                    stage_b_cpu_milli,
-                    stage_b_memory_mib,
-                    stage_b_config.get("max_run_duration", 36000),
-                ),
-                "c": StageResources(
-                    stage_c_machine_type,
-                    stage_c_cpu_milli,
-                    stage_c_memory_mib,
-                    stage_c_config.get("max_run_duration", 7200),
-                ),
-            },
+            stage_resources=stage_resources,
+            stage_candidates=stage_candidates,
+            stage_pinned=stage_pinned,
             profile=profile_name,
             billing_project=billing_project,
             skip_output=skip_output,

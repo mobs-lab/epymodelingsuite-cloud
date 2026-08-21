@@ -19,12 +19,11 @@ from .base import ExecutionAuthenticationError, ExecutionBackendError
 from .gcp_machines import (
     ARM_MACHINE_FAMILIES,
     HYPERDISK_MACHINE_FAMILIES,
-    MACHINE_CHAINS_BY_SIZE,
+    MACHINE_CHAINS_BY_REQUIREMENT,
     MACHINE_SPECS,
     STAGE_MACHINE_CHAINS,
-    get_fallback_chain,
+    get_candidate_chain,
     get_machine_family,
-    get_machine_size,
     is_hyperdisk_family,
     validate_hyperdisk_family,
 )
@@ -43,13 +42,12 @@ from .models import (
 __all__ = [
     "ARM_MACHINE_FAMILIES",
     "HYPERDISK_MACHINE_FAMILIES",
-    "MACHINE_CHAINS_BY_SIZE",
+    "MACHINE_CHAINS_BY_REQUIREMENT",
     "MACHINE_SPECS",
     "STAGE_MACHINE_CHAINS",
     "GcpExecutionBackend",
-    "get_fallback_chain",
+    "get_candidate_chain",
     "get_machine_family",
-    "get_machine_size",
     "is_hyperdisk_family",
     "validate_hyperdisk_family",
 ]
@@ -107,12 +105,23 @@ class GcpExecutionBackend:
             arguments["taskCountPerNode"] = spec.task_count_per_node
 
         for stage in ("a", "b", "c"):
-            resources = spec.stage_resources[stage]
+            candidates = spec.stage_candidates.get(stage) or (spec.stage_resources[stage],)
+            resources = candidates[0]
+            prefix = f"stage{stage.upper()}"
             if resources.machine_type:
-                prefix = f"stage{stage.upper()}"
                 arguments[f"{prefix}MachineType"] = resources.machine_type
                 arguments[f"{prefix}CpuMilli"] = resources.cpu_milli
                 arguments[f"{prefix}MemoryMib"] = resources.memory_mib
+            if stage in spec.stage_candidates:
+                arguments[f"{prefix}Candidates"] = [
+                    {
+                        "machine_type": candidate.machine_type,
+                        "cpu_milli": candidate.cpu_milli,
+                        "memory_mib": candidate.memory_mib,
+                    }
+                    for candidate in candidates
+                ]
+                arguments[f"{prefix}Pinned"] = spec.stage_pinned.get(stage, False)
 
         if spec.forecast_repo_ref:
             arguments["forecastRepoRef"] = spec.forecast_repo_ref
