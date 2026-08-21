@@ -152,9 +152,20 @@ waitJob:
                       - exit_loop:
                           next: break
 
+            - check_if_child_cancelled:
+                switch:
+                  - condition: $${currentState in ["CANCELLED", "DELETION_IN_PROGRESS"]}
+                    steps:
+                      - save_child_cancelled:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "CHILD_JOB_CANCELLED"
+                      - exit_cancelled_job:
+                          next: break
+
             - check_if_failed:
                 switch:
-                  - condition: $${currentState in ["FAILED", "CANCELLED", "DELETION_IN_PROGRESS"]}
+                  - condition: $${currentState == "FAILED"}
                     steps:
                       - save_job_failure:
                           assign:

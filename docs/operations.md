@@ -373,6 +373,11 @@ epycloud workflow cancel <execution-id>
 epycloud workflow retry <execution-id>
 ```
 
+Use `epycloud workflow cancel` when the intent is to stop the entire pipeline.
+If a child Batch job is cancelled directly, workflow v2 stops without starting
+another candidate and reports `CHILD_JOB_CANCELLED`; the workflow execution is
+`FAILED` because it was not itself cancelled through the Workflows API.
+
 ### Batch Jobs
 
 https://console.cloud.google.com/batch

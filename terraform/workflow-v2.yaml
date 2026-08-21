@@ -319,6 +319,21 @@ main:
                       - exit_stageA_candidates:
                           next: break
 
+            - stop_on_cancelled_stageA:
+                switch:
+                  - condition: $${waitA.outcome == "CHILD_JOB_CANCELLED"}
+                    steps:
+                      - build_stageA_child_cancelled_error:
+                          assign:
+                            - childCancelled:
+                                code: CHILD_JOB_CANCELLED
+                                stage: A
+                                job: $${jobA.body.name}
+                                status: $${waitA.status}
+                                counts: $${waitA.counts}
+                      - raise_stageA_child_cancelled:
+                          raise: $${childCancelled}
+
             - cancel_unsuccessful_stageA:
                 call: cancelJob
                 args:
@@ -532,6 +547,21 @@ main:
                       - exit_stageB_candidates:
                           next: break
 
+            - stop_on_cancelled_stageB:
+                switch:
+                  - condition: $${waitB.outcome == "CHILD_JOB_CANCELLED"}
+                    steps:
+                      - build_stageB_child_cancelled_error:
+                          assign:
+                            - childCancelled:
+                                code: CHILD_JOB_CANCELLED
+                                stage: B
+                                job: $${jobB.body.name}
+                                status: $${waitB.status}
+                                counts: $${waitB.counts}
+                      - raise_stageB_child_cancelled:
+                          raise: $${childCancelled}
+
             - cancel_unsuccessful_stageB:
                 call: cancelJob
                 args:
@@ -720,6 +750,21 @@ main:
                                       - stageCJobName: $${jobC.body.name}
                                 - exit_stageC_candidates:
                                     next: break
+
+                      - stop_on_cancelled_stageC:
+                          switch:
+                            - condition: $${waitC.outcome == "CHILD_JOB_CANCELLED"}
+                              steps:
+                                - build_stageC_child_cancelled_error:
+                                    assign:
+                                      - childCancelled:
+                                          code: CHILD_JOB_CANCELLED
+                                          stage: C
+                                          job: $${jobC.body.name}
+                                          status: $${waitC.status}
+                                          counts: $${waitC.counts}
+                                - raise_stageC_child_cancelled:
+                                    raise: $${childCancelled}
 
                       - cancel_unsuccessful_stageC:
                           call: cancelJob

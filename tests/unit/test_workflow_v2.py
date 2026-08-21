@@ -295,10 +295,11 @@ def test_wait_bound_scales_with_task_waves(wait_job_source):
     assert '- outcome: "WAIT_TIMEOUT"' in wait_job_source
 
 
-def test_cancelled_batch_job_is_an_unsuccessful_terminal_outcome(wait_job_source):
-    """An externally cancelled candidate must advance instead of polling forever."""
-    assert 'currentState in ["FAILED", "CANCELLED", "DELETION_IN_PROGRESS"]' in wait_job_source
-    assert '- outcome: "FAILED"' in wait_job_source
+def test_wait_job_distinguishes_child_cancellation_from_failure(wait_job_source):
+    """An externally cancelled child must not look eligible for fallback."""
+    assert 'currentState in ["CANCELLED", "DELETION_IN_PROGRESS"]' in wait_job_source
+    assert '- outcome: "CHILD_JOB_CANCELLED"' in wait_job_source
+    assert 'condition: $${currentState == "FAILED"}' in wait_job_source
 
 
 @pytest.mark.parametrize(
@@ -414,6 +415,21 @@ def test_workflow_has_the_permissions_needed_for_image_provenance(
 def test_stage_b_reuses_only_completed_results_after_failover(workflow_source):
     """Only replacement candidates should skip digest-matching completed tasks."""
     assert 'SKIP_EXISTING: $${if(ciB > 0, "true", "false")}' in workflow_source
+
+
+@pytest.mark.parametrize("stage", ["A", "B", "C"])
+def test_child_cancellation_stops_before_candidate_fallback(workflow_source, stage):
+    """Manual child cancellation must stop before cancellation or replacement logic."""
+    stage_start = workflow_source.index(f"- run_stage{stage}_candidates:")
+    stop_at = workflow_source.index(f"- stop_on_cancelled_stage{stage}:", stage_start)
+    cancel_at = workflow_source.index(f"- cancel_unsuccessful_stage{stage}:", stage_start)
+    stop_source = workflow_source[stop_at:cancel_at]
+
+    assert stop_at < cancel_at
+    assert f'condition: $${{wait{stage}.outcome == "CHILD_JOB_CANCELLED"}}' in stop_source
+    assert "code: CHILD_JOB_CANCELLED" in stop_source
+    assert f"stage: {stage}" in stop_source
+    assert f"raise: $${{childCancelled}}" in stop_source
 
 
 @pytest.mark.parametrize("stage", ["A", "B", "C"])
