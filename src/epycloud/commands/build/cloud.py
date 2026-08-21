@@ -1,10 +1,14 @@
 """Cloud Build execution for build command."""
 
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 from epycloud.lib.output import Colors, ask_confirmation, colorize, error, info, success, warning
+
+
+IMAGE_DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def build_cloud(
@@ -170,4 +174,102 @@ def build_cloud(
         else:
             warning("Build submitted but could not parse build ID")
 
+    return 0
+
+
+def resolve_image_digest(
+    *, project_id: str, image_uri: str, verbose: bool
+) -> str | None:
+    """Resolve an Artifact Registry tag to a validated SHA-256 digest."""
+    cmd = [
+        "gcloud",
+        "artifacts",
+        "docker",
+        "images",
+        "describe",
+        image_uri,
+        f"--project={project_id}",
+        "--format=value(image_summary.digest)",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    digest = result.stdout.strip() if result.returncode == 0 else ""
+    if not IMAGE_DIGEST_PATTERN.fullmatch(digest):
+        error(f"Unable to resolve an immutable digest for {image_uri}")
+        if verbose and result.stderr:
+            print(result.stderr, file=sys.stderr)
+        return None
+    return digest
+
+
+def replicate_image(
+    *,
+    project_id: str,
+    build_region: str,
+    source_region: str,
+    destination_region: str,
+    repo_name: str,
+    image_name: str,
+    image_tag: str,
+    project_root: Path,
+    verbose: bool,
+    dry_run: bool,
+) -> int:
+    """Copy one source tag's resolved digest to a regional repository."""
+    build_config = project_root / "cloudbuild-replicate.yaml"
+    if not build_config.exists():
+        error(f"Required file not found: {build_config}")
+        return 1
+
+    source_image = (
+        f"{source_region}-docker.pkg.dev/{project_id}/{repo_name}/{image_name}"
+    )
+    destination_image = (
+        f"{destination_region}-docker.pkg.dev/{project_id}/{repo_name}/{image_name}"
+    )
+    if dry_run:
+        digest = "sha256:<resolved-from-source-tag>"
+    else:
+        digest = resolve_image_digest(
+            project_id=project_id,
+            image_uri=f"{source_image}:{image_tag}",
+            verbose=verbose,
+        )
+        if digest is None:
+            return 1
+
+    substitutions = ",".join(
+        [
+            f"_SOURCE_REGION={source_region}",
+            f"_DESTINATION_REGION={destination_region}",
+            f"_REPO_NAME={repo_name}",
+            f"_IMAGE_NAME={image_name}",
+            f"_IMAGE_TAG={image_tag}",
+            f"_IMAGE_DIGEST={digest}",
+        ]
+    )
+    cmd = [
+        "gcloud",
+        "builds",
+        "submit",
+        "--no-source",
+        f"--project={project_id}",
+        f"--region={build_region}",
+        f"--config={build_config}",
+        f"--substitutions={substitutions}",
+    ]
+
+    info(f"Source: {source_image}@{digest}")
+    info(f"Destination: {destination_image}:{image_tag}")
+    if dry_run:
+        info(f"Would execute: {' '.join(cmd)}")
+        return 0
+    if not ask_confirmation("Continue?", default=True):
+        info("Replication cancelled")
+        return 0
+
+    result = subprocess.run(cmd, check=False)
+    if result.returncode != 0:
+        error("Cloud Build replication failed")
+        return 1
+    success("Image replication completed successfully")
     return 0

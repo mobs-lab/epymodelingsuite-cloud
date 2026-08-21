@@ -493,7 +493,9 @@ def get_batch_config(config: dict[str, Any]) -> dict[str, Any]:
     return config.get("google_cloud", {}).get("batch", {})
 
 
-def get_image_uri(config: dict[str, Any], tag: str | None = None) -> str:
+def get_image_uri(
+    config: dict[str, Any], tag: str | None = None, region: str | None = None
+) -> str:
     """
     Build full Docker image URI from config.
 
@@ -503,6 +505,8 @@ def get_image_uri(config: dict[str, Any], tag: str | None = None) -> str:
         Configuration dictionary.
     tag : str, optional
         Optional tag override (uses config default if None).
+    region : str, optional
+        Artifact Registry region override. Uses docker.registry when omitted.
 
     Returns
     -------
@@ -513,15 +517,17 @@ def get_image_uri(config: dict[str, Any], tag: str | None = None) -> str:
     --------
     >>> image_uri = get_image_uri(config)
     >>> image_uri = get_image_uri(config, tag="v1.2.3")
+    >>> image_uri = get_image_uri(config, region="us-east5")
     """
     docker = get_docker_config(config)
     google_cloud = config.get("google_cloud", {})
     project_id = google_cloud.get("project_id")
 
     image_tag = tag or docker["image_tag"]
+    registry = f"{region}-docker.pkg.dev" if region else docker["registry"]
 
     return (
-        f"{docker['registry']}/"
+        f"{registry}/"
         f"{project_id}/"
         f"{docker['repo_name']}/"
         f"{docker['image_name']}:{image_tag}"

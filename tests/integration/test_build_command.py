@@ -1,12 +1,16 @@
 """Integration tests for build command."""
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock, patch, call
 
 import pytest
 
+from epycloud.cli import create_parser
 from epycloud.commands import build
+from epycloud.commands.build import cloud
+from epycloud.lib.command_helpers import get_image_uri
 
 
 class TestBuildCloudCommand:
@@ -691,3 +695,154 @@ class TestBuildDisplayStatus:
         ]
         # Should handle gracefully
         build.display.display_build_status(builds, 10)
+
+
+class TestBuildReplicationCommand:
+    """Test digest-preserving regional image replication."""
+
+    @staticmethod
+    def _config_with_regions(mock_config):
+        """Return a test config with both regional registries enabled."""
+        config = deepcopy(mock_config)
+        config["google_cloud"]["batch_regions"] = {
+            "us-central1": {"subnet_cidr": "10.0.0.0/20"},
+            "us-east5": {"subnet_cidr": "10.1.0.0/20"},
+        }
+        return config
+
+    def test_parser_exposes_replication_commands(self):
+        """The CLI must parse source, destination, and verification commands."""
+        replicate = create_parser().parse_args(
+            [
+                "build",
+                "replicate",
+                "--from",
+                "us-central1",
+                "--to",
+                "us-east5",
+                "--tag",
+                "dev",
+            ]
+        )
+        verify = create_parser().parse_args(
+            ["build", "verify-replicas", "--tag", "dev"]
+        )
+
+        assert replicate.source_region == "us-central1"
+        assert replicate.destination_region == "us-east5"
+        assert replicate.tag == "dev"
+        assert verify.tag == "dev"
+
+    @patch("epycloud.commands.build.handlers.get_project_root")
+    @patch("epycloud.commands.build.handlers.cloud.replicate_image")
+    def test_replicate_uses_only_configured_regions(
+        self, mock_replicate, mock_root, mock_config
+    ):
+        """A valid request must pass its exact regional endpoints to Cloud Build."""
+        config = self._config_with_regions(mock_config)
+        mock_root.return_value = Path("/test/project")
+        mock_replicate.return_value = 0
+        ctx = {
+            "config": config,
+            "verbose": False,
+            "dry_run": False,
+            "args": Mock(
+                build_subcommand="replicate",
+                source_region="us-central1",
+                destination_region="us-east5",
+                tag="dev",
+            ),
+        }
+
+        assert build.handle(ctx) == 0
+        assert mock_replicate.call_args.kwargs["source_region"] == "us-central1"
+        assert mock_replicate.call_args.kwargs["destination_region"] == "us-east5"
+        assert mock_replicate.call_args.kwargs["image_tag"] == "dev"
+
+    def test_replicate_rejects_an_unconfigured_region(self, mock_config):
+        """Replication cannot create image state outside the Batch region allowlist."""
+        config = self._config_with_regions(mock_config)
+        ctx = {
+            "config": config,
+            "verbose": False,
+            "dry_run": False,
+            "args": Mock(
+                build_subcommand="replicate",
+                source_region="us-central1",
+                destination_region="us-west1",
+                tag="dev",
+            ),
+        }
+
+        assert build.handle(ctx) == 2
+
+    @patch("epycloud.commands.build.handlers.cloud.resolve_image_digest")
+    def test_verify_replicas_requires_identical_digests(
+        self, mock_resolve, mock_config
+    ):
+        """Verification must fail when regional tags point at different manifests."""
+        config = self._config_with_regions(mock_config)
+        mock_resolve.side_effect = ["sha256:" + "a" * 64, "sha256:" + "b" * 64]
+        ctx = {
+            "config": config,
+            "verbose": False,
+            "dry_run": False,
+            "args": Mock(build_subcommand="verify-replicas", tag="dev"),
+        }
+
+        assert build.handle(ctx) == 1
+
+    @patch("epycloud.commands.build.handlers.cloud.resolve_image_digest")
+    def test_verify_replicas_accepts_one_digest(self, mock_resolve, mock_config):
+        """Verification succeeds only when all configured regions match."""
+        config = self._config_with_regions(mock_config)
+        digest = "sha256:" + "a" * 64
+        mock_resolve.side_effect = [digest, digest]
+        ctx = {
+            "config": config,
+            "verbose": False,
+            "dry_run": False,
+            "args": Mock(build_subcommand="verify-replicas", tag="dev"),
+        }
+
+        assert build.handle(ctx) == 0
+
+    @patch("epycloud.commands.build.cloud.ask_confirmation", return_value=True)
+    @patch("epycloud.commands.build.cloud.resolve_image_digest")
+    @patch("epycloud.commands.build.cloud.subprocess.run")
+    def test_cloud_build_copies_the_resolved_digest_without_source(
+        self, mock_subprocess, mock_resolve, _mock_confirm, tmp_path
+    ):
+        """Cloud Build must copy source@digest and submit without source upload."""
+        (tmp_path / "cloudbuild-replicate.yaml").write_text("steps: []\n")
+        digest = "sha256:" + "a" * 64
+        mock_resolve.return_value = digest
+        mock_subprocess.return_value = Mock(returncode=0)
+
+        result = cloud.replicate_image(
+            project_id="test-project",
+            build_region="us-central1",
+            source_region="us-central1",
+            destination_region="us-east5",
+            repo_name="test-repo",
+            image_name="test-image",
+            image_tag="dev",
+            project_root=tmp_path,
+            verbose=False,
+            dry_run=False,
+        )
+
+        assert result == 0
+        command = mock_subprocess.call_args.args[0]
+        assert "--no-source" in command
+        substitutions = next(
+            item for item in command if item.startswith("--substitutions=")
+        )
+        assert f"_IMAGE_DIGEST={digest}" in substitutions
+
+    def test_image_uri_can_select_a_regional_registry(self, mock_config):
+        """A compute-region override must replace only the registry hostname."""
+        assert get_image_uri(mock_config, tag="dev", region="us-east5") == (
+            "us-east5-docker.pkg.dev/test-project/"
+            "epymodelingsuite-repo/epymodelingsuite:dev"
+        )
