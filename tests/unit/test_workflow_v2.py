@@ -52,6 +52,15 @@ def test_batch_location_defaults_to_the_control_plane_region(workflow_source):
     )
 
 
+def test_run_output_stage_accepts_an_execution_override(workflow_source):
+    """A submission must be able to disable Stage C without redeploying Terraform."""
+    assert "- defaultRunOutputStage: ${run_output_stage}" in workflow_source
+    assert (
+        '- runOutputStage: $${default(map.get(input, "runOutputStage"), '
+        "defaultRunOutputStage)}" in workflow_source
+    )
+
+
 def test_batch_location_rejects_regions_outside_the_terraform_allowlist(
     workflow_source,
 ):

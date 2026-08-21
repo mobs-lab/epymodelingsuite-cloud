@@ -56,7 +56,8 @@ main:
           # Job parameters
           - batchSaEmail: $${input.batchSaEmail}
           - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
-          - runOutputStage: ${run_output_stage}
+          - defaultRunOutputStage: ${run_output_stage}
+          - runOutputStage: $${default(map.get(input, "runOutputStage"), defaultRunOutputStage)}
 
           # Network configuration
           - networkSelfLink: "${network_self_link}"
