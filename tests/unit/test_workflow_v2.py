@@ -43,6 +43,45 @@ def test_terraform_assembles_the_two_v2_templates(terraform_main_source):
     )
 
 
+def test_batch_location_defaults_to_the_control_plane_region(workflow_source):
+    """Legacy submissions must continue creating Batch jobs in the default region."""
+    assert '- defaultBatchLocation: "${default_batch_region}"' in workflow_source
+    assert (
+        '- batchLocation: $${default(map.get(input, "batchLocation"), '
+        "defaultBatchLocation)}" in workflow_source
+    )
+
+
+def test_batch_location_rejects_regions_outside_the_terraform_allowlist(
+    workflow_source,
+):
+    """A direct workflow input cannot escape the provisioned region set."""
+    assert "- allowedBatchRegions: ${allowed_batch_regions}" in workflow_source
+    assert "condition: $${not(batchLocation in allowedBatchRegions)}" in workflow_source
+    assert 'code: "UNKNOWN_BATCH_REGION"' in workflow_source
+    assert "raise: $${unknownBatchRegionError}" in workflow_source
+
+
+def test_batch_location_drives_every_regional_job_surface(workflow_source):
+    """Batch placement, image lookup, image URI, and subnet must select one region."""
+    assert workflow_source.count('"/locations/" + batchLocation + "/jobs"') == 3
+    assert workflow_source.count('"/locations/" + batchLocation + "/repositories/') == 3
+    assert workflow_source.count('$${"regions/" + batchLocation}') == 3
+    assert (
+        '- repoUri: $${batchLocation + "-docker.pkg.dev/" + project + '
+        '"/${repo_name}/${image_name}"}' in workflow_source
+    )
+    assert "- subnetSelfLinks: ${subnet_self_links}" in workflow_source
+    assert "- subnetSelfLink: $${map.get(subnetSelfLinks, batchLocation)}" in workflow_source
+
+
+def test_control_plane_location_no_longer_selects_batch_resources(workflow_source):
+    """The workflow deployment region must not leak into data-plane placement."""
+    assert '"/locations/" + location + "/jobs"' not in workflow_source
+    assert '"/locations/" + location + "/repositories/' not in workflow_source
+    assert '$${"regions/" + location}' not in workflow_source
+
+
 @pytest.mark.parametrize("stage", ["A", "B", "C"])
 def test_instances_are_selected_from_the_runtime_machine_type(workflow_source, stage):
     """Every stage must use the instance policy built for its current candidate."""

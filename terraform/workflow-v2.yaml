@@ -9,9 +9,12 @@ main:
           # Get environment info
           - project: $${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
           - location: $${sys.get_env("GOOGLE_CLOUD_LOCATION")}
+          - allowedBatchRegions: ${allowed_batch_regions}
+          - defaultBatchLocation: "${default_batch_region}"
+          - batchLocation: $${default(map.get(input, "batchLocation"), defaultBatchLocation)}
           # Allow runtime override of image tag (defaults to terraform variable if not provided)
           - imageTag: $${default(map.get(input, "imageTag"), "${image_tag}")}
-          - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}"}
+          - repoUri: $${batchLocation + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}"}
           - githubForecastRepo: $${default(map.get(input, "githubForecastRepo"), "")}
           - forecastRepoRef: $${default(map.get(input, "forecastRepoRef"), "")}
           - outputConfigFile: $${default(map.get(input, "outputConfigFile"), "")}
@@ -57,7 +60,21 @@ main:
 
           # Network configuration
           - networkSelfLink: "${network_self_link}"
-          - subnetSelfLink: "${subnet_self_link}"
+          - subnetSelfLinks: ${subnet_self_links}
+          - subnetSelfLink: $${map.get(subnetSelfLinks, batchLocation)}
+
+    - validate_batch_location:
+        switch:
+          - condition: $${not(batchLocation in allowedBatchRegions)}
+            steps:
+              - build_unknown_batch_region_error:
+                  assign:
+                    - unknownBatchRegionError:
+                        code: "UNKNOWN_BATCH_REGION"
+                        batchLocation: $${batchLocation}
+                        allowedBatchRegions: $${allowedBatchRegions}
+              - raise_unknown_batch_region:
+                  raise: $${unknownBatchRegionError}
 
     # Stage resource configuration (split to stay under 50 variable limit)
     - initialize_stage_resources:
@@ -177,7 +194,7 @@ main:
             - resolve_stageA_image:
                 call: resolveImage
                 args:
-                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + location + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
                   repoUri: $${repoUri}
                 result: resolvedImageA
 
@@ -198,7 +215,7 @@ main:
             - create_stageA_job:
                 call: http.post
                 args:
-                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/jobs"}
                   auth:
                     type: OAuth2
                     scopes: https://www.googleapis.com/auth/cloud-platform
@@ -249,7 +266,7 @@ main:
                     allocationPolicy:
                       location:
                         allowedLocations:
-                          - $${"regions/" + location}
+                          - $${"regions/" + batchLocation}
                       serviceAccount:
                         email: $${batchSaEmail}
                       network:
@@ -388,7 +405,7 @@ main:
             - resolve_stageB_image:
                 call: resolveImage
                 args:
-                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + location + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
                   repoUri: $${repoUri}
                 result: resolvedImageB
 
@@ -409,7 +426,7 @@ main:
             - create_stageB_job:
                 call: http.post
                 args:
-                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/jobs"}
                   auth:
                     type: OAuth2
                   body:
@@ -462,7 +479,7 @@ main:
                     allocationPolicy:
                       location:
                         allowedLocations:
-                          - $${"regions/" + location}
+                          - $${"regions/" + batchLocation}
                       serviceAccount:
                         email: $${batchSaEmail}
                       network:
@@ -577,7 +594,7 @@ main:
                       - resolve_stageC_image:
                           call: resolveImage
                           args:
-                            tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + location + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                            tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
                             repoUri: $${repoUri}
                           result: resolvedImageC
 
@@ -598,7 +615,7 @@ main:
                       - create_stageC_job:
                           call: http.post
                           args:
-                            url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
+                            url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/jobs"}
                             auth:
                               type: OAuth2
                               scopes: https://www.googleapis.com/auth/cloud-platform
@@ -651,7 +668,7 @@ main:
                               allocationPolicy:
                                 location:
                                   allowedLocations:
-                                    - $${"regions/" + location}
+                                    - $${"regions/" + batchLocation}
                                 serviceAccount:
                                   email: $${batchSaEmail}
                                 network:
