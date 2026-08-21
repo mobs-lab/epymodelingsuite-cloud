@@ -71,6 +71,12 @@ class GcpExecutionBackend:
         google_cloud = config.get("google_cloud", {})
         self.project_id = google_cloud.get("project_id", "")
         self.region = google_cloud.get("region", "us-central1")
+        configured_batch_regions = google_cloud.get("batch_regions")
+        self.batch_regions = (
+            tuple(configured_batch_regions)
+            if isinstance(configured_batch_regions, dict) and configured_batch_regions
+            else (self.region,)
+        )
         self.workflow_name = google_cloud.get("workflow_name") or DEFAULT_WORKFLOW_NAME
         self.verbose = verbose
         self._command_runner = command_runner or subprocess.run
@@ -103,6 +109,8 @@ class GcpExecutionBackend:
             arguments["maxParallelism"] = spec.max_parallelism
         if spec.task_count_per_node:
             arguments["taskCountPerNode"] = spec.task_count_per_node
+        if spec.compute_region and spec.compute_region != self.region:
+            arguments["batchLocation"] = spec.compute_region
 
         for stage in ("a", "b", "c"):
             candidates = spec.stage_candidates.get(stage) or (spec.stage_resources[stage],)
@@ -318,22 +326,27 @@ class GcpExecutionBackend:
         children: list[ChildCancellation] = []
         if include_jobs:
             prefix = ref.run_id[:8]
-            discovered = self._workflow_api.list_batch_jobs_for_execution(
-                self.project_id,
-                self.region,
-                ref.run_id,
-            )
-            job_names = {
-                str(job["name"]) for job in discovered if isinstance(job, dict) and job.get("name")
-            }
+            job_names: set[str] = set()
+            for batch_region in self.batch_regions:
+                discovered = self._workflow_api.list_batch_jobs_for_execution(
+                    self.project_id,
+                    batch_region,
+                    ref.run_id,
+                )
+                job_names.update(
+                    str(job["name"])
+                    for job in discovered
+                    if isinstance(job, dict) and job.get("name")
+                )
 
             if not job_names:
                 # Jobs created before execution_id labels used unsuffixed names.
-                for stage in ("a", "b", "c"):
-                    legacy_id = f"stage-{stage}-{prefix}"
-                    job_names.add(
-                        f"projects/{self.project_id}/locations/{self.region}/jobs/{legacy_id}"
-                    )
+                for batch_region in self.batch_regions:
+                    for stage in ("a", "b", "c"):
+                        legacy_id = f"stage-{stage}-{prefix}"
+                        job_names.add(
+                            f"projects/{self.project_id}/locations/{batch_region}/jobs/{legacy_id}"
+                        )
 
             for job_name in sorted(job_names):
                 job_id = job_name.rsplit("/", 1)[-1]

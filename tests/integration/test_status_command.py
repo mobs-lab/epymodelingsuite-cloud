@@ -267,7 +267,6 @@ class TestStatusFetchFunctions:
         )
         mock_get.return_value.raise_for_status = Mock()
 
-
         workflows = fetch_active_workflows(
             project_id="test-project",
             region="us-central1",
@@ -300,7 +299,6 @@ class TestStatusFetchFunctions:
         )
         mock_get.return_value.raise_for_status = Mock()
 
-
         workflows = fetch_active_workflows(
             project_id="test-project",
             region="us-central1",
@@ -321,7 +319,6 @@ class TestStatusFetchFunctions:
             json=lambda: {"executions": []},
         )
         mock_get.return_value.raise_for_status = Mock()
-
 
         workflows = fetch_active_workflows(
             project_id="test-project",
@@ -375,6 +372,38 @@ class TestStatusFetchFunctions:
 
         assert len(jobs) == 1
         assert jobs[0]["labels"]["stage"] == "runner"
+
+    @patch("epycloud.commands.status.operations.subprocess.run")
+    def test_fetch_active_batch_jobs_queries_and_annotates_every_region(self, mock_subprocess):
+        """Multi-region status must retain where each returned Batch job runs."""
+
+        def list_for_region(command, **kwargs):
+            del kwargs
+            region = next(arg.split("=", 1)[1] for arg in command if arg.startswith("--location="))
+            return Mock(
+                returncode=0,
+                stdout=json.dumps(
+                    [
+                        {
+                            "name": f"projects/test/locations/{region}/jobs/job-{region}",
+                            "labels": {"exp_id": "test-flu", "stage": "runner"},
+                        }
+                    ]
+                ),
+                stderr="",
+            )
+
+        mock_subprocess.side_effect = list_for_region
+
+        jobs = fetch_active_batch_jobs(
+            project_id="test-project",
+            region=("us-central1", "us-east5"),
+            exp_id=None,
+            verbose=False,
+        )
+
+        assert {job["region"] for job in jobs} == {"us-central1", "us-east5"}
+        assert mock_subprocess.call_count == 2
 
     @patch("epycloud.commands.status.operations.subprocess.run")
     def test_fetch_active_batch_jobs_empty(self, mock_subprocess):
@@ -472,6 +501,23 @@ class TestStatusDisplayFunction:
         ]
         # Should not raise any errors
         display_status([], jobs, None)
+
+    def test_display_status_identifies_the_batch_region(self, capsys):
+        """The active jobs table must make cross-region placement visible."""
+        jobs = [
+            {
+                "name": "projects/p/locations/us-east5/jobs/runner-job",
+                "region": "us-east5",
+                "status": {"state": "RUNNING"},
+                "labels": {"stage": "runner"},
+            }
+        ]
+
+        display_status([], jobs, None)
+
+        output = capsys.readouterr().out
+        assert "REGION" in output
+        assert "us-east5" in output
 
     def test_display_status_with_filter(self):
         """Test displaying status with filter."""

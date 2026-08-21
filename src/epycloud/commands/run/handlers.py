@@ -81,6 +81,7 @@ def handle_workflow(ctx: dict[str, Any]) -> int:
     local = args.local
     skip_output = args.skip_output
     max_parallelism = args.max_parallelism
+    batch_region = getattr(args, "batch_region", None)
     task_count_per_node = getattr(args, "task_count_per_node", None)
     stage_a_machine_type_override = getattr(args, "stage_a_machine_type", None)
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
@@ -127,6 +128,7 @@ def handle_workflow(ctx: dict[str, Any]) -> int:
             skip_output=skip_output,
             output_config=output_config,
             max_parallelism=max_parallelism,
+            batch_region_override=batch_region,
             task_count_per_node=task_count_per_node,
             stage_a_machine_type_override=stage_a_machine_type_override,
             stage_b_machine_type_override=stage_b_machine_type_override,

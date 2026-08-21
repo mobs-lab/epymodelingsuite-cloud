@@ -42,6 +42,7 @@ class PipelineRunSpec:
     max_parallelism: int
     task_count_per_node: int
     stage_resources: dict[str, StageResources]
+    compute_region: str = ""
     stage_candidates: dict[str, tuple[StageResources, ...]] = field(default_factory=dict)
     stage_pinned: dict[str, bool] = field(default_factory=dict)
     profile: str = ""

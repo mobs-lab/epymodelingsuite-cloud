@@ -177,6 +177,27 @@ def test_gcp_pipeline_plan_dual_emits_candidate_chains(mock_config):
     assert arguments["stageBPinned"] is False
 
 
+def test_gcp_pipeline_plan_omits_default_compute_region(mock_config):
+    """The default compute region must preserve the existing workflow argument set."""
+    backend = GcpExecutionBackend(mock_config)
+    spec = replace(pipeline_spec(), compute_region="us-central1")
+
+    arguments = backend.plan_pipeline(spec).metadata["arguments"]
+
+    assert "batchLocation" not in arguments
+
+
+def test_gcp_pipeline_plan_emits_nondefault_compute_region(mock_config):
+    """A non-default compute region must reach v2 without moving Workflows."""
+    backend = GcpExecutionBackend(mock_config)
+    spec = replace(pipeline_spec(), compute_region="us-east5")
+
+    plan = backend.plan_pipeline(spec)
+
+    assert plan.metadata["arguments"]["batchLocation"] == "us-east5"
+    assert "/locations/us-central1/workflows/" in plan.target
+
+
 def test_gcp_pipeline_plan_does_not_infer_pin_from_chain_length(mock_config):
     """Pin state is explicit because a one-candidate config is not a CLI override."""
     backend = GcpExecutionBackend(mock_config)

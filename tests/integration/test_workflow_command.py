@@ -1,7 +1,7 @@
 """Integration tests for workflow command."""
 
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
@@ -1008,6 +1008,49 @@ class TestWorkflowCancelWithBatchJobs:
 
         mock_list_jobs.assert_called_once_with("test-project", "us-central1", "exec-123")
         mock_cancel_job.assert_called_once()
+
+    @patch("epycloud.commands.workflow.api.cancel_batch_job")
+    @patch("epycloud.commands.workflow.api.list_batch_jobs_for_execution")
+    @patch("epycloud.commands.workflow.handlers.get_gcloud_access_token")
+    @patch("epycloud.commands.workflow.api.requests.post")
+    def test_cancel_discovers_jobs_in_every_configured_region(
+        self,
+        mock_post,
+        mock_token,
+        mock_list_jobs,
+        mock_cancel_job,
+        mock_config,
+    ):
+        """Cascade cancellation must find a live fallback outside the control region."""
+        mock_config["google_cloud"]["batch_regions"] = {
+            "us-central1": {"subnet_cidr": "10.0.0.0/20"},
+            "us-east5": {"subnet_cidr": "10.1.0.0/20"},
+        }
+        mock_token.return_value = "test-token"
+        mock_post.return_value = Mock(status_code=200)
+        east_job = {"name": "projects/test-project/locations/us-east5/jobs/stage-b-exec-123-1"}
+        mock_list_jobs.side_effect = [[], [east_job]]
+
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                workflow_subcommand="cancel",
+                execution_id="exec-123",
+                only_workflow=False,
+            ),
+        }
+
+        assert workflow.handle(ctx) == 0
+        assert mock_list_jobs.call_args_list == [
+            call("test-project", "us-central1", "exec-123"),
+            call("test-project", "us-east5", "exec-123"),
+        ]
+        mock_cancel_job.assert_called_once_with(east_job["name"], "test-token")
 
     @patch("epycloud.commands.workflow.api.list_batch_jobs_for_execution")
     @patch("epycloud.commands.workflow.api.get_execution")

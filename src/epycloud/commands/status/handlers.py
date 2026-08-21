@@ -46,6 +46,12 @@ def handle(ctx: dict[str, Any]) -> int:
         gcloud_config = get_google_cloud_config(ctx)
         project_id = gcloud_config["project_id"]
         region = gcloud_config.get("region", "us-central1")
+        configured_batch_regions = gcloud_config.get("batch_regions")
+        batch_regions = (
+            tuple(configured_batch_regions)
+            if isinstance(configured_batch_regions, dict) and configured_batch_regions
+            else (region,)
+        )
         workflow_name = get_workflow_name(config)
     except (ConfigError, KeyError) as e:
         error(str(e))
@@ -72,6 +78,7 @@ def handle(ctx: dict[str, Any]) -> int:
         return _watch_status(
             project_id=project_id,
             region=region,
+            batch_regions=batch_regions,
             exp_id=args.exp_id,
             interval=args.interval,
             verbose=verbose,
@@ -84,6 +91,7 @@ def handle(ctx: dict[str, Any]) -> int:
     return _show_status(
         project_id=project_id,
         region=region,
+        batch_regions=batch_regions,
         exp_id=args.exp_id,
         verbose=verbose,
         since=since,
@@ -95,6 +103,7 @@ def handle(ctx: dict[str, Any]) -> int:
 def _show_status(
     project_id: str,
     region: str,
+    batch_regions: tuple[str, ...],
     exp_id: str | None,
     verbose: bool,
     since: datetime | None = None,
@@ -108,7 +117,9 @@ def _show_status(
     project_id : str
         GCP project ID
     region : str
-        GCP region
+        Cloud Workflows control-plane region
+    batch_regions : tuple[str, ...]
+        Cloud Batch data-plane regions
     exp_id : str | None
         Optional experiment ID filter
     verbose : bool
@@ -138,7 +149,7 @@ def _show_status(
         # Fetch active batch jobs
         jobs = fetch_active_batch_jobs(
             project_id=project_id,
-            region=region,
+            region=batch_regions,
             exp_id=exp_id,
             verbose=verbose,
         )
@@ -157,7 +168,7 @@ def _show_status(
             )
             recent_jobs = fetch_recent_batch_jobs(
                 project_id=project_id,
-                region=region,
+                region=batch_regions,
                 exp_id=exp_id,
                 since=since,
                 verbose=verbose,
@@ -191,6 +202,7 @@ def _show_status(
 def _watch_status(
     project_id: str,
     region: str,
+    batch_regions: tuple[str, ...],
     exp_id: str | None,
     interval: int,
     verbose: bool,
@@ -205,7 +217,9 @@ def _watch_status(
     project_id : str
         GCP project ID
     region : str
-        GCP region
+        Cloud Workflows control-plane region
+    batch_regions : tuple[str, ...]
+        Cloud Batch data-plane regions
     exp_id : str | None
         Optional experiment ID filter
     interval : int
@@ -245,7 +259,7 @@ def _watch_status(
 
                 jobs = fetch_active_batch_jobs(
                     project_id=project_id,
-                    region=region,
+                    region=batch_regions,
                     exp_id=exp_id,
                     verbose=verbose,
                 )
@@ -266,7 +280,7 @@ def _watch_status(
                         )
                         recent_jobs = fetch_recent_batch_jobs(
                             project_id=project_id,
-                            region=region,
+                            region=batch_regions,
                             exp_id=exp_id,
                             since=since,
                             verbose=verbose,

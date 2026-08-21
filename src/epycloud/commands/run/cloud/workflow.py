@@ -27,6 +27,7 @@ from ..validation import (
     build_base_confirmation_info,
     prompt_user_confirmation,
     resolve_stage_candidates,
+    validate_cross_region_preflight,
 )
 
 
@@ -39,6 +40,7 @@ def run_workflow_gcp(
     skip_output: bool,
     output_config: str | None,
     max_parallelism: int | None,
+    batch_region_override: str | None,
     task_count_per_node: int | None,
     stage_a_machine_type_override: str | None,
     stage_b_machine_type_override: str | None,
@@ -68,6 +70,8 @@ def run_workflow_gcp(
         Output config filename for Stage C (e.g., "output_projection.yaml")
     max_parallelism : int | None
         Max parallel tasks
+    batch_region_override : str | None
+        Override the Cloud Batch data-plane region
     task_count_per_node : int | None
         Max tasks per VM node (1 = dedicated VM per task)
     stage_a_machine_type_override : str | None
@@ -98,6 +102,19 @@ def run_workflow_gcp(
     google_cloud = config.get("google_cloud", {})
     project_id = google_cloud.get("project_id")
     region = google_cloud.get("region", "us-central1")
+    compute_region = batch_region_override or region
+    configured_regions = google_cloud.get("batch_regions")
+    if configured_regions is None:
+        configured_region_names = {region}
+    elif isinstance(configured_regions, dict):
+        configured_region_names = set(configured_regions)
+    else:
+        error("google_cloud.batch_regions must be a mapping")
+        return 2
+    if compute_region not in configured_region_names:
+        allowed = ", ".join(sorted(configured_region_names))
+        error(f"Batch region '{compute_region}' is not configured. Configured regions: {allowed}")
+        return 2
     bucket_name = google_cloud.get("bucket_name")
     workflow_name = get_workflow_name(config)
     storage = config.get("storage", {})
@@ -131,7 +148,11 @@ def run_workflow_gcp(
     batch_sa_email = get_batch_service_account(project_id)
 
     # Build Docker image URI
-    image_uri = get_image_uri(config)
+    image_uri = (
+        get_image_uri(config)
+        if compute_region == region
+        else get_image_uri(config, region=compute_region)
+    )
 
     # Extract image tag from config for runtime override
     docker_config = config.get("docker", {})
@@ -157,7 +178,7 @@ def run_workflow_gcp(
             stage_overrides[stage],
             f"Stage {stage.upper()}",
             project_id,
-            region,
+            compute_region,
             default_cpu_milli=default_cpu,
             default_memory_mib=default_memory,
             default_max_run_duration=default_duration,
@@ -167,6 +188,16 @@ def run_workflow_gcp(
         stage_candidates[stage], stage_pinned[stage] = resolved
 
     stage_resources = {stage: candidates[0] for stage, candidates in stage_candidates.items()}
+
+    if not validate_cross_region_preflight(
+        config,
+        project_id,
+        region,
+        compute_region,
+        image_tag,
+        verbose,
+    ):
+        return 1
 
     # Extract labels
     profile_meta = config.get("_meta", {}).get("profile") or {}
@@ -225,6 +256,8 @@ def run_workflow_gcp(
     )
     if billing_project:
         confirmation_info["billing_project"] = billing_project
+    if compute_region != region:
+        confirmation_info["batch_region"] = compute_region
     # Surfaced only when submitting to a non-default pipeline, so default runs
     # keep their existing confirmation output verbatim.
     if workflow_name != DEFAULT_WORKFLOW_NAME:
@@ -249,6 +282,7 @@ def run_workflow_gcp(
             max_parallelism=max_parallelism,
             task_count_per_node=task_count_per_node,
             stage_resources=stage_resources,
+            compute_region=compute_region,
             stage_candidates=stage_candidates,
             stage_pinned=stage_pinned,
             profile=profile_name,

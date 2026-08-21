@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -14,6 +15,17 @@ from epycloud.lib.output import section_header, supports_color, warning
 
 TASK_COUNT_STATES = ("SUCCEEDED", "FAILED", "RUNNING", "ASSIGNED", "PENDING")
 ACTIVE_BATCH_STATES = frozenset({"RUNNING", "SCHEDULED", "QUEUED"})
+
+
+def get_job_region(job: dict[str, Any]) -> str:
+    """Return the annotated region or derive it from a full Batch job name."""
+    if job.get("region"):
+        return str(job["region"])
+    parts = str(job.get("name", "")).split("/")
+    try:
+        return parts[parts.index("locations") + 1]
+    except (ValueError, IndexError):
+        return "unknown"
 
 
 def _as_int(value: Any) -> int:
@@ -431,7 +443,7 @@ def fetch_recent_workflows(
 
 def fetch_active_batch_jobs(
     project_id: str,
-    region: str,
+    region: str | Sequence[str],
     exp_id: str | None,
     verbose: bool,
 ) -> list[dict[str, Any]]:
@@ -441,8 +453,8 @@ def fetch_active_batch_jobs(
     ----------
     project_id : str
         GCP project ID
-    region : str
-        GCP region
+    region : str | Sequence[str]
+        One or more Cloud Batch regions
     exp_id : str | None
         Optional experiment ID filter
     verbose : bool
@@ -453,66 +465,58 @@ def fetch_active_batch_jobs(
     list[dict[str, Any]]
         List of active batch jobs
     """
-    try:
-        # Build gcloud command filter
-        # Note: Multiple state checks need parentheses for OR grouping
-        state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
+    state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
+    if exp_id:
+        from epycloud.lib.validation import sanitize_label_value
 
-        if exp_id:
-            # Sanitize exp_id for label filtering (must match what was set in job creation)
-            from epycloud.lib.validation import sanitize_label_value
+        exp_id_label = sanitize_label_value(exp_id)
+        filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
+    else:
+        filter_expr = state_filter
 
-            exp_id_label = sanitize_label_value(exp_id)
-            # Combine state filter with exp_id filter using AND
-            filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
-        else:
-            filter_expr = state_filter
-
+    regions = (region,) if isinstance(region, str) else tuple(region)
+    all_jobs: list[dict[str, Any]] = []
+    for batch_region in regions:
         cmd = [
             "gcloud",
             "batch",
             "jobs",
             "list",
             f"--project={project_id}",
-            f"--location={region}",
+            f"--location={batch_region}",
             "--format=json",
             f"--filter={filter_expr}",
         ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if not result.stdout.strip():
+                continue
+            jobs = json.loads(result.stdout)
+            for job in jobs:
+                job["region"] = batch_region
+            all_jobs.extend(jobs)
+        except Exception as e:
+            if verbose:
+                warning(f"Failed to fetch batch jobs in {batch_region}: {e}")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+    # Sort by experiment and region for stable output across calls.
+    def get_job_exp_id(job: dict[str, Any]) -> tuple[str, str]:
+        task_groups = job.get("taskGroups", [])
+        if task_groups:
+            task_spec = task_groups[0].get("taskSpec", {})
+            env_vars = task_spec.get("environment", {}).get("variables", {})
+            exp_id = env_vars.get("EXP_ID", job.get("labels", {}).get("exp_id", ""))
+        else:
+            exp_id = job.get("labels", {}).get("exp_id", "")
+        return exp_id, job.get("region", "")
 
-        if not result.stdout.strip():
-            return []
-
-        jobs = json.loads(result.stdout)
-
-        # Sort by exp_id
-        def get_job_exp_id(job: dict[str, Any]) -> str:
-            task_groups = job.get("taskGroups", [])
-            if task_groups:
-                task_spec = task_groups[0].get("taskSpec", {})
-                env_vars = task_spec.get("environment", {}).get("variables", {})
-                return env_vars.get("EXP_ID", job.get("labels", {}).get("exp_id", ""))
-            return job.get("labels", {}).get("exp_id", "")
-
-        jobs.sort(key=get_job_exp_id)
-
-        return jobs
-
-    except Exception as e:
-        if verbose:
-            warning(f"Failed to fetch batch jobs: {e}")
-        return []
+    all_jobs.sort(key=get_job_exp_id)
+    return all_jobs
 
 
 def fetch_recent_batch_jobs(
     project_id: str,
-    region: str,
+    region: str | Sequence[str],
     exp_id: str | None,
     since: datetime,
     verbose: bool,
@@ -523,8 +527,8 @@ def fetch_recent_batch_jobs(
     ----------
     project_id : str
         GCP project ID
-    region : str
-        GCP region
+    region : str | Sequence[str]
+        One or more Cloud Batch regions
     exp_id : str | None
         Optional experiment ID filter
     since : datetime
@@ -537,60 +541,52 @@ def fetch_recent_batch_jobs(
     list[dict[str, Any]]
         List of recently completed batch jobs
     """
-    try:
-        state_filter = (
-            "(status.state:SUCCEEDED OR status.state:FAILED OR status.state:CANCELLED)"
-        )
+    state_filter = "(status.state:SUCCEEDED OR status.state:FAILED OR status.state:CANCELLED)"
+    if exp_id:
+        from epycloud.lib.validation import sanitize_label_value
 
-        if exp_id:
-            from epycloud.lib.validation import sanitize_label_value
+        exp_id_label = sanitize_label_value(exp_id)
+        filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
+    else:
+        filter_expr = state_filter
 
-            exp_id_label = sanitize_label_value(exp_id)
-            filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
-        else:
-            filter_expr = state_filter
-
+    regions = (region,) if isinstance(region, str) else tuple(region)
+    since_iso = since.isoformat()
+    filtered: list[dict[str, Any]] = []
+    for batch_region in regions:
         cmd = [
             "gcloud",
             "batch",
             "jobs",
             "list",
             f"--project={project_id}",
-            f"--location={region}",
+            f"--location={batch_region}",
             "--format=json",
             f"--filter={filter_expr}",
             "--sort-by=~createTime",
         ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if not result.stdout.strip():
+                continue
+            for job in json.loads(result.stdout):
+                status_events = job.get("status", {}).get("statusEvents", [])
+                update_time = (
+                    status_events[-1].get("eventTime", "")
+                    if status_events
+                    else job.get("updateTime", "")
+                )
+                if not update_time:
+                    update_time = job.get("createTime", "")
+                if update_time and update_time >= since_iso:
+                    job["region"] = batch_region
+                    filtered.append(job)
+        except Exception as e:
+            if verbose:
+                warning(f"Failed to fetch recent batch jobs in {batch_region}: {e}")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        if not result.stdout.strip():
-            return []
-
-        jobs = json.loads(result.stdout)
-
-        # Client-side filter by updateTime >= since
-        since_iso = since.isoformat()
-        filtered = []
-        for job in jobs:
-            update_time = job.get("status", {}).get("statusEvents", [{}])[-1].get("eventTime", "") if job.get("status", {}).get("statusEvents") else job.get("updateTime", "")
-            # Fallback: use createTime if no updateTime available
-            if not update_time:
-                update_time = job.get("createTime", "")
-            if update_time and update_time >= since_iso:
-                filtered.append(job)
-
-        return filtered
-
-    except Exception as e:
-        if verbose:
-            warning(f"Failed to fetch recent batch jobs: {e}")
-        return []
+    filtered.sort(key=lambda job: job.get("createTime", ""), reverse=True)
+    return filtered
 
 
 def display_status(
@@ -666,12 +662,12 @@ def display_status(
     if jobs:
         section_header("Active batch jobs")
 
-        print("-" * 146)
+        print("-" * 160)
         print(
-            f"{'EXP_ID':<60} {'JOB NAME':<25} {'STAGE':<8} {'IMAGE TAG':<15} "
+            f"{'EXP_ID':<60} {'JOB NAME':<25} {'REGION':<13} {'STAGE':<8} {'IMAGE TAG':<15} "
             f"{'STATUS':<12} {'TASKS':<9} {'SLOTS':<9}"
         )
-        print("-" * 146)
+        print("-" * 160)
 
         for job in jobs:
             job_name = job.get("name", "").split("/")[-1]
@@ -684,6 +680,7 @@ def display_status(
             # Get labels
             labels = job.get("labels", {})
             stage = labels.get("stage", "unknown")
+            batch_region = get_job_region(job)
 
             # Get exp_id and image_uri from task spec
             task_groups_list = job.get("taskGroups", [])
@@ -717,7 +714,9 @@ def display_status(
 
             snapshot = _job_snapshot(job)
             slots_str = (
-                f"{snapshot.occupied}/{snapshot.demand}" if snapshot.demand > 0 else "N/A"
+                f"{snapshot.occupied}/{snapshot.demand}"
+                if snapshot.demand > 0
+                else "N/A"
             )
 
             # Color code status (pad before coloring to avoid ANSI escape code width issues)
@@ -725,7 +724,8 @@ def display_status(
             status_display = format_status(status_padded, "batch")
 
             print(
-                f"{exp_id:<60} {job_name:<25} {stage:<8} {image_tag:<15} "
+                f"{exp_id:<60} {job_name:<25} {batch_region:<13} "
+                f"{stage:<8} {image_tag:<15} "
                 f"{status_display} {tasks_str:<9} {slots_str:<9}"
             )
 
@@ -862,9 +862,12 @@ def display_recent_batch_jobs(jobs: list[dict[str, Any]]) -> None:
     """
     section_header("Recently completed batch jobs")
 
-    print("-" * 135)
-    print(f"{'EXP_ID':<50} {'JOB NAME':<25} {'STAGE':<8} {'STATUS':<14} {'DURATION':<12} {'TASKS':<7}")
-    print("-" * 135)
+    print("-" * 149)
+    print(
+        f"{'EXP_ID':<50} {'JOB NAME':<25} {'REGION':<13} {'STAGE':<8} "
+        f"{'STATUS':<14} {'DURATION':<12} {'TASKS':<7}"
+    )
+    print("-" * 149)
 
     for job in jobs:
         job_name = job.get("name", "").split("/")[-1]
@@ -876,6 +879,7 @@ def display_recent_batch_jobs(jobs: list[dict[str, Any]]) -> None:
 
         labels = job.get("labels", {})
         stage = labels.get("stage", "unknown")
+        batch_region = get_job_region(job)
 
         # Get exp_id from task spec or labels
         task_groups_list = job.get("taskGroups", [])
@@ -909,6 +913,9 @@ def display_recent_batch_jobs(jobs: list[dict[str, Any]]) -> None:
         status_padded = f"{state:<14}"
         status_display = format_status(status_padded, "batch")
 
-        print(f"{exp_id:<50} {job_name:<25} {stage:<8} {status_display} {duration_str:<12} {tasks_str:<7}")
+        print(
+            f"{exp_id:<50} {job_name:<25} {batch_region:<13} {stage:<8} "
+            f"{status_display} {duration_str:<12} {tasks_str:<7}"
+        )
 
     print()

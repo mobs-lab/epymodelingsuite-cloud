@@ -1,13 +1,88 @@
 """Validation and confirmation utilities for run command."""
 
+import subprocess
+import sys
 from typing import Any
 
+from epycloud.commands.build import cloud as build_cloud
 from epycloud.exceptions import ValidationError
 from epycloud.execution import StageResources
 from epycloud.execution.gcp_machines import validate_hyperdisk_family
+from epycloud.lib.command_helpers import get_image_uri
 from epycloud.lib.output import error, info, status, success, warning
 from epycloud.lib.validation import get_machine_type_specs, validate_machine_type
 from epycloud.utils.confirmation import format_confirmation, prompt_confirmation
+
+
+def validate_cross_region_preflight(
+    config: dict[str, Any],
+    project_id: str,
+    source_region: str,
+    compute_region: str,
+    image_tag: str,
+    verbose: bool,
+) -> bool:
+    """Verify the image replica and subnet needed by a cross-region run."""
+    if compute_region == source_region:
+        return True
+
+    source_image = get_image_uri(config, tag=image_tag, region=source_region)
+    destination_image = get_image_uri(config, tag=image_tag, region=compute_region)
+    status(f"Checking image replica in {compute_region}...")
+    source_digest = build_cloud.resolve_image_digest(
+        project_id=project_id,
+        image_uri=source_image,
+        verbose=verbose,
+    )
+    destination_digest = build_cloud.resolve_image_digest(
+        project_id=project_id,
+        image_uri=destination_image,
+        verbose=verbose,
+    )
+    if source_digest is None or destination_digest != source_digest:
+        error(f"Image tag '{image_tag}' is not an identical replica in {compute_region}.")
+        info("Replicate it with:")
+        info(
+            "  uv run epycloud build replicate "
+            f"--from {source_region} --to {compute_region} --tag {image_tag}"
+        )
+        return False
+
+    subnet_base_name = config.get("google_cloud", {}).get(
+        "subnet_name", "epymodelingsuite-subnet"
+    )
+    subnet_name = f"{subnet_base_name}-{compute_region}"
+    status(f"Checking Batch subnet '{subnet_name}'...")
+    try:
+        result = subprocess.run(
+            [
+                "gcloud",
+                "compute",
+                "networks",
+                "subnets",
+                "describe",
+                subnet_name,
+                f"--project={project_id}",
+                f"--region={compute_region}",
+                "--format=value(selfLink)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        error(f"Unable to verify Batch subnet in {compute_region}: {exc}")
+        return False
+
+    if result.returncode != 0 or not result.stdout.strip():
+        error(f"Batch subnet '{subnet_name}' was not found in {compute_region}")
+        if verbose and result.stderr:
+            print(result.stderr.strip(), file=sys.stderr)
+        return False
+
+    success(f"Cross-region preflight passed for image and subnet in {compute_region}")
+    return True
 
 
 def build_base_confirmation_info(
