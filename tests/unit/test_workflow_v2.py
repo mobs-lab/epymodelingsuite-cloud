@@ -216,8 +216,18 @@ def test_watchdog_measures_occupancy_against_remaining_demand(wait_job_source):
         "- targetSlots: $${if(safeParallelism < remaining, safeParallelism, remaining)}"
         in wait_job_source
     )
+    assert "- fillDenominator: $${if(targetSlots > 0, targetSlots, 1)}" in wait_job_source
     assert "- occupied: $${cRunning + cAssigned}" in wait_job_source
-    assert "- filled: $${if(targetSlots <= 0, 1, occupied / targetSlots)}" in wait_job_source
+    assert (
+        "- filled: $${if(targetSlots <= 0, 1, occupied / fillDenominator)}"
+        in wait_job_source
+    )
+
+
+def test_completed_job_never_divides_by_zero(wait_job_source):
+    """Eager expression evaluation must remain safe when remaining demand is zero."""
+    assert "occupied / targetSlots" not in wait_job_source
+    assert "occupied / fillDenominator" in wait_job_source
 
 
 def test_watchdog_defaults_missing_counts_without_using_pending(wait_job_source):

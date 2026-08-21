@@ -116,8 +116,11 @@ waitJob:
                   - remaining: $${taskCount - cSucceeded - cFailed}
                   - remaining: $${if(remaining > 0, remaining, 0)}
                   - targetSlots: $${if(safeParallelism < remaining, safeParallelism, remaining)}
+                  # Workflows evaluates both if() branches, so the division
+                  # needs a nonzero denominator even when all tasks finished.
+                  - fillDenominator: $${if(targetSlots > 0, targetSlots, 1)}
                   - occupied: $${cRunning + cAssigned}
-                  - filled: $${if(targetSlots <= 0, 1, occupied / targetSlots)}
+                  - filled: $${if(targetSlots <= 0, 1, occupied / fillDenominator)}
                   # Time only continuous underfill. A full earlier wave must not
                   # consume the grace period needed to provision the next wave.
                   - madeProgress: $${everStarted != lastEverStarted}
