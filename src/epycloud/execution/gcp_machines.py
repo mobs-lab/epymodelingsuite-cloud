@@ -22,11 +22,12 @@ HYPERDISK_MACHINE_FAMILIES = frozenset({"c3", "c3d", "c4", "c4d", "n4", "n4d"})
 ARM_MACHINE_FAMILIES = frozenset({"c4a", "n4a"})
 
 # vCPU and memory (MiB) per candidate, read from the Compute API in
-# us-central1-a on 2026-08-19. Kept here so the memory-non-decreasing rule can
+# us-central1-a, most recently on 2026-08-21. Kept here so resource safety can
 # be asserted in tests without a network call. Re-read if a candidate is added.
 MACHINE_SPECS: dict[str, tuple[int, int]] = {
     "c4d-standard-2": (2, 7168),
     "c4-standard-2": (2, 7168),
+    "c3-highcpu-4": (4, 8192),
     "n4d-standard-2": (2, 8192),
     "n4-standard-2": (2, 8192),
     "c4d-standard-4": (4, 15360),
@@ -54,15 +55,15 @@ MACHINE_SPECS: dict[str, tuple[int, int]] = {
 MACHINE_CHAINS_BY_REQUIREMENT: dict[tuple[int, int], tuple[str, ...]] = {
     (2000, 8192): (
         "c4d-standard-2",
-        "c4-standard-2",
+        "c3-highcpu-4",
         "n4d-standard-2",
         "n4-standard-2",
     ),
     (4000, 16384): (
         "c4d-standard-4",
-        "c4-standard-4",
-        "n4d-standard-4",
         "c3-standard-4",
+        "n4d-standard-4",
+        "n4-standard-4",
     ),
     (4000, 32768): (
         "c3-highmem-4",
@@ -132,7 +133,7 @@ def get_candidate_chain(min_cpu_milli: int, min_memory_mib: int) -> tuple[str, .
     Examples
     --------
     >>> get_candidate_chain(2000, 7168)
-    ('c4d-standard-2', 'c4-standard-2', 'n4d-standard-2', 'n4-standard-2')
+    ('c4d-standard-2', 'c3-highcpu-4', 'n4d-standard-2', 'n4-standard-2')
     >>> get_candidate_chain(4000, 31744)
     ('c3-highmem-4', 'c3d-highmem-4', 'n4d-highmem-4', 'n4-highmem-4')
     """

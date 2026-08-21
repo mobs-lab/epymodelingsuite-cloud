@@ -35,6 +35,7 @@ class TestIsHyperdiskFamily:
         [
             "c3-standard-4",
             "c3d-standard-4",
+            "c3-highcpu-4",
             "c4-standard-2",
             "c4-standard-4",
             "c4d-standard-2",
@@ -102,7 +103,7 @@ class TestValidateHyperdiskFamily:
         # The message must explain what goes wrong, or it reads as a spurious lint.
         assert "1080s" in message
         # ...and offer the stage's own chain as the way out.
-        assert "c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2" in message
+        assert "c4d-standard-2, c3-highcpu-4, n4d-standard-2, n4-standard-2" in message
 
     def test_arm_family_gets_a_distinct_message(self):
         with pytest.raises(ValidationError) as exc:
@@ -111,7 +112,7 @@ class TestValidateHyperdiskFamily:
         message = str(exc.value)
         assert "Arm64" in message
         assert "amd64" in message
-        assert "c4d-standard-4, c4-standard-4, n4d-standard-4, c3-standard-4" in message
+        assert "c4d-standard-4, c3-standard-4, n4d-standard-4, n4-standard-4" in message
 
     def test_unknown_stage_name_still_raises_without_a_suggestion(self):
         with pytest.raises(ValidationError) as exc:
@@ -123,25 +124,25 @@ class TestValidateHyperdiskFamily:
 class TestStageChains:
     """Fallback chains must preserve each stage's resource requirements."""
 
-    def test_stage_a_and_b_share_the_standard_2_chain(self):
-        expected = ("c4d-standard-2", "c4-standard-2", "n4d-standard-2", "n4-standard-2")
+    def test_stage_a_and_b_share_the_small_workload_chain(self):
+        expected = ("c4d-standard-2", "c3-highcpu-4", "n4d-standard-2", "n4-standard-2")
         assert STAGE_MACHINE_CHAINS["a"] == expected
         assert STAGE_MACHINE_CHAINS["b"] == expected
 
     def test_stage_c_chain_meets_its_4000_mcpu_minimum(self):
         assert STAGE_MACHINE_CHAINS["c"] == (
             "c4d-standard-4",
-            "c4-standard-4",
-            "n4d-standard-4",
             "c3-standard-4",
+            "n4d-standard-4",
+            "n4-standard-4",
         )
-        # 2 vCPU cannot satisfy Stage C's 4000 mCPU request.
+        # Every maintained Stage C candidate has 4 vCPU.
         assert all(c.rsplit("-", 1)[-1] == "4" for c in STAGE_MACHINE_CHAINS["c"])
 
-    def test_c4_is_the_first_equivalent_fallback(self):
-        """C4 follows C4D where both machine types have identical resources."""
-        assert MACHINE_CHAINS_BY_REQUIREMENT[(2000, 8192)][1] == "c4-standard-2"
-        assert MACHINE_CHAINS_BY_REQUIREMENT[(4000, 16384)][1] == "c4-standard-4"
+    def test_c3_is_the_first_fallback(self):
+        """Current capacity preference puts a C3 shape after each C4D head."""
+        assert MACHINE_CHAINS_BY_REQUIREMENT[(2000, 8192)][1] == "c3-highcpu-4"
+        assert MACHINE_CHAINS_BY_REQUIREMENT[(4000, 16384)][1] == "c3-standard-4"
 
     def test_every_candidate_can_boot_hyperdisk(self):
         """A candidate that cannot boot the pipeline's disk is a guaranteed failure."""
@@ -165,11 +166,12 @@ class TestStageChains:
             memories = [MACHINE_SPECS[c][1] for c in chain]
             assert memories == sorted(memories), f"{requirement}: {list(zip(chain, memories))}"
 
-    def test_vcpu_is_constant_along_every_chain(self):
-        """A maintained pool changes family, except for requirement-driven shape selection."""
+    def test_every_candidate_meets_the_pool_cpu_requirement(self):
+        """A fallback may overprovision CPU but must never fall below the minimum."""
         for requirement, chain in MACHINE_CHAINS_BY_REQUIREMENT.items():
-            vcpus = {MACHINE_SPECS[c][0] for c in chain}
-            assert len(vcpus) == 1, f"{requirement}: {vcpus}"
+            min_cpu_milli = requirement[0]
+            for candidate in chain:
+                assert MACHINE_SPECS[candidate][0] * 1000 >= min_cpu_milli, candidate
 
     def test_c4_standard_8_lowers_memory(self):
         """Regression guard for the plan's 'C4 is a spec-identical drop-in' claim.
@@ -204,10 +206,10 @@ class TestGetCandidateChain:
     """Requirement lookup must prefer smaller shapes without lowering resources."""
 
     def test_standard_two_chain_serves_builder_and_runner(self):
-        """The 2000 mCPU and 7168 MiB workload keeps the measured standard-2 order."""
+        """The small workload uses the available C3 shape as its first fallback."""
         assert get_candidate_chain(2000, 7168) == (
             "c4d-standard-2",
-            "c4-standard-2",
+            "c3-highcpu-4",
             "n4d-standard-2",
             "n4-standard-2",
         )
@@ -233,6 +235,7 @@ class TestGetCandidateChain:
     def test_candidates_below_the_memory_minimum_are_filtered(self):
         """A pool may contain mixed memory sizes, so each member is checked."""
         assert get_candidate_chain(2000, 8192) == (
+            "c3-highcpu-4",
             "n4d-standard-2",
             "n4-standard-2",
         )

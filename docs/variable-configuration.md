@@ -42,21 +42,21 @@ google_cloud:
     stage_a:
       cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
       memory_mib: 7168                # Minimum memory
-      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
+      machine_types: [c4d-standard-2, c3-highcpu-4, n4d-standard-2, n4-standard-2]
       max_run_duration: 3600          # Timeout in seconds (1 hour)
 
     # Stage B (Runner) Resources
     stage_b:
       cpu_milli: 2000                 # CPU (2000 = 2 vCPUs)
       memory_mib: 7168                # Minimum memory
-      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
+      machine_types: [c4d-standard-2, c3-highcpu-4, n4d-standard-2, n4-standard-2]
       max_run_duration: 36000         # Timeout in seconds (10 hours)
 
     # Stage C (Output) Resources
     stage_c:
       cpu_milli: 4000                 # CPU (4000 = 4 vCPUs)
       memory_mib: 15360               # Minimum memory
-      machine_types: [c4d-standard-4, c4-standard-4, n4d-standard-4, c3-standard-4]
+      machine_types: [c4d-standard-4, c3-standard-4, n4d-standard-4, n4-standard-4]
       max_run_duration: 7200          # Timeout in seconds (2 hours)
 
     run_output_stage: true            # Enable/disable Stage C
@@ -117,7 +117,7 @@ google_cloud:
     stage_b:
       cpu_milli: 2000
       memory_mib: 7168
-      machine_types: [c4d-standard-2, c4-standard-2, n4d-standard-2, n4-standard-2]
+      machine_types: [c4d-standard-2, c3-highcpu-4, n4d-standard-2, n4-standard-2]
 ```
 
 
