@@ -3,9 +3,9 @@
 # Location: ~/.config/epymodelingsuite-cloud/environments/v2pipeline.yaml
 #
 # Selected with `epycloud --env v2pipeline ...`. This is the blue/green staging
-# pipeline: a second Cloud Workflows workflow rendered from
-# terraform/workflow-v2.yaml. Production is untouched until a change is
-# promoted (cp terraform/workflow-v2.yaml terraform/workflow.yaml).
+# pipeline: a second Cloud Workflows workflow assembled from the v2 main and
+# subworkflow templates. Production is untouched until their assembled source
+# is promoted to terraform/workflow.yaml.
 #
 # Named v2pipeline rather than dev on purpose. "dev" is already overloaded in
 # this project: the dev git branch, the dev image tag, and

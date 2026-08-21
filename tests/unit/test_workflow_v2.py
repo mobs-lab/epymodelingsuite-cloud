@@ -5,13 +5,18 @@ from pathlib import Path
 import pytest
 
 WORKFLOW_V2 = Path(__file__).resolve().parents[2] / "terraform" / "workflow-v2.yaml"
+WORKFLOW_V2_SUBWORKFLOWS = (
+    Path(__file__).resolve().parents[2] / "terraform" / "workflow-v2-subworkflows.yaml"
+)
 TERRAFORM_MAIN = Path(__file__).resolve().parents[2] / "terraform" / "main.tf"
 
 
 @pytest.fixture(scope="module")
 def workflow_source() -> str:
-    """Load the staging template once for source-level rendering checks."""
-    return WORKFLOW_V2.read_text()
+    """Assemble the staging templates for source-level rendering checks."""
+    return "\n".join(
+        [WORKFLOW_V2.read_text(), WORKFLOW_V2_SUBWORKFLOWS.read_text()]
+    )
 
 
 @pytest.fixture(scope="module")
@@ -26,6 +31,16 @@ def wait_job_source(workflow_source: str) -> str:
 def terraform_main_source() -> str:
     """Load the Terraform resources used by the staging workflow."""
     return TERRAFORM_MAIN.read_text()
+
+
+def test_terraform_assembles_the_two_v2_templates(terraform_main_source):
+    """Deployment must append the top-level subworkflows to the v2 main body."""
+    assert 'source_contents = join("\\n", [' in terraform_main_source
+    assert 'templatefile("${path.module}/workflow-v2.yaml", {' in terraform_main_source
+    assert (
+        'templatefile("${path.module}/workflow-v2-subworkflows.yaml", {})'
+        in terraform_main_source
+    )
 
 
 @pytest.mark.parametrize("stage", ["A", "B", "C"])

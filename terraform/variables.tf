@@ -34,7 +34,7 @@ variable "workflow_name" {
 variable "enable_v2_workflow" {
   type        = bool
   default     = true
-  description = "Deploy the blue/green v2 workflow rendered from workflow-v2.yaml. Set false to tear it down."
+  description = "Deploy the blue/green v2 workflow assembled from its main and subworkflow templates. Set false to tear it down."
 }
 
 variable "image_name" {

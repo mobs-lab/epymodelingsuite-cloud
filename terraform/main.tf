@@ -254,10 +254,9 @@ resource "google_workflows_workflow" "pipeline" {
   ]
 }
 
-# v2 workflow (blue/green staging pipeline). Renders workflow-v2.yaml so that
-# editing the staging template and applying cannot touch production. Promotion
-# is a file copy:
-#   cp terraform/workflow-v2.yaml terraform/workflow.yaml && terraform apply
+# v2 workflow (blue/green staging pipeline). Joins the main workflow and its
+# top-level subworkflows so editing either template cannot touch production.
+# Promotion assembles the same two templates into workflow.yaml before apply.
 # Named v2 rather than dev because "dev" is already taken here by the dev
 # branch, the dev image tag and github.modeling_suite_ref.
 # Shares the network, registry and service accounts with production; isolation
@@ -269,28 +268,31 @@ resource "google_workflows_workflow" "pipeline_v2" {
   description     = "v2 pipeline (blue/green), rendered from workflow-v2.yaml"
   region          = var.region
   service_account = google_service_account.workflows_runner.email
-  source_contents = templatefile("${path.module}/workflow-v2.yaml", {
-    repo_name                = var.repo_name
-    image_name               = var.image_name
-    image_tag                = var.image_tag
-    stage_a_cpu_milli        = var.stage_a_cpu_milli
-    stage_a_memory_mib       = var.stage_a_memory_mib
-    stage_a_machine_type     = var.stage_a_machine_type
-    stage_a_max_run_duration = var.stage_a_max_run_duration
-    stage_b_cpu_milli        = var.stage_b_cpu_milli
-    stage_b_memory_mib       = var.stage_b_memory_mib
-    stage_b_machine_type     = var.stage_b_machine_type
-    stage_b_max_run_duration = var.stage_b_max_run_duration
-    stage_c_cpu_milli        = var.stage_c_cpu_milli
-    stage_c_memory_mib       = var.stage_c_memory_mib
-    stage_c_machine_type     = var.stage_c_machine_type
-    stage_c_max_run_duration = var.stage_c_max_run_duration
-    task_count_per_node      = var.task_count_per_node
-    run_output_stage         = var.run_output_stage
-    network_self_link        = google_compute_network.batch_network.self_link
-    subnet_name              = google_compute_subnetwork.batch_subnet.name
-    subnet_self_link         = google_compute_subnetwork.batch_subnet.self_link
-  })
+  source_contents = join("\n", [
+    templatefile("${path.module}/workflow-v2.yaml", {
+      repo_name                = var.repo_name
+      image_name               = var.image_name
+      image_tag                = var.image_tag
+      stage_a_cpu_milli        = var.stage_a_cpu_milli
+      stage_a_memory_mib       = var.stage_a_memory_mib
+      stage_a_machine_type     = var.stage_a_machine_type
+      stage_a_max_run_duration = var.stage_a_max_run_duration
+      stage_b_cpu_milli        = var.stage_b_cpu_milli
+      stage_b_memory_mib       = var.stage_b_memory_mib
+      stage_b_machine_type     = var.stage_b_machine_type
+      stage_b_max_run_duration = var.stage_b_max_run_duration
+      stage_c_cpu_milli        = var.stage_c_cpu_milli
+      stage_c_memory_mib       = var.stage_c_memory_mib
+      stage_c_machine_type     = var.stage_c_machine_type
+      stage_c_max_run_duration = var.stage_c_max_run_duration
+      task_count_per_node      = var.task_count_per_node
+      run_output_stage         = var.run_output_stage
+      network_self_link        = google_compute_network.batch_network.self_link
+      subnet_name              = google_compute_subnetwork.batch_subnet.name
+      subnet_self_link         = google_compute_subnetwork.batch_subnet.self_link
+    }),
+    templatefile("${path.module}/workflow-v2-subworkflows.yaml", {})
+  ])
 
   labels = {
     component   = "epymodelingsuite"

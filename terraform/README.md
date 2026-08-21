@@ -56,26 +56,27 @@ Two workflows are deployed from one state:
 | Workflow | Rendered from | Selected with |
 |---|---|---|
 | `epymodelingsuite-pipeline` | `workflow.yaml` | default (no `--env`) |
-| `epymodelingsuite-pipeline-v2` | `workflow-v2.yaml` | `epycloud --env v2pipeline ...` |
+| `epymodelingsuite-pipeline-v2` | `workflow-v2.yaml` + `workflow-v2-subworkflows.yaml` | `epycloud --env v2pipeline ...` |
 
 The staging environment is called `v2pipeline`, not `dev`, because "dev" is already
 taken in this project by the dev git branch, the `dev` image tag and
 `github.modeling_suite_ref: dev`. Those select which *code* runs; this selects which
 *workflow* runs, which is a separate axis. `--env dev` still exists for the first kind.
 
-`workflow-v2.yaml` starts as a byte-identical copy of `workflow.yaml`. Editing it and
-applying changes **only** the v2 workflow. The isolation is structural, so there is no
-`-target` flag to remember. Everything else (network, subnet, Artifact Registry, both
-service accounts) is shared; a workflow only reads those, and Batch jobs hold no shared
-state.
+The v2 source is split at the top-level subworkflow boundary. `workflow-v2.yaml`
+contains `main`; `workflow-v2-subworkflows.yaml` contains the reusable subworkflows.
+Terraform joins them into one definition. Editing either and applying changes **only**
+the v2 workflow. Everything else (network, subnet, Artifact Registry, both service
+accounts) is shared; a workflow only reads those, and Batch jobs hold no shared state.
 
-Workflow changes therefore go: edit `workflow-v2.yaml`, apply, exercise with
-`--env v2pipeline`, then promote.
+Workflow changes therefore go: edit the v2 templates, apply, exercise with
+`--env v2pipeline`, then promote the assembled definition.
 
 ```bash
 # Promote a validated v2 workflow to production
-diff terraform/workflow.yaml terraform/workflow-v2.yaml   # review before promoting
-cp terraform/workflow-v2.yaml terraform/workflow.yaml
+{ cat terraform/workflow-v2.yaml; printf '\n'; cat terraform/workflow-v2-subworkflows.yaml; } > /tmp/workflow-v2-assembled.yaml
+diff terraform/workflow.yaml /tmp/workflow-v2-assembled.yaml
+cp /tmp/workflow-v2-assembled.yaml terraform/workflow.yaml
 epycloud terraform apply
 ```
 
