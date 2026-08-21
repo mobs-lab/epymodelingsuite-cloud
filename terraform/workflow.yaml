@@ -57,7 +57,6 @@ main:
 
           # Network configuration
           - networkSelfLink: "${network_self_link}"
-          - subnetName: "${subnet_name}"
           - subnetSelfLink: "${subnet_self_link}"
 
     # Stage resource configuration (split to stay under 50 variable limit)

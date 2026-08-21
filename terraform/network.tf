@@ -7,11 +7,15 @@ resource "google_compute_network" "batch_network" {
 
 # Subnet with Private Google Access
 resource "google_compute_subnetwork" "batch_subnet" {
-  name          = var.subnet_name
-  ip_cidr_range = var.subnet_cidr
-  region        = var.region
+  for_each = var.batch_regions
+
+  name          = each.key == var.region ? var.subnet_name : "${var.subnet_name}-${each.key}"
+  ip_cidr_range = each.value.subnet_cidr
+  region        = each.key
   network       = google_compute_network.batch_network.id
-  description   = "Subnet for Cloud Batch with Private Google Access"
+  description = each.key == var.region ? (
+    "Subnet for Cloud Batch with Private Google Access"
+  ) : "Subnet for Cloud Batch in ${each.key} with Private Google Access"
 
   # Enable Private Google Access for GCS, Artifact Registry, Secret Manager
   private_ip_google_access = true
@@ -19,18 +23,24 @@ resource "google_compute_subnetwork" "batch_subnet" {
 
 # Cloud Router for Cloud NAT
 resource "google_compute_router" "batch_router" {
-  name    = "${var.network_name}-router"
-  region  = var.region
+  for_each = var.batch_regions
+
+  name    = each.key == var.region ? "${var.network_name}-router" : "${var.network_name}-router-${each.key}"
+  region  = each.key
   network = google_compute_network.batch_network.id
 
-  description = "Router for Cloud NAT to enable outbound internet access"
+  description = each.key == var.region ? (
+    "Router for Cloud NAT to enable outbound internet access"
+  ) : "Router for Cloud NAT in ${each.key}"
 }
 
 # Cloud NAT for outbound internet access (GitHub cloning, etc.)
 resource "google_compute_router_nat" "batch_nat" {
-  name   = "${var.network_name}-nat"
-  router = google_compute_router.batch_router.name
-  region = var.region
+  for_each = var.batch_regions
+
+  name   = each.key == var.region ? "${var.network_name}-nat" : "${var.network_name}-nat-${each.key}"
+  router = google_compute_router.batch_router[each.key].name
+  region = each.key
 
   # Auto-allocate NAT IPs
   nat_ip_allocate_option = "AUTO_ONLY"
@@ -48,4 +58,26 @@ resource "google_compute_router_nat" "batch_nat" {
     enable = true
     filter = "ERRORS_ONLY"
   }
+}
+
+check "default_batch_region_configured" {
+  assert {
+    condition     = contains(keys(var.batch_regions), var.region)
+    error_message = "batch_regions must contain the control-plane region from var.region."
+  }
+}
+
+moved {
+  from = google_compute_subnetwork.batch_subnet
+  to   = google_compute_subnetwork.batch_subnet["us-central1"]
+}
+
+moved {
+  from = google_compute_router.batch_router
+  to   = google_compute_router.batch_router["us-central1"]
+}
+
+moved {
+  from = google_compute_router_nat.batch_nat
+  to   = google_compute_router_nat.batch_nat["us-central1"]
 }

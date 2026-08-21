@@ -1,5 +1,6 @@
 """Terraform operations and helper functions."""
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -46,6 +47,11 @@ def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
 
     if "region" in google_cloud_config:
         env_vars["TF_VAR_region"] = google_cloud_config["region"]
+
+    if "batch_regions" in google_cloud_config:
+        env_vars["TF_VAR_batch_regions"] = json.dumps(
+            google_cloud_config["batch_regions"], sort_keys=True
+        )
 
     if "bucket_name" in google_cloud_config:
         env_vars["TF_VAR_bucket_name"] = google_cloud_config["bucket_name"]

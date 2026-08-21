@@ -46,8 +46,10 @@ resource "google_project_service" "secretmanager" {
 
 # Artifact Registry (Docker)
 resource "google_artifact_registry_repository" "repo" {
+  for_each = var.batch_regions
+
   project       = var.project_id
-  location      = var.region
+  location      = each.key
   repository_id = var.repo_name
   format        = "DOCKER"
   description   = "Docker repository for epymodelingsuite pipeline"
@@ -60,6 +62,11 @@ resource "google_artifact_registry_repository" "repo" {
   }
 
   depends_on = [google_project_service.artifactregistry]
+}
+
+moved {
+  from = google_artifact_registry_repository.repo
+  to   = google_artifact_registry_repository.repo["us-central1"]
 }
 
 # Use existing GCS bucket
@@ -236,8 +243,10 @@ resource "google_workflows_workflow" "pipeline" {
     task_count_per_node      = var.task_count_per_node
     run_output_stage         = var.run_output_stage
     network_self_link        = google_compute_network.batch_network.self_link
-    subnet_name              = google_compute_subnetwork.batch_subnet.name
-    subnet_self_link         = google_compute_subnetwork.batch_subnet.self_link
+    subnet_self_link         = google_compute_subnetwork.batch_subnet[var.region].self_link
+    subnet_self_links        = jsonencode({ for region, subnet in google_compute_subnetwork.batch_subnet : region => subnet.self_link })
+    allowed_batch_regions    = jsonencode(sort(keys(var.batch_regions)))
+    default_batch_region     = var.region
   })
 
   labels = {
@@ -288,8 +297,10 @@ resource "google_workflows_workflow" "pipeline_v2" {
       task_count_per_node      = var.task_count_per_node
       run_output_stage         = var.run_output_stage
       network_self_link        = google_compute_network.batch_network.self_link
-      subnet_name              = google_compute_subnetwork.batch_subnet.name
-      subnet_self_link         = google_compute_subnetwork.batch_subnet.self_link
+      subnet_self_link         = google_compute_subnetwork.batch_subnet[var.region].self_link
+      subnet_self_links        = jsonencode({ for region, subnet in google_compute_subnetwork.batch_subnet : region => subnet.self_link })
+      allowed_batch_regions    = jsonencode(sort(keys(var.batch_regions)))
+      default_batch_region     = var.region
     }),
     templatefile("${path.module}/workflow-v2-subworkflows.yaml", {})
   ])

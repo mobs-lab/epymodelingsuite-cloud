@@ -17,6 +17,11 @@ execution:
 google_cloud:
   project_id: your-gcp-project-id
   region: us-central1
+  batch_regions:
+    us-central1:
+      subnet_cidr: 10.0.0.0/20
+    us-east5:
+      subnet_cidr: 10.1.0.0/20
   bucket_name: your-bucket-name
   billing_project: ""
 

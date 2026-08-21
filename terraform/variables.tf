@@ -6,7 +6,33 @@ variable "project_id" {
 variable "region" {
   type        = string
   default     = "us-central1"
-  description = "Google Cloud region for resources"
+  description = "Google Cloud region for control-plane resources"
+}
+
+variable "batch_regions" {
+  type = map(object({
+    subnet_cidr = string
+  }))
+  description = "Data-plane regions and their Cloud Batch subnet CIDR ranges"
+  default = {
+    us-central1 = { subnet_cidr = "10.0.0.0/20" }
+    us-east5    = { subnet_cidr = "10.1.0.0/20" }
+  }
+
+  validation {
+    condition = length(var.batch_regions) > 0 && alltrue([
+      for region, config in var.batch_regions :
+      region != "" && can(cidrhost(config.subnet_cidr, 0))
+    ])
+    error_message = "batch_regions must contain at least one non-empty region with a valid subnet_cidr."
+  }
+
+  validation {
+    condition = length(distinct([
+      for config in values(var.batch_regions) : config.subnet_cidr
+    ])) == length(var.batch_regions)
+    error_message = "Each batch region must use a distinct subnet_cidr."
+  }
 }
 
 variable "repo_name" {
@@ -187,5 +213,5 @@ variable "subnet_name" {
 variable "subnet_cidr" {
   type        = string
   default     = "10.0.0.0/20"
-  description = "CIDR range for subnet (10.0.0.0/20 = 4096 IPs)"
+  description = "Deprecated. Configure per-region CIDRs with batch_regions."
 }

@@ -1,5 +1,6 @@
 """Integration tests for terraform command."""
 
+import json
 from argparse import Namespace
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -656,6 +657,24 @@ class TestTerraformEnvVars:
 
         assert env_vars["TF_VAR_stage_c_machine_type"] == "c3-highmem-4"
 
+    def test_batch_regions_are_serialized_for_terraform(self):
+        """Terraform receives the configured data-plane regions as one JSON map."""
+        config = {
+            "google_cloud": {
+                "region": "us-central1",
+                "batch_regions": {
+                    "us-central1": {"subnet_cidr": "10.0.0.0/20"},
+                    "us-east5": {"subnet_cidr": "10.1.0.0/20"},
+                },
+            }
+        }
+
+        env_vars = terraform.operations.get_terraform_env_vars(config)
+
+        assert json.loads(env_vars["TF_VAR_batch_regions"]) == config["google_cloud"][
+            "batch_regions"
+        ]
+
     def test_get_terraform_env_vars_partial_config(self):
         """Test constructing TF_VAR environment variables with partial config."""
         config = {
@@ -671,6 +690,7 @@ class TestTerraformEnvVars:
 
         assert env_vars["TF_VAR_project_id"] == "test-project"
         assert "TF_VAR_region" not in env_vars
+        assert "TF_VAR_batch_regions" not in env_vars
         assert "TF_VAR_bucket_name" not in env_vars
 
 

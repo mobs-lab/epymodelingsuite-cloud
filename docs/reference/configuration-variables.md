@@ -14,7 +14,7 @@ These keys are read when you run `epycloud terraform apply`. Their resolved valu
 
 | Keys | Purpose |
 |------|---------|
-| `google_cloud.project_id`, `region`, `bucket_name` | Project infrastructure |
+| `google_cloud.project_id`, `region`, `batch_regions`, `bucket_name` | Control-plane and regional data-plane infrastructure |
 | `docker.repo_name`, `image_name`, `image_tag` | *Default* image URI in workflow |
 | `google_cloud.batch.task_count_per_node` | *Default* tasks per VM |
 | `google_cloud.batch.stage_a.*` | *Default* Stage A resources |
@@ -98,9 +98,22 @@ Google Cloud Platform project and region settings.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.project_id` | string | _(required)_ | Google Cloud project ID (e.g., `my-gcp-project`). |
-| `google_cloud.region` | string | `us-central1` | Google Cloud region for all resources (Batch jobs, GCS, Artifact Registry). |
+| `google_cloud.region` | string | `us-central1` | Control-plane region for Cloud Workflows and the default Batch region. |
+| `google_cloud.batch_regions` | mapping | `us-central1`, `us-east5` | Allowed Batch regions mapped to distinct subnet CIDRs. Terraform creates one subnet, router, NAT, and Artifact Registry repository per entry. |
 | `google_cloud.bucket_name` | string | _(required)_ | GCS bucket for pipeline input/output data. Must already exist. |
 | `google_cloud.billing_project` | string | `""` | User-defined label for cost grouping in GCP billing reports. Applied to all Cloud Batch jobs. Can be overridden per run with `--billing-project`. |
+
+Each data-plane region needs a non-overlapping subnet range:
+
+```yaml
+google_cloud:
+  region: us-central1
+  batch_regions:
+    us-central1:
+      subnet_cidr: 10.0.0.0/20
+    us-east5:
+      subnet_cidr: 10.1.0.0/20
+```
 
 ## google_cloud.batch
 
