@@ -71,8 +71,16 @@ def _format_workflow_details(
                 f"{mt_display}{selection}{override_marker}, max {duration_h:.1f}h"
             )
             machine_types = info.get(f"{prefix}_machine_types", [])
+            task_counts = info.get(f"{prefix}_task_counts_per_node")
+            if isinstance(machine_types, list) and task_counts:
+                machine_types = [
+                    f"{machine} ({count}/VM)"
+                    for machine, count in zip(machine_types, task_counts, strict=True)
+                ]
             if isinstance(machine_types, list) and len(machine_types) > 1:
                 lines.append(f"    Fallback chain: {' -> '.join(machine_types)}")
+            elif task_counts:
+                lines.append(f"    Tasks per VM: {task_counts[0]}")
 
     if "skip_output" in info:
         output_status = "disabled" if info["skip_output"] else "enabled"

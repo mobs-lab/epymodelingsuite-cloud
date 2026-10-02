@@ -170,9 +170,24 @@ def test_gcp_pipeline_plan_dual_emits_candidate_chains(mock_config):
     assert arguments["stageBCpuMilli"] == 2000
     assert arguments["stageBMemoryMib"] == 7168
     assert arguments["stageBCandidates"] == [
-        {"machine_type": "c4d-standard-2", "cpu_milli": 2000, "memory_mib": 7168},
-        {"machine_type": "c4-standard-2", "cpu_milli": 2000, "memory_mib": 7168},
-        {"machine_type": "n4d-standard-2", "cpu_milli": 2000, "memory_mib": 8192},
+        {
+            "machine_type": "c4d-standard-2",
+            "cpu_milli": 2000,
+            "memory_mib": 7168,
+            "task_count_per_node": 1,
+        },
+        {
+            "machine_type": "c4-standard-2",
+            "cpu_milli": 2000,
+            "memory_mib": 7168,
+            "task_count_per_node": 1,
+        },
+        {
+            "machine_type": "n4d-standard-2",
+            "cpu_milli": 2000,
+            "memory_mib": 8192,
+            "task_count_per_node": 1,
+        },
     ]
     assert arguments["stageBPinned"] is False
 
@@ -211,7 +226,12 @@ def test_gcp_pipeline_plan_does_not_infer_pin_from_chain_length(mock_config):
     arguments = backend.plan_pipeline(spec).metadata["arguments"]
 
     assert arguments["stageCCandidates"] == [
-        {"machine_type": "c4-standard-4", "cpu_milli": 4000, "memory_mib": 15360}
+        {
+            "machine_type": "c4-standard-4",
+            "cpu_milli": 4000,
+            "memory_mib": 15360,
+            "task_count_per_node": 1,
+        }
     ]
     assert arguments["stageCPinned"] is False
 

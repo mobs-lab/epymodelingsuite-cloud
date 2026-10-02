@@ -68,7 +68,7 @@ def run_job_gcp(
     output_config : str | None
         Output config filename for Stage C (e.g., "output_projection.yaml")
     machine_type_override : str | None
-        Override machine type for this job (auto-sets CPU/memory to machine max)
+        Override machine type for this job (CPU/memory per task still come from config)
     billing_project_override : str | None
         Override billing project label
     task_count_per_node : int | None

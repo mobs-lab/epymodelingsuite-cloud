@@ -122,7 +122,7 @@ Cloud Batch job configuration controlling parallelism and per-stage compute reso
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.batch.max_parallelism` | integer | `100` | Maximum number of Stage B tasks running simultaneously. Cloud Batch limit is 5000. |
-| `google_cloud.batch.task_count_per_node` | integer | `1` | Number of tasks per VM. Set to `1` for dedicated VMs per task (recommended for predictable performance). |
+| `google_cloud.batch.task_count_per_node` | integer | unset | Optional cap on Stage B tasks per VM. When unset, each machine candidate runs as many tasks as fit its vCPUs and memory (minus a 1024 MiB reserve when tasks share a VM). Set to `1` for dedicated VMs per task. |
 
 ### google_cloud.batch.stage_a
 
@@ -141,8 +141,8 @@ Compute resources for Stage B (Runner). Parallel tasks, each processing one inpu
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `google_cloud.batch.stage_b.cpu_milli` | integer | `2000` | CPU allocation in millicores (2000 = 2 vCPUs). |
-| `google_cloud.batch.stage_b.memory_mib` | integer | `7168` | Minimum memory allocation in MiB. |
+| `google_cloud.batch.stage_b.cpu_milli` | integer | `2000` | CPU requested by each task, in millicores (1000 = 1 vCPU). Also decides how many tasks fit on each machine candidate. |
+| `google_cloud.batch.stage_b.memory_mib` | integer | `7168` | Memory requested by each task, in MiB. Also decides how many tasks fit on each machine candidate. |
 | `google_cloud.batch.stage_b.machine_types` | list | C4D, C4, N4D, N4 standard-2 | Ordered fallback candidates. |
 | `google_cloud.batch.stage_b.max_run_duration` | integer | `36000` | Maximum execution time in seconds (36000 = 10 hours). See [sizing guidelines](#sizing-guidelines) below. |
 

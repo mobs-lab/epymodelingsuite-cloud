@@ -446,6 +446,24 @@ def test_each_stage_uses_the_shared_candidate_finalizer(workflow_source, stage):
     assert "next: break" in accept_source
 
 
+
+def test_stage_b_packs_each_candidate_by_its_own_task_count(workflow_source):
+    """Stage B uses each candidate's task count per node, capped at the number of tasks."""
+    select_source = workflow_source.split("- select_stageB_candidate:", maxsplit=1)[1].split(
+        "- resolve_stageB_image:", maxsplit=1
+    )[0]
+
+    assert (
+        'default(map.get(candidateB, "task_count_per_node"), taskCountPerNode)'
+        in select_source
+    )
+    assert (
+        "if(candidateTaskCountPerNodeB > N, N, candidateTaskCountPerNodeB)"
+        in select_source
+    )
+    assert "taskCountPerNode: $${candidateTaskCountPerNodeB}" in workflow_source
+    assert "taskCountPerNode: $${taskCountPerNode}" not in workflow_source
+
 def test_child_cancellation_stops_before_candidate_fallback(candidate_finalizer_source):
     """Manual child cancellation must raise before cancellation or replacement."""
     stop_at = candidate_finalizer_source.index("- stop_on_cancelled_child:")

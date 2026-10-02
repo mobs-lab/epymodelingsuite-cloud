@@ -351,6 +351,9 @@ main:
                   - candidateMachineTypeB: $${default(map.get(candidateB, "machine_type"), "")}
                   - candidateCpuMilliB: $${int(map.get(candidateB, "cpu_milli"))}
                   - candidateMemoryMibB: $${int(map.get(candidateB, "memory_mib"))}
+                  # Clients compute how many tasks fit each candidate; older clients send none.
+                  - candidateTaskCountPerNodeB: $${int(default(map.get(candidateB, "task_count_per_node"), taskCountPerNode))}
+                  - candidateTaskCountPerNodeB: $${if(candidateTaskCountPerNodeB > N, N, candidateTaskCountPerNodeB)}
                   - machineLabelB: $${if(candidateMachineTypeB == "", "auto", candidateMachineTypeB)}
                   - machineSelectionB: $${if(pinnedB, "pinned", "auto")}
                   - configuredCandidateInstancesB:
@@ -409,7 +412,7 @@ main:
                     taskGroups:
                       - taskCount: $${N}
                         parallelism: $${parallelism}
-                        taskCountPerNode: $${taskCountPerNode}
+                        taskCountPerNode: $${candidateTaskCountPerNodeB}
                         taskSpec:
                           runnables:
                             - container:

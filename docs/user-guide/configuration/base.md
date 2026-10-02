@@ -42,8 +42,9 @@ google_cloud:
 
   batch:
     max_parallelism: 100
-    task_count_per_node: 1
 
+    # cpu_milli and memory_mib are per-task requests. Stage B runs as many tasks
+    # per VM as fit each machine candidate; set task_count_per_node to cap it.
     stage_a:
       cpu_milli: 2000
       memory_mib: 7168
