@@ -180,9 +180,7 @@ def handle_local(ctx: dict[str, Any]) -> int:
     image_path = get_image_uri(config, tag=image_tag)
 
     # Get GitHub PAT
-    github_pat = get_github_pat(config, required=bool(modeling_suite_repo))
-    if modeling_suite_repo and not github_pat:
-        return 2
+    github_pat = get_github_pat(config)
 
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root().resolve()
@@ -249,9 +247,7 @@ def handle_dev(ctx: dict[str, Any]) -> int:
     modeling_suite_ref = github["modeling_suite_ref"]
 
     # Get GitHub PAT
-    github_pat = get_github_pat(config, required=bool(modeling_suite_repo))
-    if modeling_suite_repo and not github_pat:
-        return 2
+    github_pat = get_github_pat(config)
 
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root().resolve()

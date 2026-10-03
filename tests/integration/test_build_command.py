@@ -249,12 +249,18 @@ class TestBuildLocalCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
+    @patch("epycloud.commands.build.local.ask_confirmation")
     @patch("epycloud.commands.build.handlers.get_github_pat")
     @patch("epycloud.lib.command_helpers.get_project_root")
-    def test_build_local_missing_github_pat(self, mock_root, mock_pat, mock_config):
-        """Test error when GitHub PAT is missing."""
+    @patch("epycloud.commands.build.local.subprocess.run")
+    def test_build_local_without_github_pat(
+        self, mock_subprocess, mock_root, mock_pat, mock_confirm, mock_config
+    ):
+        """Build proceeds without a PAT (public modeling suite) and omits the build arg."""
         mock_root.return_value = Path("/test/project")
-        mock_pat.return_value = None  # PAT is missing
+        mock_pat.return_value = None
+        mock_confirm.return_value = True
+        mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
 
         ctx = {
             "config": mock_config,
@@ -275,7 +281,9 @@ class TestBuildLocalCommand:
 
         exit_code = build.handle(ctx)
 
-        assert exit_code == 2
+        assert exit_code == 0
+        cmd = mock_subprocess.call_args[0][0]
+        assert not any("GITHUB_PAT" in arg for arg in cmd)
 
     @patch("epycloud.commands.build.handlers.get_github_pat")
     @patch("epycloud.lib.command_helpers.get_project_root")
@@ -349,12 +357,18 @@ class TestBuildDevCommand:
         assert exit_code == 0
         assert mock_subprocess.called
 
+    @patch("epycloud.commands.build.dev.ask_confirmation")
     @patch("epycloud.commands.build.handlers.get_github_pat")
     @patch("epycloud.lib.command_helpers.get_project_root")
-    def test_build_dev_missing_github_pat(self, mock_root, mock_pat, mock_config):
-        """Test error when GitHub PAT is missing."""
+    @patch("epycloud.commands.build.dev.subprocess.run")
+    def test_build_dev_without_github_pat(
+        self, mock_subprocess, mock_root, mock_pat, mock_confirm, mock_config
+    ):
+        """Build proceeds without a PAT (public modeling suite) and omits the build arg."""
         mock_root.return_value = Path("/test/project")
-        mock_pat.return_value = None  # PAT is missing
+        mock_pat.return_value = None
+        mock_confirm.return_value = True
+        mock_subprocess.return_value = Mock(returncode=0)
 
         ctx = {
             "config": mock_config,
@@ -375,7 +389,9 @@ class TestBuildDevCommand:
 
         exit_code = build.handle(ctx)
 
-        assert exit_code == 2
+        assert exit_code == 0
+        cmd = mock_subprocess.call_args[0][0]
+        assert not any("GITHUB_PAT" in arg for arg in cmd)
 
     @patch("epycloud.commands.build.handlers.get_github_pat")
     @patch("epycloud.lib.command_helpers.get_project_root")
