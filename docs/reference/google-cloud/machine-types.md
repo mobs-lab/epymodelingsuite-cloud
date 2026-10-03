@@ -101,7 +101,9 @@ For full list of machine types, see:
 
 ## Common machine types
 
-Machine types commonly used by the pipeline. A typical calibration task in Stage B for a single state uses approximately 4 GB of memory. For per-stage defaults and guidance, see [Sizing Recommendations](sizing-recommendations.md).
+Machine types commonly used by the pipeline. A typical calibration task in Stage B for a single state uses approximately 4 GB of memory.
+
+A vCPU is one hardware thread, and two vCPUs share each physical core. A single-threaded task such as Stage B calibration needs 2 vCPUs (one physical core) to run at full speed; two tasks on one core each run about 1.9x slower. See [CPU per task and tasks per VM](../configuration-variables.md#cpu-per-task-and-tasks-per-vm). For per-stage defaults and guidance, see [Sizing Recommendations](sizing-recommendations.md).
 
 ### 2-vCPU machine types
 

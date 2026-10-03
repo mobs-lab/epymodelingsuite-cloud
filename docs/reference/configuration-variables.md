@@ -177,18 +177,39 @@ Compute resources for Stage C (Output). Runs as a single task that loads all Sta
 | Medium runs (100-1,000 tasks) | `7200` (default) | 8-15 GB |
 | Large runs (1,000-10,000 tasks) | `14400` (4 hours) | 16-32 GB |
 
+### CPU per task and tasks per VM
+
+`cpu_milli` and `memory_mib` are what **one task** requests. For each machine candidate, epycloud computes how many Stage B tasks fit on one VM:
+
+```
+tasks per VM = min(machine vCPUs / cpu_milli, (machine memory - 1024 MiB) / memory_mib)
+```
+
+The 1024 MiB is left for the OS and container runtime when tasks share a VM (one task may use the whole VM). The workflow caps the result at the number of Stage B tasks, and `task_count_per_node` (or `--task-count-per-node`) caps it further when set.
+
+**Request one physical core per single-threaded task.** On Compute Engine a vCPU is one hardware thread, and two vCPUs share each physical core. Stage B calibration runs in one thread, so `cpu_milli: 1000` puts two tasks on each physical core. Measured on `c3d-standard-4` with the flu model:
+
+| `cpu_milli` | Tasks per `c3d-standard-4` | Time per task | Cost per task |
+|-------------|----------------------------|---------------|---------------|
+| `1000` | 4 (two per physical core) | ~1.9x longer | about the same |
+| `2000` | 2 (one per physical core) | baseline | about the same |
+
+Sharing a core halves the price per task-hour but nearly doubles the run time, so it saves nothing and makes runs about twice as long. Keep `cpu_milli: 2000` (one physical core) unless the task is I/O-bound or multithreaded.
+
+Packing only pays off when a run has at least as many tasks as fit on one VM. For one or two tasks, a 2-vCPU machine (one physical core) costs less than a mostly idle 4-vCPU VM; order `machine_types` accordingly.
+
 ### Machine type selection
 
 When `machine_types` contains multiple values:
 
 - The workflow tries candidates in order
-- Each candidate carries its own resolved CPU and memory
+- Every candidate gets the same per-task request; a smaller machine only fits fewer tasks
 - An unsuccessful candidate is cancelled and drained before replacement
 
 When a `--stage-*-machine-type` CLI option is supplied:
 
 - The stage is pinned to that one candidate
-- The candidate must still meet the configured stage minimums
+- The per-task `cpu_milli` and `memory_mib` still come from the config, and the machine must fit at least one task
 
 The legacy singular `machine_type` key remains a one-candidate compatibility path. Run `epycloud config migrate` to replace legacy keys with requirement-based chains.
 
