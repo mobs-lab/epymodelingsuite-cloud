@@ -27,6 +27,7 @@ PROJECT=$(gcloud config get-value project 2>/dev/null)
 NETWORK=epymodelingsuite-network
 OUTPUT=table
 
+main() {
 while getopts "r:m:n:p:P:N:o:h" opt; do
     case $opt in
         r) REGIONS=$OPTARG ;;
@@ -67,12 +68,14 @@ probe() {
     local region=$1 zone=$2 machine=$3 subnet=$4
     local family=${machine%%-*} disk=pd-balanced
     case $family in c4* | n4* | c3* | h3*) disk=hyperdisk-balanced ;; esac
+    local image_family=cos-stable
+    case $family in c4a | n4a | t2a) image_family=cos-arm64-stable ;; esac
     local name="capprobe-${RUN_ID}-${zone##*-}-${machine//[^a-z0-9]/}"
     name=${name:0:55}
     local start=$SECONDS out created=0 status message=""
     out=$(gcloud compute instances bulk create --project="$PROJECT" --zone="$zone" \
         --name-pattern="${name}-#" --count="$COUNT" --min-count=1 \
-        --machine-type="$machine" --image-family=cos-stable --image-project=cos-cloud \
+        --machine-type="$machine" --image-family="$image_family" --image-project=cos-cloud \
         --boot-disk-type="$disk" --boot-disk-size=10GB --subnet="$subnet" --no-address \
         --labels="purpose=capacity-probe,probe-run=$RUN_ID" 2>&1)
     [[ $out =~ created:\ ([0-9]+) ]] && created=${BASH_REMATCH[1]}
@@ -99,6 +102,11 @@ export -f probe
 jobs_file=$(mktemp)
 rows_file=$(mktemp)
 trap 'rm -f "$jobs_file" "$rows_file"' EXIT
+# One call for all machine types; regions are selected below (a zone regex filter
+# with a single parenthesized region crashes gcloud).
+offered=$(gcloud compute machine-types list --project="$PROJECT" \
+    --filter="name:($MACHINES)" --format="value(zone.basename(),name)") || {
+    echo "Failed to list machine types" >&2; exit 1; }
 for region in $REGIONS; do
     subnet=$(gcloud compute networks subnets list --project="$PROJECT" --network="$NETWORK" \
         --filter="region:$region" --format="value(selfLink)" 2>/dev/null | head -1)
@@ -106,16 +114,11 @@ for region in $REGIONS; do
         echo "skip $region: no subnet in network $NETWORK" >&2
         continue
     fi
-    for machine in $MACHINES; do
-        for zone in $(gcloud compute machine-types list --project="$PROJECT" \
-            --filter="name=$machine AND zone~^$region-" --format="value(zone.basename())" 2>/dev/null | sort); do
-            echo "$region $zone $machine $subnet" >>"$jobs_file"
-        done
-    done
+    awk -v r="$region" -v s="$subnet" 'index($1, r "-") == 1 {print r, $1, $2, s}' <<<"$offered" | sort >>"$jobs_file"
 done
 
 echo "Probing $(wc -l <"$jobs_file") region/zone/machine combinations (run $RUN_ID)..." >&2
-xargs -P "$PARALLEL" -L 1 bash -c 'probe "$@"' _ <"$jobs_file" | sort >"$rows_file"
+xargs -r -P "$PARALLEL" -L 1 bash -c 'probe "$@"' _ <"$jobs_file" | sort >"$rows_file"
 
 cleanup
 leftovers=$(list_leftovers | wc -l)
@@ -155,3 +158,6 @@ else
 fi
 
 ((leftovers == 0)) || exit 2
+}
+
+main "$@"
