@@ -94,11 +94,13 @@ clone_forecast_repo() {
 
     echo "✓ Repository cloned to: $forecast_repo_dir"
 
-    # Optionally checkout specific branch/tag
+    # Optionally checkout specific branch/tag/commit. The shallow clone only has the
+    # default branch, so fetch the ref first.
     if [ -n "${FORECAST_REPO_REF:-}" ]; then
         echo "Checking out ref: $FORECAST_REPO_REF"
         cd "$forecast_repo_dir"
-        git checkout "$FORECAST_REPO_REF"
+        git fetch --quiet --depth 1 origin "$FORECAST_REPO_REF"
+        git checkout --quiet --detach FETCH_HEAD
         cd -
     fi
 
