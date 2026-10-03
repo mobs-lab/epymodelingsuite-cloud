@@ -63,7 +63,7 @@ cleanup() {
 trap 'cleanup; exit 130' INT TERM
 
 # One probe: create COUNT VMs in one zone, print a TSV row, delete them.
-# Row: region zone machine requested created seconds status message
+# Row: region zone machine requested created seconds status reason message
 probe() {
     local region=$1 zone=$2 machine=$3 subnet=$4
     local family=${machine%%-*} disk=pd-balanced
@@ -72,7 +72,7 @@ probe() {
     case $family in c4a | n4a | t2a) image_family=cos-arm64-stable ;; esac
     local name="capprobe-${RUN_ID}-${zone##*-}-${machine//[^a-z0-9]/}"
     name=${name:0:55}
-    local start=$SECONDS out created=0 status message=""
+    local start=$SECONDS out created=0 status message="" reason=""
     out=$(gcloud compute instances bulk create --project="$PROJECT" --zone="$zone" \
         --name-pattern="${name}-#" --count="$COUNT" --min-count=1 \
         --machine-type="$machine" --image-family="$image_family" --image-project=cos-cloud \
@@ -85,14 +85,17 @@ probe() {
     elif [[ $out == *QUOTA* || $out == *quota* ]]; then status=quota
     else status=error
     fi
-    # Keep the line that explains the failure, not the bulk-create DNS warning.
+    # Keep the line that explains the failure, not the bulk-create DNS warning or the
+    # generic "Could not fetch resource:" header.
     if [[ $status != ok ]]; then
-        message=$(grep -m1 -iE "exhausted|enough resources|stockout|quota" <<<"$out" ||
-            grep -m1 -i "error" <<<"$out" || head -1 <<<"$out")
-        message=$(tr '\t' ' ' <<<"$message" | cut -c1-300)
+        reason=$(sed -n 's/^ *reason: *//p' <<<"$out" | head -1)
+        message=$(grep -v -iE "warning|global DNS|zonal DNS|could not fetch resource|^ *-* *$" <<<"$out" |
+            grep -m1 -iE "exhausted|enough resources|stockout|quota|rate|error|invalid|not" ||
+            grep -v -iE "warning|DNS" <<<"$out" | head -1)
+        message=$(tr '\t' ' ' <<<"$message" | sed 's/^ *//' | cut -c1-300)
     fi
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-        "$region" "$zone" "$machine" "$COUNT" "$created" "$((SECONDS - start))" "$status" "$message"
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+        "$region" "$zone" "$machine" "$COUNT" "$created" "$((SECONDS - start))" "$status" "$reason" "$message"
     gcloud compute instances list --project="$PROJECT" --zones="$zone" \
         --filter="labels.probe-run=$RUN_ID AND name~^${name}-" --format="value(name)" 2>/dev/null |
         xargs -r gcloud compute instances delete --zone="$zone" --project="$PROJECT" --quiet >/dev/null 2>&1
@@ -114,7 +117,10 @@ for region in $REGIONS; do
         echo "skip $region: no subnet in network $NETWORK" >&2
         continue
     fi
-    awk -v r="$region" -v s="$subnet" 'index($1, r "-") == 1 {print r, $1, $2, s}' <<<"$offered" | sort >>"$jobs_file"
+    # gcloud's name:() filter matches prefixes too (c3-standard-4 also matches c3-standard-44), so keep exact names.
+    awk -v r="$region" -v s="$subnet" -v want="$MACHINES" '
+        BEGIN { n = split(want, w, " "); for (i = 1; i <= n; i++) keep[w[i]] = 1 }
+        index($1, r "-") == 1 && ($2 in keep) {print r, $1, $2, s}' <<<"$offered" | sort >>"$jobs_file"
 done
 
 echo "Probing $(wc -l <"$jobs_file") region/zone/machine combinations (run $RUN_ID)..." >&2
@@ -132,7 +138,7 @@ if [[ $OUTPUT == json ]]; then
         [split("\n")[] | select(length > 0) | split("\t") | {
             region: .[0], zone: .[1], machine_type: .[2],
             requested: (.[3] | tonumber), created: (.[4] | tonumber),
-            seconds: (.[5] | tonumber), status: .[6], message: .[7]
+            seconds: (.[5] | tonumber), status: .[6], reason: .[7], message: .[8]
         }] as $results
         | {
             project: $project, run_id: $run_id, started_at: $started_at, finished_at: $finished_at,
