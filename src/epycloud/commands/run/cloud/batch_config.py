@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from epycloud.execution.gcp_machines import is_hyperdisk_family
 from epycloud.lib.validation import sanitize_label_value
 
 
@@ -25,6 +26,7 @@ def build_batch_job_config(
     batch_sa_email: str,
     profile: str = "",
     billing_project: str = "",
+    skip_existing: bool = False,
 ) -> dict[str, Any]:
     """Build Cloud Batch job configuration.
 
@@ -68,6 +70,8 @@ def build_batch_job_config(
         Profile name (e.g., "flu", "covid")
     billing_project : str
         Billing project label (contract/org-level grouping)
+    skip_existing : bool
+        Reuse a completed Stage B result when its input digest matches
 
     Returns
     -------
@@ -95,6 +99,7 @@ def build_batch_job_config(
         commands = ["/scripts/run_builder.sh"]
     elif stage == "B":
         env_vars["TASK_INDEX"] = str(task_index)
+        env_vars["SKIP_EXISTING"] = str(skip_existing).lower()
         env_vars["GITHUB_FORECAST_REPO"] = github_forecast_repo
         env_vars["GCLOUD_PROJECT_ID"] = project_id
         env_vars["GITHUB_PAT_SECRET"] = "github-pat"
@@ -136,8 +141,10 @@ def build_batch_job_config(
     if machine_type:
         instances = {"policy": {"machineType": machine_type}}
 
-        # C4D machines require hyperdisk
-        if machine_type.startswith("c4d-"):
+        # C4/C4D/N4/N4D are Hyperdisk-only and cannot boot on Persistent Disk;
+        # C3/C3D boot from it fine. Without this, Batch accepts the job and then
+        # fails VM creation ~1080s later, blaming the disk type.
+        if is_hyperdisk_family(machine_type):
             instances["installGpuDrivers"] = False
             instances["policy"]["provisioningModel"] = "STANDARD"
             instances["policy"]["bootDisk"] = {"type": "hyperdisk-balanced", "sizeGb": 50}

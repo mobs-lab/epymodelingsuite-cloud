@@ -1,0 +1,10 @@
+# Production environment configuration
+#
+# Location: ~/.config/epymodelingsuite-cloud/environments/prod.yaml
+#
+# Selected with `epycloud --env prod ...`. Everything not listed here comes
+# from config.yaml, including the production workflow name.
+
+logging:
+  level: INFO
+  storage_verbose: true

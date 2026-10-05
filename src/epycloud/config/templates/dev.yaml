@@ -1,0 +1,20 @@
+# Development environment configuration
+#
+# Location: ~/.config/epymodelingsuite-cloud/environments/dev.yaml
+#
+# Selected with `epycloud --env dev ...`. For running the production workflow
+# against in-development code: a different image tag and a different
+# epymodelingsuite ref, with verbose logging.
+#
+# To test a change to the *workflow* itself, use `--env v2pipeline` instead.
+# That environment points at the second workflow deployed by terraform.
+
+docker:
+  image_tag: dev
+
+github:
+  modeling_suite_ref: dev
+
+logging:
+  level: DEBUG
+  storage_verbose: true

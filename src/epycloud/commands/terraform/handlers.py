@@ -9,6 +9,16 @@ from epycloud.lib.output import ask_confirmation, error, status, success, warnin
 from .operations import get_terraform_directory, get_terraform_env_vars, run_terraform_command
 
 
+def _add_targets(cmd: list[str], target: str | list[str] | None) -> None:
+    """Append each requested Terraform target to a command."""
+    if not target:
+        return
+    targets = [target] if isinstance(target, str) else target
+    for resource in targets:
+        cmd.extend(["-target", resource])
+    status(f"Targeting: {', '.join(targets)}")
+
+
 def handle(ctx: dict[str, Any]) -> int:
     """Handle terraform command.
 
@@ -134,9 +144,7 @@ def handle_plan(ctx: dict[str, Any]) -> int:
     # Build command
     cmd = ["terraform", "plan"]
 
-    if hasattr(args, "target") and args.target:
-        cmd.extend(["-target", args.target])
-        status(f"Targeting: {args.target}")
+    _add_targets(cmd, getattr(args, "target", None))
 
     if handle_dry_run(
         ctx,
@@ -202,9 +210,7 @@ def handle_apply(ctx: dict[str, Any]) -> int:
     if args.auto_approve:
         cmd.append("-auto-approve")
 
-    if hasattr(args, "target") and args.target:
-        cmd.extend(["-target", args.target])
-        status(f"Targeting: {args.target}")
+    _add_targets(cmd, getattr(args, "target", None))
 
     if handle_dry_run(
         ctx,
@@ -275,9 +281,7 @@ def handle_destroy(ctx: dict[str, Any]) -> int:
     if args.auto_approve:
         cmd.append("-auto-approve")
 
-    if hasattr(args, "target") and args.target:
-        cmd.extend(["-target", args.target])
-        status(f"Targeting: {args.target}")
+    _add_targets(cmd, getattr(args, "target", None))
 
     if handle_dry_run(
         ctx,

@@ -14,7 +14,7 @@ These keys are read when you run `epycloud terraform apply`. Their resolved valu
 
 | Keys | Purpose |
 |------|---------|
-| `google_cloud.project_id`, `region`, `bucket_name` | Project infrastructure |
+| `google_cloud.project_id`, `region`, `batch_regions`, `bucket_name` | Control-plane and regional data-plane infrastructure |
 | `docker.repo_name`, `image_name`, `image_tag` | *Default* image URI in workflow |
 | `google_cloud.batch.task_count_per_node` | *Default* tasks per VM |
 | `google_cloud.batch.stage_a.*` | *Default* Stage A resources |
@@ -42,6 +42,7 @@ These keys are read each time you run `epycloud run workflow`. Changes **take ef
 | Keys | Purpose | Overrides terraform default? |
 |------|---------|------------------------------|
 | `google_cloud.project_id`, `region`, `bucket_name` | Where to submit and store data | No (must match deployed infra) |
+| `execution.provider` | Cloud execution backend (`gcp` is currently supported) | N/A |
 | `storage.dir_prefix` | GCS path prefix | N/A (runtime only) |
 | `docker.image_tag` | Which image tag to use for this run | Yes |
 | `github.forecast_repo` | Experiment repo to clone | N/A (runtime only) |
@@ -49,7 +50,7 @@ These keys are read each time you run `epycloud run workflow`. Changes **take ef
 | `google_cloud.billing_project` | Cost grouping label for billing reports | N/A (runtime only) |
 | `google_cloud.batch.max_parallelism` | Max parallel tasks | Yes |
 | `google_cloud.batch.task_count_per_node` | Tasks per VM | Yes |
-| `google_cloud.batch.stage_*/machine_type` | Machine type per stage (empty = auto-select based on CPU/memory) | Yes (via CLI flags) |
+| `google_cloud.batch.stage_*/machine_types` | Ordered fallback candidates per stage | Yes |
 | `google_cloud.batch.stage_*/cpu_milli`, `memory_mib` | CPU/memory per stage | Yes (via CLI flags, together with machine type) |
 
 !!! tip
@@ -81,6 +82,15 @@ Directory prefix for organizing pipeline data in GCS (or local filesystem).
 - `pipeline/prod/flu/` (environment=prod, profile=flu)
 - `pipeline/dev/covid/` (environment=dev, profile=covid)
 
+## execution
+
+Selects the backend used for cloud pipeline and stage execution. Configurations
+created before this setting was introduced continue to use GCP.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `execution.provider` | string | `gcp` | Cloud execution backend. Only `gcp` is currently supported. |
+
 ## google_cloud
 
 Google Cloud Platform project and region settings.
@@ -88,9 +98,22 @@ Google Cloud Platform project and region settings.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.project_id` | string | _(required)_ | Google Cloud project ID (e.g., `my-gcp-project`). |
-| `google_cloud.region` | string | `us-central1` | Google Cloud region for all resources (Batch jobs, GCS, Artifact Registry). |
+| `google_cloud.region` | string | `us-central1` | Control-plane region for Cloud Workflows and the default Batch region. |
+| `google_cloud.batch_regions` | mapping | `us-central1`, `us-east5` | Allowed Batch regions mapped to distinct subnet CIDRs. Terraform creates one subnet, router, NAT, and Artifact Registry repository per entry. |
 | `google_cloud.bucket_name` | string | _(required)_ | GCS bucket for pipeline input/output data. Must already exist. |
 | `google_cloud.billing_project` | string | `""` | User-defined label for cost grouping in GCP billing reports. Applied to all Cloud Batch jobs. Can be overridden per run with `--billing-project`. |
+
+Each data-plane region needs a non-overlapping subnet range:
+
+```yaml
+google_cloud:
+  region: us-central1
+  batch_regions:
+    us-central1:
+      subnet_cidr: 10.0.0.0/20
+    us-east5:
+      subnet_cidr: 10.1.0.0/20
+```
 
 ## google_cloud.batch
 
@@ -108,8 +131,8 @@ Compute resources for Stage A (Builder). Single-task job that generates input fi
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.batch.stage_a.cpu_milli` | integer | `2000` | CPU allocation in millicores (2000 = 2 vCPUs). |
-| `google_cloud.batch.stage_a.memory_mib` | integer | `8192` | Memory allocation in MiB (8192 = 8 GB). |
-| `google_cloud.batch.stage_a.machine_type` | string | `"c4d-standard-2"` | Google Cloud machine type. Empty string (`""`) lets Cloud Batch auto-select based on CPU/memory requirements. |
+| `google_cloud.batch.stage_a.memory_mib` | integer | `7168` | Minimum memory allocation in MiB. |
+| `google_cloud.batch.stage_a.machine_types` | list | C4D, C4, N4D, N4 standard-2 | Ordered fallback candidates. Every candidate must meet the stage minimums. |
 | `google_cloud.batch.stage_a.max_run_duration` | integer | `3600` | Maximum execution time in seconds (3600 = 1 hour). Tasks exceeding this limit are terminated. |
 
 ### google_cloud.batch.stage_b
@@ -119,8 +142,8 @@ Compute resources for Stage B (Runner). Parallel tasks, each processing one inpu
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.batch.stage_b.cpu_milli` | integer | `2000` | CPU allocation in millicores (2000 = 2 vCPUs). |
-| `google_cloud.batch.stage_b.memory_mib` | integer | `8192` | Memory allocation in MiB (8192 = 8 GB). |
-| `google_cloud.batch.stage_b.machine_type` | string | `""` | Google Cloud machine type. Empty string lets Cloud Batch auto-select. Set explicitly (e.g., `"e2-standard-2"`) for predictable scaling. |
+| `google_cloud.batch.stage_b.memory_mib` | integer | `7168` | Minimum memory allocation in MiB. |
+| `google_cloud.batch.stage_b.machine_types` | list | C4D, C4, N4D, N4 standard-2 | Ordered fallback candidates. |
 | `google_cloud.batch.stage_b.max_run_duration` | integer | `36000` | Maximum execution time in seconds (36000 = 10 hours). See [sizing guidelines](#sizing-guidelines) below. |
 
 ### google_cloud.batch.stage_c
@@ -131,7 +154,7 @@ Compute resources for Stage C (Output). Runs as a single task that loads all Sta
 |-----|------|---------|-------------|
 | `google_cloud.batch.stage_c.cpu_milli` | integer | `4000` | CPU allocation in millicores (4000 = 4 vCPUs). |
 | `google_cloud.batch.stage_c.memory_mib` | integer | `15360` | Memory allocation in MiB (15360 = 15 GB). |
-| `google_cloud.batch.stage_c.machine_type` | string | `"c4d-standard-4"` | Google Cloud machine type. Empty string lets Cloud Batch auto-select. |
+| `google_cloud.batch.stage_c.machine_types` | list | C4D, C4, N4D, C3 standard-4 | Ordered fallback candidates. A memory-bound profile can replace this list with highmem-4 candidates. |
 | `google_cloud.batch.stage_c.max_run_duration` | integer | `7200` | Maximum execution time in seconds (7200 = 2 hours). See [sizing guidelines](#sizing-guidelines) below. |
 | `google_cloud.batch.stage_c.run_output_stage` | boolean | `true` | Whether to run Stage C after Stage B completes. Set to `false` to skip output generation (e.g., when only raw runner artifacts are needed). |
 
@@ -156,15 +179,18 @@ Compute resources for Stage C (Output). Runs as a single task that loads all Sta
 
 ### Machine type selection
 
-When `machine_type` is set to a specific value (e.g., `"c4d-standard-2"`):
+When `machine_types` contains multiple values:
 
-- Cloud Batch provisions that exact machine type
-- `cpu_milli` and `memory_mib` act as task-level constraints (must fit within the machine)
+- The workflow tries candidates in order
+- Each candidate carries its own resolved CPU and memory
+- An unsuccessful candidate is cancelled and drained before replacement
 
-When `machine_type` is empty (`""`):
+When a `--stage-*-machine-type` CLI option is supplied:
 
-- Cloud Batch auto-selects a VM based on `cpu_milli` and `memory_mib`
-- Recommended when you don't need a specific machine family
+- The stage is pinned to that one candidate
+- The candidate must still meet the configured stage minimums
+
+The legacy singular `machine_type` key remains a one-candidate compatibility path. Run `epycloud config migrate` to replace legacy keys with requirement-based chains.
 
 For available machine types, pricing, and sizing recommendations, see [Machine Types](google-cloud/machine-types.md).
 
@@ -229,6 +255,10 @@ For reference, here is the full default `config.yaml` template:
 storage:
   dir_prefix: "pipeline/{environment}/{profile}"
 
+# Cloud execution backend
+execution:
+  provider: gcp
+
 # Google Cloud Platform configuration
 google_cloud:
   project_id: your-gcp-project-id
@@ -242,20 +272,20 @@ google_cloud:
 
     stage_a:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: "c4d-standard-2"
+      memory_mib: 7168
+      machine_types: [c4d-standard-2, c3-highcpu-4, n4d-standard-2, n4-standard-2]
       max_run_duration: 3600
 
     stage_b:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: ""
+      memory_mib: 7168
+      machine_types: [c4d-standard-2, c3-highcpu-4, n4d-standard-2, n4-standard-2]
       max_run_duration: 36000
 
     stage_c:
       cpu_milli: 4000
       memory_mib: 15360
-      machine_type: "c4d-standard-4"
+      machine_types: [c4d-standard-4, c3-standard-4, n4d-standard-4, n4-standard-4]
       max_run_duration: 7200
       run_output_stage: true
 

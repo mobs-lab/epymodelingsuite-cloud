@@ -2,12 +2,14 @@
 
 import os
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 import yaml
 
+from epycloud.cli import create_parser
 from epycloud.commands import config_cmd
+from epycloud.commands.config_cmd.operations import migrate_machine_type_chains
 
 
 class TestConfigInitCommand:
@@ -16,9 +18,7 @@ class TestConfigInitCommand:
     @patch("epycloud.commands.config_cmd.operations.get_config_dir")
     @patch("epycloud.commands.config_cmd.operations.shutil.copy")
     @patch("epycloud.commands.config_cmd.operations.os.chmod")
-    def test_config_init_creates_directory(
-        self, mock_chmod, mock_copy, mock_config_dir, tmp_path
-    ):
+    def test_config_init_creates_directory(self, mock_chmod, mock_copy, mock_config_dir, tmp_path):
         """Test that init creates config directory and copies templates."""
         config_dir = tmp_path / ".config" / "epymodelingsuite-cloud"
         mock_config_dir.return_value = config_dir
@@ -474,6 +474,168 @@ class TestConfigValidateCommand:
 
         assert exit_code == 0
 
+    @patch("epycloud.commands.config_cmd.handlers.ConfigLoader")
+    def test_config_validate_requires_migration_for_legacy_stage(self, mock_loader, capsys):
+        """A scalar-only stage must name the migration command instead of failing silently."""
+        mock_loader.return_value.load.return_value = {
+            "google_cloud": {
+                "project_id": "my-project",
+                "region": "us-central1",
+                "bucket_name": "my-bucket",
+                "batch": {"stage_b": {"machine_type": "c4d-standard-2"}},
+            },
+            "github": {"personal_access_token": "ghp_realtoken"},
+        }
+        ctx = {
+            "environment": "default",
+            "profile": None,
+            "verbose": False,
+            "args": Mock(config_subcommand="validate"),
+        }
+
+        assert config_cmd.handle(ctx) == 1
+        stderr = capsys.readouterr().err
+        assert "stage_b has no fallback chain" in stderr
+        assert "epycloud config migrate" in stderr
+
+    @pytest.mark.parametrize(
+        "machine_types",
+        [[], "c4d-standard-2", [""], ["c4d-standard-2", "c4d-standard-2"]],
+    )
+    @patch("epycloud.commands.config_cmd.handlers.ConfigLoader")
+    def test_config_validate_rejects_invalid_chain_shapes(self, mock_loader, machine_types, capsys):
+        """Malformed lists are rejected before a submission can enter an empty loop."""
+        mock_loader.return_value.load.return_value = {
+            "google_cloud": {
+                "project_id": "my-project",
+                "region": "us-central1",
+                "bucket_name": "my-bucket",
+                "batch": {"stage_a": {"machine_types": machine_types}},
+            },
+            "github": {"personal_access_token": "ghp_realtoken"},
+        }
+        ctx = {
+            "environment": "default",
+            "profile": None,
+            "verbose": False,
+            "args": Mock(config_subcommand="validate"),
+        }
+
+        assert config_cmd.handle(ctx) == 1
+        assert "machine_types" in capsys.readouterr().err
+
+
+class TestConfigMigrateCommand:
+    """Test the recoverable legacy-scalar to fallback-chain migration."""
+
+    def test_parser_exposes_migrate_subcommand(self):
+        """Operators need an explicit command because config init never overwrites files."""
+        args = create_parser().parse_args(["config", "migrate"])
+
+        assert args.config_subcommand == "migrate"
+
+    def test_migration_updates_base_and_profile_without_losing_other_values(self, tmp_path):
+        """Profile overrides receive their own chain and unrelated user values survive."""
+        config_dir = tmp_path / "epymodelingsuite-cloud"
+        profiles = config_dir / "profiles"
+        profiles.mkdir(parents=True)
+        base_path = config_dir / "config.yaml"
+        base_path.write_text(
+            yaml.safe_dump(
+                {
+                    "custom": {"keep": "yes"},
+                    "google_cloud": {
+                        "batch": {
+                            "stage_a": {
+                                "cpu_milli": 2000,
+                                "memory_mib": 8192,
+                                "machine_type": "c4d-standard-2",
+                            },
+                            "stage_b": {
+                                "cpu_milli": 2000,
+                                "memory_mib": 7168,
+                                "machine_type": "",
+                            },
+                            "stage_c": {
+                                "cpu_milli": 4000,
+                                "memory_mib": 15360,
+                                "machine_type": "c4d-standard-4",
+                            },
+                        }
+                    },
+                },
+                sort_keys=False,
+            )
+        )
+        profile_path = profiles / "flu.yaml"
+        profile_path.write_text(
+            yaml.safe_dump(
+                {
+                    "storage": {"dir_prefix": "pipeline/flu"},
+                    "google_cloud": {
+                        "batch": {
+                            "stage_c": {
+                                "cpu_milli": 8000,
+                                "memory_mib": 31744,
+                                "machine_type": "c4d-standard-8",
+                            }
+                        }
+                    },
+                },
+                sort_keys=False,
+            )
+        )
+
+        assert migrate_machine_type_chains(config_dir) == 0
+
+        base = yaml.safe_load(base_path.read_text())
+        profile = yaml.safe_load(profile_path.read_text())
+        assert base["custom"] == {"keep": "yes"}
+        assert base["google_cloud"]["batch"]["stage_a"]["memory_mib"] == 7168
+        assert base["google_cloud"]["batch"]["stage_a"]["machine_types"][0] == ("c4d-standard-2")
+        assert profile["storage"]["dir_prefix"] == "pipeline/flu"
+        assert profile["google_cloud"]["batch"]["stage_c"]["cpu_milli"] == 4000
+        assert profile["google_cloud"]["batch"]["stage_c"]["machine_types"][0] == ("c4d-highmem-4")
+        assert base_path.with_suffix(".yaml.pre-machine-chains.bak").exists()
+        assert profile_path.with_suffix(".yaml.pre-machine-chains.bak").exists()
+
+        assert migrate_machine_type_chains(config_dir) == 0
+
+    @pytest.mark.parametrize(
+        ("execution", "message"),
+        [
+            ({"provider": "awss"}, "Unsupported execution provider: awss"),
+            ([], "execution must be a mapping"),
+            ({"provider": None}, "execution.provider must be a non-empty string"),
+        ],
+    )
+    @patch("epycloud.commands.config_cmd.handlers.ConfigLoader")
+    def test_config_validate_rejects_invalid_execution_config(
+        self, mock_loader, capsys, execution, message
+    ):
+        """Validation reports provider errors before a cloud command is run."""
+        mock_loader.return_value.load.return_value = {
+            "execution": execution,
+            "google_cloud": {
+                "project_id": "my-project",
+                "region": "us-east5",
+                "bucket_name": "my-bucket",
+            },
+            "github": {"personal_access_token": "ghp_realtoken"},
+        }
+        ctx = {
+            "config": None,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(config_subcommand="validate"),
+        }
+
+        assert config_cmd.handle(ctx) == 1
+        assert message in capsys.readouterr().err
+
     def test_config_validate_missing_fields(self, tmp_path, monkeypatch):
         """Test validation fails for missing required fields."""
         # Create temp config directory
@@ -724,9 +886,7 @@ class TestConfigSetCommand:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "args": Mock(
-                config_subcommand="set", key="new_section.new_key", value="new_value"
-            ),
+            "args": Mock(config_subcommand="set", key="new_section.new_key", value="new_value"),
         }
 
         exit_code = config_cmd.handle(ctx)

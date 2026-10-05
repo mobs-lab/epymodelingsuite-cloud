@@ -5,17 +5,40 @@ Internal validation logic and batch config building use real implementations.
 """
 
 import json
-import tempfile
 from argparse import Namespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 from epycloud.commands import run
+from epycloud.exceptions import ValidationError
+from epycloud.execution.gcp_machines import MACHINE_SPECS
+
+
+@pytest.fixture(autouse=True)
+def machine_metadata_without_gcloud(monkeypatch):
+    """Keep job tests at the submit boundary while candidate tests cover lookup I/O."""
+    from epycloud.commands.run import validation
+
+    def validate(machine_type, project_id, region):
+        del project_id, region
+        if machine_type.startswith("invalid"):
+            raise ValidationError(f"Machine type '{machine_type}' not found")
+        return machine_type
+
+    def specs(machine_type, project_id, region):
+        del project_id, region
+        vcpus, memory_mib = MACHINE_SPECS[machine_type]
+        return vcpus * 1000, memory_mib
+
+    monkeypatch.setattr(validation, "validate_machine_type", validate)
+    monkeypatch.setattr(validation, "get_machine_type_specs", specs)
 
 
 class TestRunJobCloud:
     """Test run job command for cloud execution."""
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_stage_a_cloud_success(self, mock_subprocess, mock_config):
         """Test successful Stage A job submission to cloud."""
         # Mock gcloud batch submit success
@@ -55,7 +78,7 @@ class TestRunJobCloud:
         assert "jobs" in call_args
         assert "submit" in call_args
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_stage_b_cloud_success(self, mock_subprocess, mock_config):
         """Test successful Stage B job submission to cloud."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -87,7 +110,7 @@ class TestRunJobCloud:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_stage_c_cloud_success(self, mock_subprocess, mock_config):
         """Test successful Stage C job submission to cloud."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -119,7 +142,7 @@ class TestRunJobCloud:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_cloud_with_output_config(self, mock_subprocess, mock_config):
         """Test Stage C job with specific output config."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -151,7 +174,7 @@ class TestRunJobCloud:
         assert exit_code == 0
         assert mock_subprocess.called
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_cloud_submission_failure(self, mock_subprocess, mock_config):
         """Test error handling when gcloud batch submit fails."""
         # Mock gcloud failure
@@ -272,7 +295,8 @@ class TestRunJobCloud:
         # Should fail with config error
         assert exit_code == 2
 
-    def test_run_job_cloud_dry_run_mode(self, mock_config):
+    @patch("epycloud.execution.gcp.subprocess.run")
+    def test_run_job_cloud_dry_run_mode(self, mock_subprocess, mock_config):
         """Test dry run mode doesn't submit actual job."""
         ctx = {
             "config": mock_config,
@@ -300,8 +324,10 @@ class TestRunJobCloud:
 
         # Should succeed (dry run shows config but doesn't submit)
         assert exit_code == 0
+        commands = [" ".join(call.args[0]) for call in mock_subprocess.call_args_list]
+        assert all("gcloud batch jobs submit" not in command for command in commands)
 
-    @patch("epycloud.commands.run.cloud.job.subprocess.run")
+    @patch("epycloud.execution.gcp.subprocess.run")
     def test_run_job_cloud_with_task_count_per_node(self, mock_subprocess, mock_config):
         """Test job submission with custom task_count_per_node."""
         mock_subprocess.return_value = Mock(returncode=0, stdout="", stderr="")
@@ -340,6 +366,7 @@ class TestRunJobCloudMachineType:
     @patch("epycloud.lib.validation.subprocess.run")
     def test_run_job_cloud_with_machine_type_override(self, mock_subprocess, mock_config):
         """Test job submission with machine type override."""
+
         # Mock machine type validation and job submission
         def subprocess_side_effect(*args, **kwargs):
             cmd = args[0] if args else kwargs.get("args", [])
@@ -349,11 +376,11 @@ class TestRunJobCloudMachineType:
                 # Return machine specs
                 return Mock(
                     returncode=0,
-                    stdout=json.dumps({"guestCpus": 8, "memoryMb": 32768, "name": "c2-standard-8"}),
+                    stdout=json.dumps({"guestCpus": 8, "memoryMb": 32768, "name": "c4-standard-8"}),
                     stderr="",
                 )
             elif "machine-types list" in cmd_str:
-                return Mock(returncode=0, stdout="c2-standard-8\nn2-standard-4\n", stderr="")
+                return Mock(returncode=0, stdout="c4-standard-8\nn2-standard-4\n", stderr="")
             elif "batch" in cmd_str and "jobs" in cmd_str and "submit" in cmd_str:
                 # Job submission
                 return Mock(returncode=0, stdout="", stderr="")
@@ -375,7 +402,7 @@ class TestRunJobCloudMachineType:
                 num_tasks=None,
                 output_config=None,
                 local=False,
-                machine_type="c2-standard-8",  # Override
+                machine_type="c4-standard-8",  # Override
                 task_count_per_node=None,
                 wait=False,
                 yes=True,
@@ -421,5 +448,3 @@ class TestRunJobCloudMachineType:
 
         # Should fail with validation error
         assert exit_code == 1
-
-

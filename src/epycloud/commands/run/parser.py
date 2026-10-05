@@ -67,6 +67,11 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     workflow_parser.add_argument(
+        "--batch-region",
+        help="Cloud Batch region (default: google_cloud.region)",
+    )
+
+    workflow_parser.add_argument(
         "--stage-a-machine-type",
         help="Override Stage A machine type (auto-sets CPU/memory to machine max)",
     )
@@ -154,6 +159,12 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         type=int,
         default=0,
         help="Task index for stage B (default: 0)",
+    )
+
+    job_parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Recompute Stage B even when a matching completed result exists",
     )
 
     job_parser.add_argument(

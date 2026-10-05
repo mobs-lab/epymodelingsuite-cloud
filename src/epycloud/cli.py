@@ -53,12 +53,20 @@ def create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     parser.add_argument("--quiet", "-q", action="store_true", help="Quiet mode (errors only)")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would happen")
+    parser.add_argument(
+        "--dry-run",
+        dest="global_dry_run",
+        action="store_true",
+        help="Show what would happen",
+    )
     parser.add_argument(
         "--color",
         choices=["auto", "always", "never"],
         default="auto",
-        help="Control colored output: auto (default, detect TTY), always (force colors), never (disable colors)",
+        help=(
+            "Control colored output: auto (default, detect TTY), always (force colors), "
+            "never (disable colors)"
+        ),
     )
 
     # Customize main parser options title
@@ -112,6 +120,11 @@ def create_parser() -> argparse.ArgumentParser:
     experiment.register_parser(subparsers)
 
     return parser
+
+
+def _is_dry_run(args: argparse.Namespace) -> bool:
+    """Combine global and command-level dry-run flags without parser shadowing."""
+    return bool(getattr(args, "global_dry_run", False) or getattr(args, "dry_run", False))
 
 
 def main() -> int:
@@ -171,9 +184,7 @@ def main() -> int:
             info("Run 'epycloud config init' to initialize configuration")
             return 2
 
-    # Determine dry_run: command-level takes precedence over global
-    # Check if subcommand has its own dry_run flag
-    dry_run = getattr(args, "dry_run", False)
+    dry_run = _is_dry_run(args)
 
     # Create context for commands
     ctx = {

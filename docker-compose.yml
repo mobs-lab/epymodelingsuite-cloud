@@ -30,6 +30,7 @@ services:
       - TASK_INDEX=${TASK_INDEX:-0}
       - EXP_ID=${EXP_ID}
       - RUN_ID=${RUN_ID}
+      - SKIP_EXISTING=${SKIP_EXISTING:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - STORAGE_VERBOSE=${STORAGE_VERBOSE:-true}
       - PYTHONUNBUFFERED=1

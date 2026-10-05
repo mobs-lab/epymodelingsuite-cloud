@@ -143,6 +143,65 @@ class TestLoadSaveBytesLocal:
         with pytest.raises(FileNotFoundError, match="Local file not found"):
             storage.load_bytes(path)
 
+    def test_save_bytes_preserves_existing_file_when_replace_fails(
+        self, mock_env_local, temp_local_path
+    ):
+        """An interrupted atomic replace never exposes partial destination data."""
+        path = "bucket/test/file.txt"
+        file_path = temp_local_path / path
+        file_path.parent.mkdir(parents=True)
+        file_path.write_bytes(b"complete old data")
+
+        with patch.object(storage.os, "replace", side_effect=OSError("interrupted")):
+            with pytest.raises(OSError, match="interrupted"):
+                storage.save_bytes(path, b"partial new data")
+
+        assert file_path.read_bytes() == b"complete old data"
+        assert list(file_path.parent.glob(f".{file_path.name}.*.tmp")) == []
+
+
+@pytest.mark.unit
+class TestExists:
+    """Tests for storage.exists()."""
+
+    def test_local_regular_file_exists(self, mock_env_local, temp_local_path):
+        """A completed local regular file is eligible for reuse checks."""
+        path = "bucket/test/file.txt"
+        file_path = temp_local_path / path
+        file_path.parent.mkdir(parents=True)
+        file_path.write_text("complete")
+
+        assert storage.exists(path) is True
+
+    def test_local_directory_is_not_a_completed_file(self, mock_env_local, temp_local_path):
+        """A directory at the expected path must not count as a result file."""
+        path = "bucket/test/directory"
+        (temp_local_path / path).mkdir(parents=True)
+
+        assert storage.exists(path) is False
+
+    def test_cloud_uses_blob_head(self, mock_env_cloud):
+        """Cloud existence checks use the blob metadata request and its client."""
+        client = MagicMock()
+        blob = client.bucket.return_value.blob.return_value
+        blob.exists.return_value = True
+
+        with patch.object(storage, "_get_gcs_client", return_value=client):
+            assert storage.exists("pipeline/test/result.pkl.gz") is True
+
+        blob.exists.assert_called_once_with(client)
+
+    def test_storage_error_fails_open(self, mock_env_local, caplog):
+        """An existence-check failure recomputes work instead of skipping it.
+
+        Returning false is the safe failure mode because an unnecessary rerun
+        is preferable to silently trusting an unverified result.
+        """
+        with patch.object(storage, "_resolve_storage_location", side_effect=OSError("offline")):
+            assert storage.exists("bucket/test/result.pkl.gz") is False
+
+        assert "treating it as missing" in caplog.text
+
 
 @pytest.mark.unit
 class TestSaveLoadJson:

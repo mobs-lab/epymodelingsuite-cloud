@@ -147,6 +147,12 @@ Each stage is submitted as a Cloud Batch job via the Batch REST API.
 - **Networking**: VMs run in a configured VPC subnet with no external IP addresses
 - **Logging**: All jobs log to Cloud Logging (`logsPolicy: CLOUD_LOGGING`)
 
+All configured Batch regions currently share the single `google_cloud.bucket_name`.
+The deployed `gs_mobs_jessica` bucket is a `US` multi-region bucket, so both
+`us-central1` and `us-east5` can use it without cross-continent transfer. A
+future regional bucket must be validated against every allowed Batch region
+before it replaces this dependency.
+
 ### Parallelism
 
 Stage B parallelism is calculated as `min(N, maxParallelism)`, where `maxParallelism` defaults to 100. The `taskCountPerNode` setting controls how many tasks share a single VM (default: 1 task per VM). With 1 task per VM, each task gets the full machine's CPU and memory, avoiding resource contention between tasks.

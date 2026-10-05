@@ -21,7 +21,9 @@ def _heading(text: str) -> str:
     return colorize(f"[{text}]", Colors.CYAN)
 
 
-def _format_workflow_details(info: dict[str, Any], exp_id: str, run_id: str, mode: str) -> list[str]:
+def _format_workflow_details(
+    info: dict[str, Any], exp_id: str, run_id: str, mode: str
+) -> list[str]:
     """Format workflow details section.
 
     Parameters
@@ -60,12 +62,17 @@ def _format_workflow_details(info: dict[str, Any], exp_id: str, run_id: str, mod
             mt = info.get(f"{prefix}_machine_type", "")
             mt_display = mt if mt else "auto"
             override_marker = " *" if info.get(f"{prefix}_machine_type_override") else ""
+            pinned = bool(info.get(f"{prefix}_pinned"))
+            selection = " (pinned)" if pinned else ""
             duration_s = info.get(f"{prefix}_max_run_duration", 0)
             duration_h = duration_s / 3600 if duration_s else 0
             lines.append(
                 f"  Stage {stage_letter}: {cpu} mCPU, {mem} MiB, "
-                f"{mt_display}{override_marker}, max {duration_h:.1f}h"
+                f"{mt_display}{selection}{override_marker}, max {duration_h:.1f}h"
             )
+            machine_types = info.get(f"{prefix}_machine_types", [])
+            if isinstance(machine_types, list) and len(machine_types) > 1:
+                lines.append(f"    Fallback chain: {' -> '.join(machine_types)}")
 
     if "skip_output" in info:
         output_status = "disabled" if info["skip_output"] else "enabled"
@@ -174,6 +181,11 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
             lines.append(f"  Project: {info['project_id']}")
         if "region" in info:
             lines.append(f"  Region: {info['region']}")
+        if "batch_region" in info:
+            lines.append(f"  Batch region: {info['batch_region']}")
+        # Only present when the pipeline is not the default one (e.g. --env dev)
+        if "workflow_name" in info:
+            lines.append(f"  Workflow: {info['workflow_name']}")
         if "bucket_name" in info and command_type == "workflow":
             lines.append(f"  Bucket: gs://{info['bucket_name']}")
         lines.append("")
@@ -183,7 +195,8 @@ def format_confirmation(info: dict[str, Any], mode: str) -> str:
             lines.append(_heading("GitHub"))
             if "modeling_suite_repo" in info and "modeling_suite_ref" in info:
                 lines.append(
-                    f"  epymodelingsuite repo: {info['modeling_suite_repo']}@{info['modeling_suite_ref']}"
+                    f"  epymodelingsuite repo: "
+                    f"{info['modeling_suite_repo']}@{info['modeling_suite_ref']}"
                 )
             if "forecast_repo" in info:
                 forecast_ref = info.get("forecast_repo_ref", "")

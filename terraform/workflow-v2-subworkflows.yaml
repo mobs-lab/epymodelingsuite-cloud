@@ -1,0 +1,429 @@
+# ========== SUBWORKFLOW: Resolve an Artifact Registry Tag ==========
+resolveImage:
+  params: [tagUrl, repoUri]
+  steps:
+    - get_tag:
+        call: http.get
+        args:
+          url: $${tagUrl}
+          auth:
+            type: OAuth2
+            scopes: https://www.googleapis.com/auth/cloud-platform.read-only
+        result: tag
+
+    - extract_digest:
+        assign:
+          - versionParts: $${text.split(tag.body.version, "/")}
+          - digest: $${versionParts[len(versionParts) - 1]}
+
+    - validate_digest:
+        switch:
+          - condition: $${len(digest) != 71 or text.substring(digest, 0, 7) != "sha256:"}
+            raise: '$${"Artifact Registry returned an invalid image digest: " + digest}'
+
+    - return_resolved_image:
+        return:
+          digest: $${digest}
+          short_digest: $${text.substring(digest, 7, 19)}
+          uri: $${repoUri + "@" + digest}
+
+# ========== SUBWORKFLOW: Persist Image Provenance ==========
+recordImageProvenance:
+  params: [bucket, objectName, executionId, runId, stage, candidateIndex, machineType, machineSelection, imageTag, resolvedImage]
+  steps:
+    - upload_provenance:
+        call: http.post
+        args:
+          url: $${"https://storage.googleapis.com/upload/storage/v1/b/" + bucket + "/o"}
+          auth:
+            type: OAuth2
+            scopes: https://www.googleapis.com/auth/cloud-platform
+          headers:
+            Content-Type: application/json
+          query:
+            uploadType: media
+            name: $${objectName}
+          body:
+            execution_id: $${executionId}
+            run_id: $${runId}
+            stage: $${stage}
+            candidate_index: $${candidateIndex}
+            machine_type: $${machineType}
+            machine_selection: $${machineSelection}
+            image_tag: $${imageTag}
+            image_digest: $${resolvedImage.digest}
+            image_uri: $${resolvedImage.uri}
+            recorded_at: $${time.format(sys.now())}
+
+# ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
+waitJob:
+  params: [name, expectedParallelism, taskCount, stallSeconds, zeroFillGraceSeconds, maxRunDurationSeconds]
+  steps:
+    - init_wait:
+        assign:
+          - pollSeconds: 15
+          - provisioningMarginSeconds: 1800
+          - safeParallelism: $${if(expectedParallelism > 0, expectedParallelism, 1)}
+          - waves: $${int((taskCount + safeParallelism - 1) / safeParallelism)}
+          - maxWaitSeconds: $${waves * maxRunDurationSeconds + provisioningMarginSeconds}
+          - maxPolls: $${int((maxWaitSeconds + pollSeconds - 1) / pollSeconds)}
+          - waitCount: 0
+          - flatPolls: 0
+          - lastEverStarted: 0
+          - emptyCounts: {}
+          - lastCounts: $${emptyCounts}
+          - finalStatus: null
+          - currentState: "NO_STATUS"
+          - outcome: null
+
+    - poll_loop:
+        for:
+          value: i
+          range: $${[1, maxPolls]}
+          steps:
+            - get_job_status:
+                try:
+                  call: http.get
+                  args:
+                    url: $${"https://batch.googleapis.com/v1/" + name}
+                    auth:
+                      type: OAuth2
+                  result: j
+                except:
+                  as: e
+                  steps:
+                    - log_error:
+                        call: sys.log
+                        args:
+                          text: $${"Failed to get job status. Retrying in 10s."}
+                          severity: WARNING
+                    - sleep_on_error:
+                        call: sys.sleep
+                        args:
+                          seconds: 10
+                    - continue_loop:
+                        next: continue
+
+            - extract_state:
+                assign:
+                  - currentState: $${if("status" in j.body and "state" in j.body.status, j.body.status.state, "NO_STATUS")}
+                  - lastCounts: $${default(map.get(j.body, ["status", "taskGroups", "group0", "counts"]), emptyCounts)}
+                  - cRunning: $${int(default(map.get(lastCounts, "RUNNING"), 0))}
+                  - cAssigned: $${int(default(map.get(lastCounts, "ASSIGNED"), 0))}
+                  - cSucceeded: $${int(default(map.get(lastCounts, "SUCCEEDED"), 0))}
+                  - cFailed: $${int(default(map.get(lastCounts, "FAILED"), 0))}
+                  - everStarted: $${cRunning + cAssigned + cSucceeded + cFailed}
+                  - remaining: $${taskCount - cSucceeded - cFailed}
+                  - remaining: $${if(remaining > 0, remaining, 0)}
+                  - targetSlots: $${if(safeParallelism < remaining, safeParallelism, remaining)}
+                  # Workflows evaluates both if() branches, so the division
+                  # needs a nonzero denominator even when all tasks finished.
+                  - fillDenominator: $${if(targetSlots > 0, targetSlots, 1)}
+                  - occupied: $${cRunning + cAssigned}
+                  - filled: $${if(targetSlots <= 0, 1, occupied / fillDenominator)}
+                  # Time only continuous underfill. A full earlier wave must not
+                  # consume the grace period needed to provision the next wave.
+                  - madeProgress: $${everStarted != lastEverStarted}
+                  - flatPolls: $${if(filled >= 0.9 or madeProgress, 0, flatPolls + 1)}
+                  - lastEverStarted: $${everStarted}
+                  - waitCount: $${waitCount + 1}
+                  - flatSeconds: $${flatPolls * pollSeconds}
+                  - zeroFillSeconds: $${(waitCount - 1) * pollSeconds}
+
+            - log_status:
+                call: sys.log
+                args:
+                  text: $${"Polling batch job status (iteration=" + string(waitCount) + "). State is " + currentState + "."}
+                  severity: INFO
+
+            - check_if_succeeded:
+                switch:
+                  - condition: $${currentState == "SUCCEEDED"}
+                    steps:
+                      - log_success:
+                          call: sys.log
+                          args:
+                            text: $${"Batch job succeeded after " + string(waitCount) + " polling attempts"}
+                            severity: INFO
+                      - save_status:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "SUCCEEDED"
+                      - exit_loop:
+                          next: break
+
+            - check_if_child_cancelled:
+                switch:
+                  - condition: $${currentState in ["CANCELLED", "DELETION_IN_PROGRESS"]}
+                    steps:
+                      - save_child_cancelled:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "CHILD_JOB_CANCELLED"
+                      - exit_cancelled_job:
+                          next: break
+
+            - check_if_failed:
+                switch:
+                  - condition: $${currentState == "FAILED"}
+                    steps:
+                      - save_job_failure:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "FAILED"
+                      - exit_failed_job:
+                          next: break
+
+            - check_if_stalled:
+                switch:
+                  # A never-started job gets extra time so Batch can report a
+                  # hard VM configuration error before capacity fallback acts.
+                  - condition: $${everStarted == 0 and zeroFillSeconds >= zeroFillGraceSeconds}
+                    steps:
+                      - save_zero_fill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_zero_fill_stall:
+                          next: break
+                  - condition: $${everStarted > 0 and filled < 0.5 and flatSeconds >= stallSeconds}
+                    steps:
+                      - save_severe_underfill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_severe_underfill_stall:
+                          next: break
+                  - condition: $${everStarted > 0 and filled < 0.9 and flatSeconds >= stallSeconds * 6}
+                    steps:
+                      - save_mild_underfill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_mild_underfill_stall:
+                          next: break
+
+            - sleep_before_retry:
+                call: sys.sleep
+                args:
+                  seconds: $${pollSeconds}
+
+    - check_wait_timeout:
+        switch:
+          - condition: $${outcome == null}
+            steps:
+              - save_wait_timeout:
+                  assign:
+                    - outcome: "WAIT_TIMEOUT"
+
+    - return_status:
+        return:
+          outcome: $${outcome}
+          status: $${finalStatus}
+          counts: $${lastCounts}
+
+# ========== SUBWORKFLOW: Cancel and Drain a Batch Job ==========
+cancelJob:
+  params: [name]
+  steps:
+    - initialize_cancel:
+        assign:
+          - lastState: "NO_STATUS"
+          - drained: false
+
+    - request_cancel:
+        try:
+          call: http.post
+          args:
+            url: $${"https://batch.googleapis.com/v1/" + name + ":cancel"}
+            auth:
+              type: OAuth2
+            body: {}
+        except:
+          as: e
+          steps:
+            # Batch returns 400 when the job reached a terminal state first.
+            # Polling below distinguishes that race from an incomplete cancel.
+            - log_cancel_response:
+                call: sys.log
+                args:
+                  text: $${"Cancel request did not return success for " + name + "; checking job state."}
+                  severity: WARNING
+
+    - drain_job:
+        for:
+          value: attempt
+          range: $${[1, 40]}
+          steps:
+            - get_cancelled_job:
+                call: http.get
+                args:
+                  url: $${"https://batch.googleapis.com/v1/" + name}
+                  auth:
+                    type: OAuth2
+                result: cancelledJob
+
+            - read_cancelled_job_state:
+                assign:
+                  - lastState: $${default(map.get(cancelledJob.body, ["status", "state"]), "NO_STATUS")}
+
+            - check_job_drained:
+                switch:
+                  - condition: $${lastState in ["CANCELLED", "SUCCEEDED", "FAILED"]}
+                    steps:
+                      - mark_job_drained:
+                          assign:
+                            - drained: true
+                      - exit_drain_loop:
+                          next: break
+
+            - sleep_before_drain_retry:
+                call: sys.sleep
+                args:
+                  seconds: 15
+
+    - require_drained_job:
+        switch:
+          - condition: $${drained == false}
+            steps:
+              - build_drain_timeout:
+                  assign:
+                    - drainTimeout:
+                        code: CANCEL_DRAIN_TIMEOUT
+                        job: $${name}
+                        state: $${lastState}
+              - raise_drain_timeout:
+                  raise: $${drainTimeout}
+
+    - return_cancelled_state:
+        return: $${lastState}
+
+# ========== SUBWORKFLOW: Finalize One Fallback Candidate ==========
+waitAndFinalizeCandidate:
+  params: [name, stage, candidateIndex, numCandidates, expectedParallelism, taskCount, stallSeconds, zeroFillGraceSeconds, maxRunDurationSeconds]
+  steps:
+    - wait_for_job_creation:
+        call: sys.sleep
+        args:
+          seconds: 5
+
+    - wait_for_job_completion:
+        call: waitJob
+        args:
+          name: $${name}
+          expectedParallelism: $${expectedParallelism}
+          taskCount: $${taskCount}
+          stallSeconds: $${stallSeconds}
+          zeroFillGraceSeconds: $${zeroFillGraceSeconds}
+          maxRunDurationSeconds: $${maxRunDurationSeconds}
+        result: waitResult
+
+    - return_successful_candidate:
+        switch:
+          - condition: $${waitResult.outcome == "SUCCEEDED"}
+            return: true
+
+    - stop_on_cancelled_child:
+        switch:
+          - condition: $${waitResult.outcome == "CHILD_JOB_CANCELLED"}
+            steps:
+              - build_child_cancelled_error:
+                  assign:
+                    - childCancelled:
+                        code: CHILD_JOB_CANCELLED
+                        stage: $${stage}
+                        job: $${name}
+                        status: $${waitResult.status}
+                        counts: $${waitResult.counts}
+              - raise_child_cancelled:
+                  raise: $${childCancelled}
+
+    - cancel_unsuccessful_candidate:
+        call: cancelJob
+        args:
+          name: $${name}
+        result: cancelState
+
+    - return_successful_cancel_race:
+        switch:
+          - condition: $${cancelState == "SUCCEEDED"}
+            return: true
+
+    - raise_if_candidates_exhausted:
+        switch:
+          - condition: $${candidateIndex == numCandidates - 1}
+            steps:
+              - build_candidates_exhausted_error:
+                  assign:
+                    - candidatesExhausted:
+                        code: ALL_CANDIDATES_EXHAUSTED
+                        stage: $${stage}
+                        job: $${name}
+                        outcome: $${waitResult.outcome}
+                        status: $${waitResult.status}
+                        counts: $${waitResult.counts}
+              - raise_candidates_exhausted:
+                  raise: $${candidatesExhausted}
+
+    - continue_to_next_candidate:
+        return: false
+
+# ========== SUBWORKFLOW: Wait for Files in GCS ==========
+waitForFiles:
+  params: [bucket, prefix, maxRetries, sleepSeconds]
+  steps:
+    - init_file_wait:
+        assign:
+          - foundFiles: null
+
+    - poll_for_files:
+        for:
+          value: attempt
+          range: $${[1, maxRetries]}
+          steps:
+            - list_files:
+                call: http.get
+                args:
+                  url: $${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o?prefix=" + prefix}
+                  auth:
+                    type: OAuth2
+                result: ls
+
+            - count_files:
+                assign:
+                  - items: $${default(map.get(ls.body, "items"), [])}
+                  - fileCount: $${len(items)}
+
+            - log_file_check:
+                call: sys.log
+                args:
+                  text: $${"File check attempt " + string(attempt) + " of " + string(maxRetries) + ". Found " + string(fileCount) + " files."}
+                  severity: INFO
+
+            - check_files_found:
+                switch:
+                  - condition: $${fileCount > 0}
+                    steps:
+                      - log_files_found:
+                          call: sys.log
+                          args:
+                            text: $${"Found " + string(fileCount) + " files at " + prefix}
+                            severity: INFO
+                      - save_files:
+                          assign:
+                            - foundFiles: $${items}
+                      - exit_file_loop:
+                          next: break
+
+            - check_timeout:
+                switch:
+                  - condition: $${attempt >= maxRetries}
+                    raise: "Timeout waiting for files"
+
+            - sleep_before_retry:
+                call: sys.sleep
+                args:
+                  seconds: $${sleepSeconds}
+
+    - return_files:
+        return: $${foundFiles}

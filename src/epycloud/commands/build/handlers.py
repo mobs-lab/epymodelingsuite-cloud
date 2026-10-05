@@ -15,7 +15,7 @@ from epycloud.lib.command_helpers import (
     get_project_root,
     require_config,
 )
-from epycloud.lib.output import error, status
+from epycloud.lib.output import error, info, status, success
 
 from . import cloud, dev, display, local
 
@@ -49,6 +49,10 @@ def handle(ctx: dict[str, Any]) -> int:
         return handle_local(ctx)
     elif args.build_subcommand == "dev":
         return handle_dev(ctx)
+    elif args.build_subcommand == "replicate":
+        return handle_replicate(ctx)
+    elif args.build_subcommand == "verify-replicas":
+        return handle_verify_replicas(ctx)
     elif args.build_subcommand == "status":
         return handle_status(ctx)
 
@@ -176,9 +180,7 @@ def handle_local(ctx: dict[str, Any]) -> int:
     image_path = get_image_uri(config, tag=image_tag)
 
     # Get GitHub PAT
-    github_pat = get_github_pat(config, required=bool(modeling_suite_repo))
-    if modeling_suite_repo and not github_pat:
-        return 2
+    github_pat = get_github_pat(config)
 
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root().resolve()
@@ -245,9 +247,7 @@ def handle_dev(ctx: dict[str, Any]) -> int:
     modeling_suite_ref = github["modeling_suite_ref"]
 
     # Get GitHub PAT
-    github_pat = get_github_pat(config, required=bool(modeling_suite_repo))
-    if modeling_suite_repo and not github_pat:
-        return 2
+    github_pat = get_github_pat(config)
 
     # Get project root (where Makefile and docker/ dir are)
     project_root = get_project_root().resolve()
@@ -361,3 +361,96 @@ def handle_status(ctx: dict[str, Any]) -> int:
     except Exception as e:
         error(f"Unexpected error: {e}")
         return 1
+
+
+def _get_batch_regions(config: dict[str, Any]) -> list[str]:
+    """Return the configured Batch regions in deterministic order."""
+    regions = config.get("google_cloud", {}).get("batch_regions", {})
+    return sorted(regions) if isinstance(regions, dict) else []
+
+
+def handle_replicate(ctx: dict[str, Any]) -> int:
+    """Copy one immutable image digest to another configured region."""
+    try:
+        config = require_config(ctx)
+    except ConfigError as exc:
+        error(str(exc))
+        return 2
+
+    args = ctx["args"]
+    google_cloud = config.get("google_cloud", {})
+    project_id = google_cloud.get("project_id")
+    build_region = google_cloud.get("region", "us-central1")
+    allowed_regions = _get_batch_regions(config)
+    source_region = args.source_region
+    destination_region = args.destination_region
+    if not project_id:
+        error("google_cloud.project_id not configured")
+        return 2
+    if source_region == destination_region:
+        error("Source and destination regions must differ")
+        return 2
+    unknown = [
+        region
+        for region in (source_region, destination_region)
+        if region not in allowed_regions
+    ]
+    if unknown:
+        error(f"Unknown Batch region: {', '.join(unknown)}")
+        info(f"Configured regions: {', '.join(allowed_regions)}")
+        return 2
+
+    docker = get_docker_config(config)
+    image_tag = args.tag or docker["image_tag"]
+    return cloud.replicate_image(
+        project_id=project_id,
+        build_region=build_region,
+        source_region=source_region,
+        destination_region=destination_region,
+        repo_name=docker["repo_name"],
+        image_name=docker["image_name"],
+        image_tag=image_tag,
+        project_root=get_project_root().resolve(),
+        verbose=ctx["verbose"],
+        dry_run=ctx["dry_run"],
+    )
+
+
+def handle_verify_replicas(ctx: dict[str, Any]) -> int:
+    """Compare an image tag's digest across every configured Batch region."""
+    try:
+        config = require_config(ctx)
+    except ConfigError as exc:
+        error(str(exc))
+        return 2
+
+    project_id = config.get("google_cloud", {}).get("project_id")
+    regions = _get_batch_regions(config)
+    if not project_id:
+        error("google_cloud.project_id not configured")
+        return 2
+    if not regions:
+        error("google_cloud.batch_regions must contain at least one region")
+        return 2
+
+    docker = get_docker_config(config)
+    image_tag = ctx["args"].tag or docker["image_tag"]
+    digests: dict[str, str] = {}
+    for region in regions:
+        image_uri = get_image_uri(config, tag=image_tag, region=region)
+        digest = cloud.resolve_image_digest(
+            project_id=project_id,
+            image_uri=image_uri,
+            verbose=ctx["verbose"],
+        )
+        if digest is None:
+            return 1
+        digests[region] = digest
+        info(f"{region}: {digest}")
+
+    if len(set(digests.values())) != 1:
+        error(f"Image tag {image_tag!r} does not have one digest across regions")
+        return 1
+
+    success(f"Image tag {image_tag!r} has the same digest in {len(digests)} regions")
+    return 0

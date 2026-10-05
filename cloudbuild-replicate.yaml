@@ -1,0 +1,17 @@
+steps:
+  - name: 'gcr.io/go-containerregistry/gcrane'
+    args:
+      - 'copy'
+      - '${_SOURCE_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}@${_IMAGE_DIGEST}'
+      - '${_DESTINATION_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+
+substitutions:
+  _SOURCE_REGION: 'us-central1'
+  _DESTINATION_REGION: 'us-east5'
+  _REPO_NAME: 'epymodelingsuite-repo'
+  _IMAGE_NAME: 'epymodelingsuite'
+  _IMAGE_TAG: 'latest'
+  _IMAGE_DIGEST: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

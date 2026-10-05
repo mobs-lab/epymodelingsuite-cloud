@@ -639,6 +639,7 @@ Options:
   --exp-id ID           Filter by experiment ID
   --watch               Watch mode (auto-refresh)
   --interval N          Refresh interval in seconds (default: 10)
+  --stall-threshold N   Provisioning stall threshold in minutes (default: 15)
 
 Examples:
   # Show status of all active pipelines

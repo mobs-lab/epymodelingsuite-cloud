@@ -6,7 +6,33 @@ variable "project_id" {
 variable "region" {
   type        = string
   default     = "us-central1"
-  description = "Google Cloud region for resources"
+  description = "Google Cloud region for control-plane resources"
+}
+
+variable "batch_regions" {
+  type = map(object({
+    subnet_cidr = string
+  }))
+  description = "Data-plane regions and their Cloud Batch subnet CIDR ranges"
+  default = {
+    us-central1 = { subnet_cidr = "10.0.0.0/20" }
+    us-east5    = { subnet_cidr = "10.1.0.0/20" }
+  }
+
+  validation {
+    condition = length(var.batch_regions) > 0 && alltrue([
+      for region, config in var.batch_regions :
+      region != "" && can(cidrhost(config.subnet_cidr, 0))
+    ])
+    error_message = "batch_regions must contain at least one non-empty region with a valid subnet_cidr."
+  }
+
+  validation {
+    condition = length(distinct([
+      for config in values(var.batch_regions) : config.subnet_cidr
+    ])) == length(var.batch_regions)
+    error_message = "Each batch region must use a distinct subnet_cidr."
+  }
 }
 
 variable "repo_name" {
@@ -18,6 +44,23 @@ variable "repo_name" {
 variable "bucket_name" {
   type        = string
   description = "GCS bucket name for data storage"
+}
+
+variable "workflow_name" {
+  type        = string
+  default     = "epymodelingsuite-pipeline"
+  description = "Name of the production Cloud Workflows workflow. The v2 workflow is always this name suffixed with '-v2'."
+
+  validation {
+    condition     = !endswith(var.workflow_name, "-v2")
+    error_message = "workflow_name is the PRODUCTION workflow name; the v2 workflow is derived as \"$${var.workflow_name}-v2\". A '-v2' suffix here means terraform was run under the v2pipeline environment (e.g. 'epycloud --env v2pipeline terraform apply'), which would rename the production workflow. Run terraform without --env v2pipeline."
+  }
+}
+
+variable "enable_v2_workflow" {
+  type        = bool
+  default     = true
+  description = "Deploy the blue/green v2 workflow assembled from its main and subworkflow templates. Set false to tear it down."
 }
 
 variable "image_name" {
@@ -53,7 +96,17 @@ variable "stage_a_memory_mib" {
 variable "stage_a_machine_type" {
   type        = string
   default     = "c4d-standard-2"
-  description = "Machine type for Stage A (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
+  description = "Machine type for Stage A. Must be Hyperdisk-capable (c3, c3d, c4, c4d, n4, n4d), e.g. 'c4d-standard-2'. Empty string = auto-select"
+
+  # C4/C4D/N4/N4D are Hyperdisk-only and the workflow emits a hyperdisk-balanced
+  # bootDisk for any non-empty machine type. A family that cannot boot from it
+  # renders a workflow that Batch accepts and then fails ~1080s later at VM
+  # creation, blaming the disk type. Mirrors is_hyperdisk_family() in
+  # src/epycloud/execution/gcp_machines.py. Keep the two lists in step.
+  validation {
+    condition     = var.stage_a_machine_type == "" || contains(["c3", "c3d", "c4", "c4d", "n4", "n4d"], split("-", var.stage_a_machine_type)[0])
+    error_message = "Stage A machine type must be empty (auto-select) or in a Hyperdisk-capable family: c3, c3d, c4, c4d, n4, n4d. This pipeline boots VMs with bootDisk type 'hyperdisk-balanced'; other families are accepted by Batch and then fail at VM creation."
+  }
 }
 
 variable "stage_a_max_run_duration" {
@@ -78,7 +131,17 @@ variable "stage_b_memory_mib" {
 variable "stage_b_machine_type" {
   type        = string
   default     = ""
-  description = "Machine type for Stage B (optional, e.g., 'n2-standard-4'). Empty string = auto-select"
+  description = "Machine type for Stage B. Must be Hyperdisk-capable (c3, c3d, c4, c4d, n4, n4d), e.g. 'c4d-standard-2'. Empty string = auto-select"
+
+  # C4/C4D/N4/N4D are Hyperdisk-only and the workflow emits a hyperdisk-balanced
+  # bootDisk for any non-empty machine type. A family that cannot boot from it
+  # renders a workflow that Batch accepts and then fails ~1080s later at VM
+  # creation, blaming the disk type. Mirrors is_hyperdisk_family() in
+  # src/epycloud/execution/gcp_machines.py. Keep the two lists in step.
+  validation {
+    condition     = var.stage_b_machine_type == "" || contains(["c3", "c3d", "c4", "c4d", "n4", "n4d"], split("-", var.stage_b_machine_type)[0])
+    error_message = "Stage B machine type must be empty (auto-select) or in a Hyperdisk-capable family: c3, c3d, c4, c4d, n4, n4d. This pipeline boots VMs with bootDisk type 'hyperdisk-balanced'; other families are accepted by Batch and then fail at VM creation."
+  }
 }
 
 variable "stage_b_max_run_duration" {
@@ -109,7 +172,17 @@ variable "stage_c_memory_mib" {
 variable "stage_c_machine_type" {
   type        = string
   default     = "c4d-standard-4"
-  description = "Machine type for Stage C (optional, e.g., 'e2-standard-2'). Empty string = auto-select"
+  description = "Machine type for Stage C. Must be Hyperdisk-capable (c3, c3d, c4, c4d, n4, n4d), e.g. 'c4d-standard-4'. Empty string = auto-select"
+
+  # C4/C4D/N4/N4D are Hyperdisk-only and the workflow emits a hyperdisk-balanced
+  # bootDisk for any non-empty machine type. A family that cannot boot from it
+  # renders a workflow that Batch accepts and then fails ~1080s later at VM
+  # creation, blaming the disk type. Mirrors is_hyperdisk_family() in
+  # src/epycloud/execution/gcp_machines.py. Keep the two lists in step.
+  validation {
+    condition     = var.stage_c_machine_type == "" || contains(["c3", "c3d", "c4", "c4d", "n4", "n4d"], split("-", var.stage_c_machine_type)[0])
+    error_message = "Stage C machine type must be empty (auto-select) or in a Hyperdisk-capable family: c3, c3d, c4, c4d, n4, n4d. This pipeline boots VMs with bootDisk type 'hyperdisk-balanced'; other families are accepted by Batch and then fail at VM creation."
+  }
 }
 
 variable "stage_c_max_run_duration" {
@@ -140,5 +213,5 @@ variable "subnet_name" {
 variable "subnet_cidr" {
   type        = string
   default     = "10.0.0.0/20"
-  description = "CIDR range for subnet (10.0.0.0/20 = 4096 IPs)"
+  description = "Deprecated. Configure per-region CIDRs with batch_regions."
 }

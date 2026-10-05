@@ -1,10 +1,12 @@
 """Status command handlers."""
 
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from epycloud.commands.status.operations import (
+    ProvisioningStallTracker,
+    detect_one_shot_provisioning_alerts,
     display_status,
     fetch_active_batch_jobs,
     fetch_active_workflows,
@@ -12,7 +14,12 @@ from epycloud.commands.status.operations import (
     fetch_recent_workflows,
 )
 from epycloud.exceptions import ConfigError
-from epycloud.lib.command_helpers import get_google_cloud_config, require_config
+from epycloud.lib.command_helpers import (
+    DEFAULT_WORKFLOW_NAME,
+    get_google_cloud_config,
+    get_workflow_name,
+    require_config,
+)
 from epycloud.lib.formatters import format_timestamp_local, parse_since_time
 from epycloud.lib.output import error, status, warning
 
@@ -35,10 +42,17 @@ def handle(ctx: dict[str, Any]) -> int:
 
     # Validate configuration
     try:
-        require_config(ctx)
+        config = require_config(ctx)
         gcloud_config = get_google_cloud_config(ctx)
         project_id = gcloud_config["project_id"]
         region = gcloud_config.get("region", "us-central1")
+        configured_batch_regions = gcloud_config.get("batch_regions")
+        batch_regions = (
+            tuple(configured_batch_regions)
+            if isinstance(configured_batch_regions, dict) and configured_batch_regions
+            else (region,)
+        )
+        workflow_name = get_workflow_name(config)
     except (ConfigError, KeyError) as e:
         error(str(e))
         return 2
@@ -53,33 +67,48 @@ def handle(ctx: dict[str, Any]) -> int:
     else:
         since = None
 
+    raw_stall_threshold = getattr(args, "stall_threshold", 15)
+    stall_threshold = raw_stall_threshold if isinstance(raw_stall_threshold, int) else 15
+    if stall_threshold <= 0:
+        error("--stall-threshold must be greater than zero")
+        return 2
+
     # Watch mode
     if args.watch:
         return _watch_status(
             project_id=project_id,
             region=region,
+            batch_regions=batch_regions,
             exp_id=args.exp_id,
             interval=args.interval,
             verbose=verbose,
             recent=recent_window,
+            workflow_name=workflow_name,
+            stall_threshold=stall_threshold,
         )
 
     # One-time status check
     return _show_status(
         project_id=project_id,
         region=region,
+        batch_regions=batch_regions,
         exp_id=args.exp_id,
         verbose=verbose,
         since=since,
+        workflow_name=workflow_name,
+        stall_threshold=stall_threshold,
     )
 
 
 def _show_status(
     project_id: str,
     region: str,
+    batch_regions: tuple[str, ...],
     exp_id: str | None,
     verbose: bool,
     since: datetime | None = None,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
+    stall_threshold: int = 15,
 ) -> int:
     """Show current status.
 
@@ -88,13 +117,19 @@ def _show_status(
     project_id : str
         GCP project ID
     region : str
-        GCP region
+        Cloud Workflows control-plane region
+    batch_regions : tuple[str, ...]
+        Cloud Batch data-plane regions
     exp_id : str | None
         Optional experiment ID filter
     verbose : bool
         Verbose output
     since : datetime | None
         If set, also show recently completed items since this time
+    workflow_name : str
+        Cloud Workflows workflow to query
+    stall_threshold : int
+        Minutes without provisioning progress before a zero-fill warning
 
     Returns
     -------
@@ -108,12 +143,13 @@ def _show_status(
             region=region,
             exp_id=exp_id,
             verbose=verbose,
+            workflow_name=workflow_name,
         )
 
         # Fetch active batch jobs
         jobs = fetch_active_batch_jobs(
             project_id=project_id,
-            region=region,
+            region=batch_regions,
             exp_id=exp_id,
             verbose=verbose,
         )
@@ -128,17 +164,29 @@ def _show_status(
                 exp_id=exp_id,
                 since=since,
                 verbose=verbose,
+                workflow_name=workflow_name,
             )
             recent_jobs = fetch_recent_batch_jobs(
                 project_id=project_id,
-                region=region,
+                region=batch_regions,
                 exp_id=exp_id,
                 since=since,
                 verbose=verbose,
             )
 
-        # Display status
-        display_status(workflows, jobs, exp_id, recent_workflows, recent_jobs)
+        provisioning_alerts = detect_one_shot_provisioning_alerts(
+            jobs,
+            threshold_minutes=stall_threshold,
+        )
+
+        display_status(
+            workflows,
+            jobs,
+            exp_id,
+            recent_workflows,
+            recent_jobs,
+            provisioning_alerts=provisioning_alerts,
+        )
 
         return 0
 
@@ -154,10 +202,13 @@ def _show_status(
 def _watch_status(
     project_id: str,
     region: str,
+    batch_regions: tuple[str, ...],
     exp_id: str | None,
     interval: int,
     verbose: bool,
     recent: str | None = None,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
+    stall_threshold: int = 15,
 ) -> int:
     """Watch status with auto-refresh.
 
@@ -166,7 +217,9 @@ def _watch_status(
     project_id : str
         GCP project ID
     region : str
-        GCP region
+        Cloud Workflows control-plane region
+    batch_regions : tuple[str, ...]
+        Cloud Batch data-plane regions
     exp_id : str | None
         Optional experiment ID filter
     interval : int
@@ -174,7 +227,11 @@ def _watch_status(
     verbose : bool
         Verbose output
     recent : str | None
-        Recent time window string (e.g., "1h", "30m") — re-parsed each refresh
+        Recent time window string (e.g., "1h", "30m"), re-parsed each refresh
+    workflow_name : str
+        Cloud Workflows workflow to query
+    stall_threshold : int
+        Minutes without occupancy progress before reporting a stall
 
     Returns
     -------
@@ -183,6 +240,7 @@ def _watch_status(
     """
     status(f"Watching pipeline status (refreshing every {interval}s, Ctrl+C to stop)...")
     status("")
+    stall_tracker = ProvisioningStallTracker(stall_threshold)
 
     try:
         while True:
@@ -196,11 +254,12 @@ def _watch_status(
                     region=region,
                     exp_id=exp_id,
                     verbose=verbose,
+                    workflow_name=workflow_name,
                 )
 
                 jobs = fetch_active_batch_jobs(
                     project_id=project_id,
-                    region=region,
+                    region=batch_regions,
                     exp_id=exp_id,
                     verbose=verbose,
                 )
@@ -217,19 +276,28 @@ def _watch_status(
                             exp_id=exp_id,
                             since=since,
                             verbose=verbose,
+                            workflow_name=workflow_name,
                         )
                         recent_jobs = fetch_recent_batch_jobs(
                             project_id=project_id,
-                            region=region,
+                            region=batch_regions,
                             exp_id=exp_id,
                             since=since,
                             verbose=verbose,
                         )
 
-                display_status(workflows, jobs, exp_id, recent_workflows, recent_jobs)
+                provisioning_alerts = stall_tracker.observe(jobs)
+                display_status(
+                    workflows,
+                    jobs,
+                    exp_id,
+                    recent_workflows,
+                    recent_jobs,
+                    provisioning_alerts=provisioning_alerts,
+                )
 
                 # Show refresh time
-                now = format_timestamp_local(datetime.now().isoformat())
+                now = format_timestamp_local(datetime.now(UTC).isoformat())
                 print(f"Last updated: {now} (refreshing every {interval}s)")
 
             except Exception as e:

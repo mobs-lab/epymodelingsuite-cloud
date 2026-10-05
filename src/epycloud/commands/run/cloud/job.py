@@ -1,12 +1,13 @@
 """Cloud job execution for run command."""
 
-import json
-import os
-import subprocess
-import tempfile
 import uuid
 from typing import Any
 
+from epycloud.execution import (
+    ExecutionBackend,
+    ExecutionBackendError,
+    StageJobSpec,
+)
 from epycloud.lib.command_helpers import (
     generate_run_id,
     get_batch_config,
@@ -21,12 +22,12 @@ from ..validation import (
     add_stage_specific_info,
     build_base_confirmation_info,
     prompt_user_confirmation,
-    validate_and_get_machine_specs,
+    resolve_stage_candidates,
 )
-from .batch_config import build_batch_job_config
 
 
-def run_job_cloud(
+def run_job_gcp(
+    backend: ExecutionBackend,
     ctx: dict[str, Any],
     config: dict[str, Any],
     stage: str,
@@ -34,6 +35,7 @@ def run_job_cloud(
     run_id: str | None,
     task_index: int,
     num_tasks: int | None,
+    fresh: bool,
     output_config: str | None,
     machine_type_override: str | None,
     billing_project_override: str | None,
@@ -43,7 +45,7 @@ def run_job_cloud(
     verbose: bool,
     dry_run: bool,
 ) -> int:
-    """Submit individual job to Cloud Batch.
+    """Prepare and submit an individual job through the GCP backend.
 
     Parameters
     ----------
@@ -61,6 +63,8 @@ def run_job_cloud(
         Task index for stage B
     num_tasks : int | None
         Number of tasks for stage C
+    fresh : bool
+        Recompute Stage B even when a matching completed result exists
     output_config : str | None
         Output config filename for Stage C (e.g., "output_projection.yaml")
     machine_type_override : str | None
@@ -102,20 +106,12 @@ def run_job_cloud(
     # Get stage-specific resources
     stage_key = f"stage_{stage.lower()}"
     stage_config = batch_config.get(stage_key, {})
-    cpu_milli = stage_config.get("cpu_milli", 2000)
-    memory_mib = stage_config.get("memory_mib", 8192)
-    machine_type = stage_config.get("machine_type", "")
-    max_run_duration = stage_config.get("max_run_duration", 3600)
-
-    # Apply machine type override if provided
-    if machine_type_override:
-        result = validate_and_get_machine_specs(
-            machine_type_override, f"Stage {stage}", project_id, region
-        )
-        if result is None:
-            return 1
-        cpu_milli, memory_mib = result
-        machine_type = machine_type_override
+    stage_defaults = {
+        "A": (2000, 7168, 3600),
+        "B": (2000, 7168, 36000),
+        "C": (4000, 15360, 7200),
+    }
+    default_cpu, default_memory, default_duration = stage_defaults[stage]
 
     # Set default for task_count_per_node if not provided
     if not task_count_per_node:
@@ -125,6 +121,33 @@ def run_job_cloud(
     if not project_id or not bucket_name:
         error("Missing required configuration: project_id or bucket_name")
         return 2
+
+    job_stage_config = stage_config
+    configured_chain = stage_config.get("machine_types")
+    if machine_type_override is None and isinstance(configured_chain, list) and configured_chain:
+        # A manual job is intentionally one attempt. The workflow owns
+        # fallback, while run job uses the configured head as an explicit
+        # repair/debug choice.
+        job_stage_config = {**stage_config, "machine_types": [configured_chain[0]]}
+
+    resolved = resolve_stage_candidates(
+        job_stage_config,
+        machine_type_override,
+        f"Stage {stage}",
+        project_id,
+        region,
+        default_cpu_milli=default_cpu,
+        default_memory_mib=default_memory,
+        default_max_run_duration=default_duration,
+    )
+    if resolved is None:
+        return 1
+    candidates, _ = resolved
+    resources = candidates[0]
+    cpu_milli = resources.cpu_milli
+    memory_mib = resources.memory_mib
+    machine_type = resources.machine_type
+    max_run_duration = resources.max_run_duration
 
     # Get batch service account
     batch_sa_email = get_batch_service_account(project_id)
@@ -174,81 +197,55 @@ def run_job_cloud(
 
     status(f"Submitting Stage {stage} job to Cloud Batch...")
 
-    # Build job configuration
-    job_config = build_batch_job_config(
-        stage=stage,
-        exp_id=exp_id,
-        run_id=run_id,
-        task_index=task_index,
-        num_tasks=num_tasks,
-        output_config=output_config,
-        image_uri=image_uri,
-        bucket_name=bucket_name,
-        dir_prefix=dir_prefix,
-        github_forecast_repo=github_forecast_repo,
-        project_id=project_id,
-        cpu_milli=cpu_milli,
-        memory_mib=memory_mib,
-        machine_type=machine_type,
-        max_run_duration=max_run_duration,
-        task_count_per_node=task_count_per_node,
-        batch_sa_email=batch_sa_email,
-        profile=profile_name,
-        billing_project=billing_project,
+    plan = backend.plan_job(
+        StageJobSpec(
+            job_id=job_id,
+            stage=stage,
+            experiment_id=exp_id,
+            run_id=run_id,
+            task_index=task_index,
+            num_tasks=num_tasks,
+            output_config=output_config,
+            image_uri=image_uri,
+            storage_bucket=bucket_name,
+            storage_prefix=dir_prefix,
+            forecast_repo=github_forecast_repo,
+            resources=resources,
+            task_count_per_node=task_count_per_node,
+            execution_identity=batch_sa_email,
+            profile=profile_name,
+            billing_project=billing_project,
+            skip_existing=stage == "B" and not fresh,
+        )
     )
 
     if handle_dry_run(
         {"dry_run": dry_run},
         f"Submit batch job {job_id}",
-        {"job_config": json.dumps(job_config, indent=2)},
+        plan.display_details,
     ):
         return 0
 
-    # Write config to temp file
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump(job_config, f, indent=2)
-        temp_file = f.name
-
     try:
-        # Submit job
-        cmd = [
-            "gcloud",
-            "batch",
-            "jobs",
-            "submit",
-            job_id,
-            f"--project={project_id}",
-            f"--location={region}",
-            f"--config={temp_file}",
-        ]
+        run_ref = backend.submit_job(plan)
+    except ExecutionBackendError:
+        error("Job submission failed")
+        return 1
 
-        result = subprocess.run(cmd, check=False)
+    success("Job submitted successfully!")
+    info(f"Job Name: {run_ref.resource_name}")
+    print()
+    info("Monitor with:")
+    info(f"  gcloud batch jobs describe {job_id} --location={region}")
+    print()
+    info("View logs:")
+    info(
+        f'  gcloud logging read \'resource.type="batch.googleapis.com/Job" '
+        f'AND labels.job_uid="{job_id}"\' --limit=50'
+    )
 
-        if result.returncode != 0:
-            error("Job submission failed")
-            return 1
+    if wait:
+        warning("--wait not yet implemented")
+        info("Use: gcloud batch jobs describe --wait")
 
-        success("Job submitted successfully!")
-        info(f"Job Name: projects/{project_id}/locations/{region}/jobs/{job_id}")
-        print()
-        info("Monitor with:")
-        info(f"  gcloud batch jobs describe {job_id} --location={region}")
-        print()
-        info("View logs:")
-        info(
-            f'  gcloud logging read \'resource.type="batch.googleapis.com/Job" '
-            f'AND labels.job_uid="{job_id}"\' --limit=50'
-        )
-
-        if wait:
-            warning("--wait not yet implemented")
-            info("Use: gcloud batch jobs describe --wait")
-
-        return 0
-
-    finally:
-        # Clean up temp file
-        try:
-            os.unlink(temp_file)
-        except OSError:
-            pass
+    return 0

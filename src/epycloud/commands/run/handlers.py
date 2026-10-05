@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from epycloud.exceptions import ConfigError
+from epycloud.execution import ExecutionBackend, get_execution_backend
 from epycloud.lib.command_helpers import get_project_root, require_config, validate_inputs
 from epycloud.lib.output import error, status
 
-from .cloud.job import run_job_cloud
-from .cloud.workflow import run_workflow_cloud
+from .cloud.job import run_job_gcp
+from .cloud.workflow import run_workflow_gcp
 from .local.job import run_job_local
 from .local.workflow import run_workflow_local
 
@@ -80,6 +81,7 @@ def handle_workflow(ctx: dict[str, Any]) -> int:
     local = args.local
     skip_output = args.skip_output
     max_parallelism = args.max_parallelism
+    batch_region = getattr(args, "batch_region", None)
     task_count_per_node = getattr(args, "task_count_per_node", None)
     stage_a_machine_type_override = getattr(args, "stage_a_machine_type", None)
     stage_b_machine_type_override = getattr(args, "stage_b_machine_type", None)
@@ -111,7 +113,14 @@ def handle_workflow(ctx: dict[str, Any]) -> int:
             project_directory=project_dir_path,
         )
     else:
-        return run_workflow_cloud(
+        backend = _get_cloud_backend(config, verbose)
+        if backend is None:
+            return 2
+        if backend.provider != "gcp":
+            error(f"No cloud workflow adapter is registered for provider: {backend.provider}")
+            return 2
+        return run_workflow_gcp(
+            backend=backend,
             ctx=ctx,
             config=config,
             exp_id=exp_id,
@@ -119,6 +128,7 @@ def handle_workflow(ctx: dict[str, Any]) -> int:
             skip_output=skip_output,
             output_config=output_config,
             max_parallelism=max_parallelism,
+            batch_region_override=batch_region,
             task_count_per_node=task_count_per_node,
             stage_a_machine_type_override=stage_a_machine_type_override,
             stage_b_machine_type_override=stage_b_machine_type_override,
@@ -173,6 +183,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
 
     task_index = args.task_index
     num_tasks = args.num_tasks
+    fresh = getattr(args, "fresh", False)
     local = args.local
     wait = args.wait
     auto_confirm = args.yes
@@ -206,6 +217,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            fresh=fresh,
             output_config=output_config,
             auto_confirm=auto_confirm,
             verbose=verbose,
@@ -213,7 +225,14 @@ def handle_job(ctx: dict[str, Any]) -> int:
             project_directory=project_dir_path,
         )
     else:
-        return run_job_cloud(
+        backend = _get_cloud_backend(config, verbose)
+        if backend is None:
+            return 2
+        if backend.provider != "gcp":
+            error(f"No cloud job adapter is registered for provider: {backend.provider}")
+            return 2
+        return run_job_gcp(
+            backend=backend,
             ctx=ctx,
             config=config,
             stage=stage,
@@ -221,6 +240,7 @@ def handle_job(ctx: dict[str, Any]) -> int:
             run_id=run_id,
             task_index=task_index,
             num_tasks=num_tasks,
+            fresh=fresh,
             output_config=output_config,
             machine_type_override=machine_type_override,
             billing_project_override=billing_project_override,
@@ -230,3 +250,16 @@ def handle_job(ctx: dict[str, Any]) -> int:
             verbose=verbose,
             dry_run=dry_run,
         )
+
+
+def _get_cloud_backend(
+    config: dict[str, Any],
+    verbose: bool,
+) -> ExecutionBackend | None:
+    """Select a backend before entering any provider-specific command setup."""
+
+    try:
+        return get_execution_backend(config, verbose=verbose)
+    except ConfigError as exc:
+        error(str(exc))
+        return None

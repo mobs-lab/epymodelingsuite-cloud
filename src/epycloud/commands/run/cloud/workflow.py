@@ -1,31 +1,38 @@
 """Cloud workflow execution for run command."""
 
-import json
 import sys
 from typing import Any
 
 import requests
 
 from epycloud.exceptions import CloudAPIError
+from epycloud.execution import (
+    ExecutionAuthenticationError,
+    ExecutionBackend,
+    PipelineRunSpec,
+    StageResources,
+)
 from epycloud.lib.command_helpers import (
+    DEFAULT_WORKFLOW_NAME,
     get_batch_config,
     get_batch_service_account,
-    get_gcloud_access_token,
     get_github_config,
     get_image_uri,
+    get_workflow_name,
     handle_dry_run,
 )
 from epycloud.lib.output import error, info, status, success, warning
-from epycloud.lib.validation import sanitize_label_value
 
 from ..validation import (
     build_base_confirmation_info,
     prompt_user_confirmation,
-    validate_and_get_machine_specs,
+    resolve_stage_candidates,
+    validate_cross_region_preflight,
 )
 
 
-def run_workflow_cloud(
+def run_workflow_gcp(
+    backend: ExecutionBackend,
     ctx: dict[str, Any],
     config: dict[str, Any],
     exp_id: str,
@@ -33,6 +40,7 @@ def run_workflow_cloud(
     skip_output: bool,
     output_config: str | None,
     max_parallelism: int | None,
+    batch_region_override: str | None,
     task_count_per_node: int | None,
     stage_a_machine_type_override: str | None,
     stage_b_machine_type_override: str | None,
@@ -44,7 +52,7 @@ def run_workflow_cloud(
     verbose: bool,
     dry_run: bool,
 ) -> int:
-    """Submit workflow to Cloud Workflows.
+    """Prepare and submit a workflow through the GCP backend.
 
     Parameters
     ----------
@@ -62,6 +70,8 @@ def run_workflow_cloud(
         Output config filename for Stage C (e.g., "output_projection.yaml")
     max_parallelism : int | None
         Max parallel tasks
+    batch_region_override : str | None
+        Override the Cloud Batch data-plane region
     task_count_per_node : int | None
         Max tasks per VM node (1 = dedicated VM per task)
     stage_a_machine_type_override : str | None
@@ -92,7 +102,21 @@ def run_workflow_cloud(
     google_cloud = config.get("google_cloud", {})
     project_id = google_cloud.get("project_id")
     region = google_cloud.get("region", "us-central1")
+    compute_region = batch_region_override or region
+    configured_regions = google_cloud.get("batch_regions")
+    if configured_regions is None:
+        configured_region_names = {region}
+    elif isinstance(configured_regions, dict):
+        configured_region_names = set(configured_regions)
+    else:
+        error("google_cloud.batch_regions must be a mapping")
+        return 2
+    if compute_region not in configured_region_names:
+        allowed = ", ".join(sorted(configured_region_names))
+        error(f"Batch region '{compute_region}' is not configured. Configured regions: {allowed}")
+        return 2
     bucket_name = google_cloud.get("bucket_name")
+    workflow_name = get_workflow_name(config)
     storage = config.get("storage", {})
     dir_prefix = storage.get("dir_prefix", "pipeline/flu/")
     if dir_prefix and not dir_prefix.endswith("/"):
@@ -124,54 +148,56 @@ def run_workflow_cloud(
     batch_sa_email = get_batch_service_account(project_id)
 
     # Build Docker image URI
-    image_uri = get_image_uri(config)
+    image_uri = (
+        get_image_uri(config)
+        if compute_region == region
+        else get_image_uri(config, region=compute_region)
+    )
 
     # Extract image tag from config for runtime override
     docker_config = config.get("docker", {})
     image_tag = docker_config.get("image_tag", "latest")
 
-    # Process machine type overrides for all stages
-    # Stage A
-    stage_a_config = batch_config.get("stage_a", {})
-    stage_a_machine_type = stage_a_machine_type_override or stage_a_config.get("machine_type", "")
-    stage_a_cpu_milli = stage_a_config.get("cpu_milli", 2000)
-    stage_a_memory_mib = stage_a_config.get("memory_mib", 8192)
-
-    if stage_a_machine_type_override:
-        result = validate_and_get_machine_specs(
-            stage_a_machine_type_override, "Stage A", project_id, region
+    stage_configs = {stage: batch_config.get(f"stage_{stage}", {}) for stage in ("a", "b", "c")}
+    stage_defaults = {
+        "a": (2000, 7168, 3600),
+        "b": (2000, 7168, 36000),
+        "c": (4000, 15360, 7200),
+    }
+    stage_overrides = {
+        "a": stage_a_machine_type_override,
+        "b": stage_b_machine_type_override,
+        "c": stage_c_machine_type_override,
+    }
+    stage_candidates: dict[str, tuple[StageResources, ...]] = {}
+    stage_pinned: dict[str, bool] = {}
+    for stage in ("a", "b", "c"):
+        default_cpu, default_memory, default_duration = stage_defaults[stage]
+        resolved = resolve_stage_candidates(
+            stage_configs[stage],
+            stage_overrides[stage],
+            f"Stage {stage.upper()}",
+            project_id,
+            compute_region,
+            default_cpu_milli=default_cpu,
+            default_memory_mib=default_memory,
+            default_max_run_duration=default_duration,
         )
-        if result is None:
+        if resolved is None:
             return 1
-        stage_a_cpu_milli, stage_a_memory_mib = result
+        stage_candidates[stage], stage_pinned[stage] = resolved
 
-    # Stage B
-    stage_b_config = batch_config.get("stage_b", {})
-    stage_b_machine_type = stage_b_machine_type_override or stage_b_config.get("machine_type", "")
-    stage_b_cpu_milli = stage_b_config.get("cpu_milli", 2000)
-    stage_b_memory_mib = stage_b_config.get("memory_mib", 8192)
+    stage_resources = {stage: candidates[0] for stage, candidates in stage_candidates.items()}
 
-    if stage_b_machine_type_override:
-        result = validate_and_get_machine_specs(
-            stage_b_machine_type_override, "Stage B", project_id, region
-        )
-        if result is None:
-            return 1
-        stage_b_cpu_milli, stage_b_memory_mib = result
-
-    # Stage C
-    stage_c_config = batch_config.get("stage_c", {})
-    stage_c_machine_type = stage_c_machine_type_override or stage_c_config.get("machine_type", "")
-    stage_c_cpu_milli = stage_c_config.get("cpu_milli", 2000)
-    stage_c_memory_mib = stage_c_config.get("memory_mib", 8192)
-
-    if stage_c_machine_type_override:
-        result = validate_and_get_machine_specs(
-            stage_c_machine_type_override, "Stage C", project_id, region
-        )
-        if result is None:
-            return 1
-        stage_c_cpu_milli, stage_c_memory_mib = result
+    if not validate_cross_region_preflight(
+        config,
+        project_id,
+        region,
+        compute_region,
+        image_tag,
+        verbose,
+    ):
+        return 1
 
     # Extract labels
     profile_meta = config.get("_meta", {}).get("profile") or {}
@@ -201,21 +227,27 @@ def run_workflow_cloud(
             "pat_configured": bool(github["personal_access_token"]),
             "max_parallelism": max_parallelism,
             "task_count_per_node": task_count_per_node,
-            "stage_a_machine_type": stage_a_machine_type,
+            "stage_a_machine_type": stage_resources["a"].machine_type,
             "stage_a_machine_type_override": stage_a_machine_type_override,
-            "stage_a_cpu_milli": stage_a_cpu_milli,
-            "stage_a_memory_mib": stage_a_memory_mib,
-            "stage_a_max_run_duration": stage_a_config.get("max_run_duration", 3600),
-            "stage_b_machine_type": stage_b_machine_type,
+            "stage_a_machine_types": [item.machine_type for item in stage_candidates["a"]],
+            "stage_a_pinned": stage_pinned["a"],
+            "stage_a_cpu_milli": stage_resources["a"].cpu_milli,
+            "stage_a_memory_mib": stage_resources["a"].memory_mib,
+            "stage_a_max_run_duration": stage_resources["a"].max_run_duration,
+            "stage_b_machine_type": stage_resources["b"].machine_type,
             "stage_b_machine_type_override": stage_b_machine_type_override,
-            "stage_b_cpu_milli": stage_b_cpu_milli,
-            "stage_b_memory_mib": stage_b_memory_mib,
-            "stage_b_max_run_duration": stage_b_config.get("max_run_duration", 36000),
-            "stage_c_machine_type": stage_c_machine_type,
+            "stage_b_machine_types": [item.machine_type for item in stage_candidates["b"]],
+            "stage_b_pinned": stage_pinned["b"],
+            "stage_b_cpu_milli": stage_resources["b"].cpu_milli,
+            "stage_b_memory_mib": stage_resources["b"].memory_mib,
+            "stage_b_max_run_duration": stage_resources["b"].max_run_duration,
+            "stage_c_machine_type": stage_resources["c"].machine_type,
             "stage_c_machine_type_override": stage_c_machine_type_override,
-            "stage_c_cpu_milli": stage_c_cpu_milli,
-            "stage_c_memory_mib": stage_c_memory_mib,
-            "stage_c_max_run_duration": stage_c_config.get("max_run_duration", 7200),
+            "stage_c_machine_types": [item.machine_type for item in stage_candidates["c"]],
+            "stage_c_pinned": stage_pinned["c"],
+            "stage_c_cpu_milli": stage_resources["c"].cpu_milli,
+            "stage_c_memory_mib": stage_resources["c"].memory_mib,
+            "stage_c_max_run_duration": stage_resources["c"].max_run_duration,
             "skip_output": skip_output,
             "output_config": output_config,
             "image_uri": image_uri,
@@ -224,6 +256,12 @@ def run_workflow_cloud(
     )
     if billing_project:
         confirmation_info["billing_project"] = billing_project
+    if compute_region != region:
+        confirmation_info["batch_region"] = compute_region
+    # Surfaced only when submitting to a non-default pipeline, so default runs
+    # keep their existing confirmation output verbatim.
+    if workflow_name != DEFAULT_WORKFLOW_NAME:
+        confirmation_info["workflow_name"] = workflow_name
 
     # Show confirmation and prompt
     if not prompt_user_confirmation(auto_confirm, confirmation_info, mode="cloud"):
@@ -231,110 +269,55 @@ def run_workflow_cloud(
 
     status("Submitting workflow to Cloud Workflows...")
 
-    # Build workflow argument
-    workflow_arg = {
-        "bucket": bucket_name,
-        "dirPrefix": dir_prefix,
-        "exp_id": exp_id,
-        "githubForecastRepo": github_forecast_repo,
-        "batchSaEmail": batch_sa_email,
-        "imageTag": image_tag,
-    }
-
-    if profile_name:
-        workflow_arg["profile"] = sanitize_label_value(profile_name)
-
-    if billing_project:
-        workflow_arg["billingProject"] = sanitize_label_value(billing_project)
-
-    if run_id:
-        workflow_arg["runId"] = run_id
-
-    if max_parallelism:
-        workflow_arg["maxParallelism"] = max_parallelism
-
-    if task_count_per_node:
-        workflow_arg["taskCountPerNode"] = task_count_per_node
-
-    # Forward each stage's machine_type/cpu_milli/memory_mib to the workflow when
-    # the resolved machine_type (CLI override OR config) is non-empty.
-    if stage_a_machine_type:
-        workflow_arg["stageAMachineType"] = stage_a_machine_type
-        workflow_arg["stageACpuMilli"] = stage_a_cpu_milli
-        workflow_arg["stageAMemoryMib"] = stage_a_memory_mib
-
-    if stage_b_machine_type:
-        workflow_arg["stageBMachineType"] = stage_b_machine_type
-        workflow_arg["stageBCpuMilli"] = stage_b_cpu_milli
-        workflow_arg["stageBMemoryMib"] = stage_b_memory_mib
-
-    if stage_c_machine_type:
-        workflow_arg["stageCMachineType"] = stage_c_machine_type
-        workflow_arg["stageCCpuMilli"] = stage_c_cpu_milli
-        workflow_arg["stageCMemoryMib"] = stage_c_memory_mib
-
-    if github_forecast_repo_ref:
-        workflow_arg["forecastRepoRef"] = github_forecast_repo_ref
-
-    if skip_output:
-        workflow_arg["runOutputStage"] = False
-
-    if output_config:
-        workflow_arg["outputConfigFile"] = output_config
-
-    # Get auth token
-    try:
-        access_token = get_gcloud_access_token(verbose=verbose)
-    except CloudAPIError as e:
-        error(str(e))
-        return 1
-
-    # Construct API URL
-    workflow_url = (
-        f"https://workflowexecutions.googleapis.com/v1/"
-        f"projects/{project_id}/locations/{region}/workflows/epymodelingsuite-pipeline/executions"
+    plan = backend.plan_pipeline(
+        PipelineRunSpec(
+            experiment_id=exp_id,
+            run_id=run_id,
+            storage_bucket=bucket_name,
+            storage_prefix=dir_prefix,
+            forecast_repo=github_forecast_repo,
+            forecast_repo_ref=github_forecast_repo_ref,
+            image_tag=image_tag,
+            execution_identity=batch_sa_email,
+            max_parallelism=max_parallelism,
+            task_count_per_node=task_count_per_node,
+            stage_resources=stage_resources,
+            compute_region=compute_region,
+            stage_candidates=stage_candidates,
+            stage_pinned=stage_pinned,
+            profile=profile_name,
+            billing_project=billing_project,
+            skip_output=skip_output,
+            output_config=output_config,
+        )
     )
-
-    # Build request body
-    request_body = {"argument": json.dumps(workflow_arg)}
 
     if handle_dry_run(
         {"dry_run": dry_run},
         "Submit workflow",
-        {"url": workflow_url, "arguments": json.dumps(workflow_arg, indent=2)},
+        plan.display_details,
     ):
         return 0
 
     # Submit workflow
     try:
-        response = requests.post(
-            workflow_url,
-            json=request_body,
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-            },
-        )
-        response.raise_for_status()
-        result = response.json()
-        execution_name = result.get("name", "")
+        run_ref = backend.submit_pipeline(plan)
+        execution_name = run_ref.resource_name
 
         success("Workflow submitted successfully!")
         info(f"Execution: {execution_name}")
         print()
 
         # Extract execution ID from name
-        execution_id = execution_name.split("/")[-1] if execution_name else ""
+        execution_id = run_ref.run_id
 
         if execution_id:
             info("Monitor with:")
             info(
                 f"  gcloud workflows executions describe {execution_id} "
-                f"--workflow=epymodelingsuite-pipeline --location={region}"
+                f"--workflow={workflow_name} --location={region}"
             )
-            info(
-                f"  gcloud workflows executions list epymodelingsuite-pipeline --location={region}"
-            )
+            info(f"  gcloud workflows executions list {workflow_name} --location={region}")
             print()
             info("Or use:")
             info(f"  epycloud workflow describe {execution_id}")
@@ -346,6 +329,9 @@ def run_workflow_cloud(
 
         return 0
 
+    except (CloudAPIError, ExecutionAuthenticationError) as e:
+        error(str(e))
+        return 1
     except requests.HTTPError as e:
         if e.response is not None:
             error(f"Failed to submit workflow: HTTP {e.response.status_code}")

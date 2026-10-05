@@ -1,11 +1,13 @@
 """Integration tests for terraform command."""
 
+import json
 from argparse import Namespace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
+from epycloud.cli import create_parser
 from epycloud.commands import terraform
 from epycloud.exceptions import ConfigError
 
@@ -136,6 +138,14 @@ class TestTerraformInitCommand:
 class TestTerraformPlanCommand:
     """Test terraform plan command."""
 
+    def test_parser_accepts_repeated_targets(self):
+        """The CLI must preserve every repeated target needed by state moves."""
+        args = create_parser().parse_args(
+            ["terraform", "plan", "--target", "first", "--target", "second"]
+        )
+
+        assert args.target == ["first", "second"]
+
     @patch("epycloud.commands.terraform.operations.subprocess.run")
     # Removed unnecessary patch
     def test_terraform_plan_success(
@@ -194,6 +204,45 @@ class TestTerraformPlanCommand:
         call_args = mock_subprocess.call_args[0][0]
         assert "-target" in call_args
         assert "google_storage_bucket.data_bucket" in call_args
+
+    @patch("epycloud.commands.terraform.operations.subprocess.run")
+    def test_terraform_plan_with_multiple_targets(
+        self, mock_subprocess, mock_config, tmp_path
+    ):
+        """Repeated target flags include every resource in one Terraform plan."""
+        terraform_dir = tmp_path / "terraform"
+        terraform_dir.mkdir()
+        mock_subprocess.return_value = Mock(returncode=0)
+        targets = [
+            "google_compute_subnetwork.batch_subnet",
+            "google_compute_router.batch_router",
+        ]
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Namespace(
+                terraform_subcommand="plan",
+                target=targets,
+                terraform_dir=str(terraform_dir),
+            ),
+        }
+
+        exit_code = terraform.handle(ctx)
+
+        assert exit_code == 0
+        call_args = mock_subprocess.call_args[0][0]
+        assert call_args == [
+            "terraform",
+            "plan",
+            "-target",
+            targets[0],
+            "-target",
+            targets[1],
+        ]
 
     # Removed unnecessary patch
     def test_terraform_plan_dry_run(
@@ -638,6 +687,42 @@ class TestTerraformEnvVars:
         # Check GitHub
         assert env_vars["TF_VAR_github_forecast_repo"] == "mobs-lab/flu-forecast"
 
+    def test_terraform_uses_the_first_candidate_as_its_legacy_default(self):
+        """Terraform renders one default machine while runtime fallback stays in the CLI."""
+        config = {
+            "google_cloud": {
+                "batch": {
+                    "stage_c": {
+                        "cpu_milli": 4000,
+                        "memory_mib": 31744,
+                        "machine_types": ["c3-highmem-4", "c3d-highmem-4"],
+                    }
+                }
+            }
+        }
+
+        env_vars = terraform.operations.get_terraform_env_vars(config)
+
+        assert env_vars["TF_VAR_stage_c_machine_type"] == "c3-highmem-4"
+
+    def test_batch_regions_are_serialized_for_terraform(self):
+        """Terraform receives the configured data-plane regions as one JSON map."""
+        config = {
+            "google_cloud": {
+                "region": "us-central1",
+                "batch_regions": {
+                    "us-central1": {"subnet_cidr": "10.0.0.0/20"},
+                    "us-east5": {"subnet_cidr": "10.1.0.0/20"},
+                },
+            }
+        }
+
+        env_vars = terraform.operations.get_terraform_env_vars(config)
+
+        assert json.loads(env_vars["TF_VAR_batch_regions"]) == config["google_cloud"][
+            "batch_regions"
+        ]
+
     def test_get_terraform_env_vars_partial_config(self):
         """Test constructing TF_VAR environment variables with partial config."""
         config = {
@@ -653,6 +738,7 @@ class TestTerraformEnvVars:
 
         assert env_vars["TF_VAR_project_id"] == "test-project"
         assert "TF_VAR_region" not in env_vars
+        assert "TF_VAR_batch_regions" not in env_vars
         assert "TF_VAR_bucket_name" not in env_vars
 
 

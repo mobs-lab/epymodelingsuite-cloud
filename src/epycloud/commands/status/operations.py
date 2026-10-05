@@ -2,14 +2,246 @@
 
 import json
 import subprocess
-from datetime import datetime
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import requests
 
-from epycloud.lib.command_helpers import get_gcloud_access_token
+from epycloud.lib.command_helpers import DEFAULT_WORKFLOW_NAME, get_gcloud_access_token
 from epycloud.lib.formatters import format_duration, format_status, format_timestamp_local
 from epycloud.lib.output import section_header, supports_color, warning
+
+TASK_COUNT_STATES = ("SUCCEEDED", "FAILED", "RUNNING", "ASSIGNED", "PENDING")
+ACTIVE_BATCH_STATES = frozenset({"RUNNING", "SCHEDULED", "QUEUED"})
+
+
+def get_job_region(job: dict[str, Any]) -> str:
+    """Return the annotated region or derive it from a full Batch job name."""
+    if job.get("region"):
+        return str(job["region"])
+    parts = str(job.get("name", "")).split("/")
+    try:
+        return parts[parts.index("locations") + 1]
+    except (ValueError, IndexError):
+        return "unknown"
+
+
+def _as_int(value: Any) -> int:
+    """Coerce a Batch API integer value, returning zero for malformed data."""
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def extract_task_counts(job: dict[str, Any]) -> dict[str, int]:
+    """Extract normalized counts for the first Batch task group."""
+    task_groups = job.get("status", {}).get("taskGroups", {})
+    if isinstance(task_groups, dict):
+        first_group = next(iter(task_groups.values()), {})
+    elif isinstance(task_groups, list):
+        first_group = task_groups[0] if task_groups else {}
+    else:
+        first_group = {}
+
+    raw_counts = first_group.get("counts", {}) if isinstance(first_group, dict) else {}
+    if not isinstance(raw_counts, dict):
+        raw_counts = {}
+    normalized = {str(key).upper(): value for key, value in raw_counts.items()}
+    return {state: _as_int(normalized.get(state, 0)) for state in TASK_COUNT_STATES}
+
+
+def extract_task_count(job: dict[str, Any]) -> int:
+    """Return the configured task count for the first task group."""
+    task_groups = job.get("taskGroups", [])
+    if not isinstance(task_groups, list) or not task_groups:
+        return 0
+    first_group = task_groups[0]
+    return _as_int(first_group.get("taskCount", 0)) if isinstance(first_group, dict) else 0
+
+
+def extract_requested_parallelism(job: dict[str, Any]) -> int:
+    """Return requested parallelism, falling back to the task count."""
+    task_groups = job.get("taskGroups", [])
+    if not isinstance(task_groups, list) or not task_groups:
+        return 0
+    first_group = task_groups[0]
+    if not isinstance(first_group, dict):
+        return 0
+    return _as_int(first_group.get("parallelism")) or _as_int(first_group.get("taskCount"))
+
+
+@dataclass(frozen=True)
+class ProvisioningAlert:
+    """An underfilled Batch job that may be stalled on VM provisioning."""
+
+    job_name: str
+    stage: str
+    occupied: int
+    demand: int
+    duration_seconds: float | None
+    stalled: bool
+    resource_exhausted: bool
+
+
+@dataclass(frozen=True)
+class _JobSnapshot:
+    """Occupancy values used to evaluate provisioning progress."""
+
+    completed: int
+    occupied: int
+    demand: int
+    underfilled: bool
+
+
+@dataclass
+class _JobProgress:
+    """Last observed Batch counts and the time they changed."""
+
+    completed: int
+    occupied: int
+    last_progress_at: datetime
+
+
+def _job_snapshot(job: dict[str, Any]) -> _JobSnapshot:
+    counts = extract_task_counts(job)
+    completed = counts["SUCCEEDED"] + counts["FAILED"]
+    occupied = counts["RUNNING"] + counts["ASSIGNED"]
+    task_count = extract_task_count(job)
+    requested = extract_requested_parallelism(job)
+    remaining = max(task_count - completed, 0)
+    demand = min(requested, remaining)
+    state = str(job.get("status", {}).get("state", "UNKNOWN")).upper()
+    underfilled = state in ACTIVE_BATCH_STATES and demand > 0 and occupied < demand
+    return _JobSnapshot(completed, occupied, demand, underfilled)
+
+
+def _parse_api_time(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _reported_resource_exhaustion(job: dict[str, Any]) -> bool:
+    events = job.get("status", {}).get("statusEvents", [])
+    event_text = json.dumps(events).upper()
+    return "RESOURCE_POOL_EXHAUSTED" in event_text
+
+
+def _build_alert(
+    job: dict[str, Any],
+    snapshot: _JobSnapshot,
+    duration_seconds: float | None,
+    stalled: bool,
+) -> ProvisioningAlert:
+    job_name = job.get("name", "").split("/")[-1] or "unknown"
+    stage = job.get("labels", {}).get("stage", "unknown")
+    return ProvisioningAlert(
+        job_name=job_name,
+        stage=stage,
+        occupied=snapshot.occupied,
+        demand=snapshot.demand,
+        duration_seconds=duration_seconds,
+        stalled=stalled,
+        resource_exhausted=_reported_resource_exhaustion(job),
+    )
+
+
+def detect_one_shot_provisioning_alerts(
+    jobs: list[dict[str, Any]],
+    threshold_minutes: int,
+    now: datetime | None = None,
+) -> list[ProvisioningAlert]:
+    """Detect underfilled jobs without inventing progress history.
+
+    A never-started job has a measurable stall duration equal to its age. For
+    a partially filled job, one snapshot can report underfill but cannot say
+    how long it has persisted.
+    """
+    observed_at = now or datetime.now(UTC)
+    alerts: list[ProvisioningAlert] = []
+    threshold_seconds = threshold_minutes * 60
+
+    for job in jobs:
+        snapshot = _job_snapshot(job)
+        if not snapshot.underfilled:
+            continue
+
+        never_started = snapshot.completed == 0 and snapshot.occupied == 0
+        if never_started:
+            created_at = _parse_api_time(job.get("createTime", ""))
+            if created_at is None:
+                alerts.append(_build_alert(job, snapshot, None, stalled=False))
+                continue
+            duration_seconds = max((observed_at - created_at).total_seconds(), 0)
+            if duration_seconds < threshold_seconds:
+                continue
+            alerts.append(_build_alert(job, snapshot, duration_seconds, stalled=True))
+        else:
+            alerts.append(_build_alert(job, snapshot, None, stalled=False))
+
+    return alerts
+
+
+class ProvisioningStallTracker:
+    """Retain per-job occupancy history across status watch refreshes."""
+
+    def __init__(self, threshold_minutes: int) -> None:
+        self.threshold_seconds = threshold_minutes * 60
+        self._progress: dict[str, _JobProgress] = {}
+
+    def observe(
+        self,
+        jobs: list[dict[str, Any]],
+        now: datetime | None = None,
+    ) -> list[ProvisioningAlert]:
+        """Record a watch sample and return jobs stalled beyond the grace period."""
+        observed_at = now or datetime.now(UTC)
+        alerts: list[ProvisioningAlert] = []
+        active_keys: set[str] = set()
+
+        for job in jobs:
+            job_key = job.get("name", "")
+            if not job_key:
+                continue
+            active_keys.add(job_key)
+            snapshot = _job_snapshot(job)
+            previous = self._progress.get(job_key)
+
+            if previous is None:
+                never_started = snapshot.completed == 0 and snapshot.occupied == 0
+                created_at = _parse_api_time(job.get("createTime", "")) if never_started else None
+                last_progress_at = created_at or observed_at
+            elif (
+                snapshot.completed != previous.completed
+                or snapshot.occupied != previous.occupied
+            ):
+                last_progress_at = observed_at
+            else:
+                last_progress_at = previous.last_progress_at
+
+            self._progress[job_key] = _JobProgress(
+                completed=snapshot.completed,
+                occupied=snapshot.occupied,
+                last_progress_at=last_progress_at,
+            )
+
+            stalled_for = max((observed_at - last_progress_at).total_seconds(), 0)
+            if snapshot.underfilled and stalled_for >= self.threshold_seconds:
+                alerts.append(_build_alert(job, snapshot, stalled_for, stalled=True))
+
+        for job_key in self._progress.keys() - active_keys:
+            del self._progress[job_key]
+
+        return alerts
 
 
 def extract_image_tag(image_uri: str) -> str:
@@ -45,6 +277,7 @@ def fetch_active_workflows(
     region: str,
     exp_id: str | None,
     verbose: bool,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
 ) -> list[dict[str, Any]]:
     """Fetch active workflow executions.
 
@@ -58,13 +291,14 @@ def fetch_active_workflows(
         Optional experiment ID filter
     verbose : bool
         Verbose output
+    workflow_name : str
+        Cloud Workflows workflow to query
 
     Returns
     -------
     list[dict[str, Any]]
         List of active workflow executions
     """
-    workflow_name = "epymodelingsuite-pipeline"
     base_url = (
         f"https://workflowexecutions.googleapis.com/v1/"
         f"projects/{project_id}/locations/{region}/workflows/{workflow_name}/executions"
@@ -134,6 +368,7 @@ def fetch_recent_workflows(
     exp_id: str | None,
     since: datetime,
     verbose: bool,
+    workflow_name: str = DEFAULT_WORKFLOW_NAME,
 ) -> list[dict[str, Any]]:
     """Fetch recently completed workflow executions.
 
@@ -146,16 +381,17 @@ def fetch_recent_workflows(
     exp_id : str | None
         Optional experiment ID filter
     since : datetime
-        Cutoff time — only include executions that ended after this time
+        Cutoff time, only include executions that ended after this time
     verbose : bool
         Verbose output
+    workflow_name : str
+        Cloud Workflows workflow to query
 
     Returns
     -------
     list[dict[str, Any]]
         List of recently completed workflow executions
     """
-    workflow_name = "epymodelingsuite-pipeline"
     base_url = (
         f"https://workflowexecutions.googleapis.com/v1/"
         f"projects/{project_id}/locations/{region}/workflows/{workflow_name}/executions"
@@ -207,7 +443,7 @@ def fetch_recent_workflows(
 
 def fetch_active_batch_jobs(
     project_id: str,
-    region: str,
+    region: str | Sequence[str],
     exp_id: str | None,
     verbose: bool,
 ) -> list[dict[str, Any]]:
@@ -217,8 +453,8 @@ def fetch_active_batch_jobs(
     ----------
     project_id : str
         GCP project ID
-    region : str
-        GCP region
+    region : str | Sequence[str]
+        One or more Cloud Batch regions
     exp_id : str | None
         Optional experiment ID filter
     verbose : bool
@@ -229,66 +465,58 @@ def fetch_active_batch_jobs(
     list[dict[str, Any]]
         List of active batch jobs
     """
-    try:
-        # Build gcloud command filter
-        # Note: Multiple state checks need parentheses for OR grouping
-        state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
+    state_filter = "(status.state:RUNNING OR status.state:QUEUED OR status.state:SCHEDULED)"
+    if exp_id:
+        from epycloud.lib.validation import sanitize_label_value
 
-        if exp_id:
-            # Sanitize exp_id for label filtering (must match what was set in job creation)
-            from epycloud.lib.validation import sanitize_label_value
+        exp_id_label = sanitize_label_value(exp_id)
+        filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
+    else:
+        filter_expr = state_filter
 
-            exp_id_label = sanitize_label_value(exp_id)
-            # Combine state filter with exp_id filter using AND
-            filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
-        else:
-            filter_expr = state_filter
-
+    regions = (region,) if isinstance(region, str) else tuple(region)
+    all_jobs: list[dict[str, Any]] = []
+    for batch_region in regions:
         cmd = [
             "gcloud",
             "batch",
             "jobs",
             "list",
             f"--project={project_id}",
-            f"--location={region}",
+            f"--location={batch_region}",
             "--format=json",
             f"--filter={filter_expr}",
         ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if not result.stdout.strip():
+                continue
+            jobs = json.loads(result.stdout)
+            for job in jobs:
+                job["region"] = batch_region
+            all_jobs.extend(jobs)
+        except Exception as e:
+            if verbose:
+                warning(f"Failed to fetch batch jobs in {batch_region}: {e}")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+    # Sort by experiment and region for stable output across calls.
+    def get_job_exp_id(job: dict[str, Any]) -> tuple[str, str]:
+        task_groups = job.get("taskGroups", [])
+        if task_groups:
+            task_spec = task_groups[0].get("taskSpec", {})
+            env_vars = task_spec.get("environment", {}).get("variables", {})
+            exp_id = env_vars.get("EXP_ID", job.get("labels", {}).get("exp_id", ""))
+        else:
+            exp_id = job.get("labels", {}).get("exp_id", "")
+        return exp_id, job.get("region", "")
 
-        if not result.stdout.strip():
-            return []
-
-        jobs = json.loads(result.stdout)
-
-        # Sort by exp_id
-        def get_job_exp_id(job: dict[str, Any]) -> str:
-            task_groups = job.get("taskGroups", [])
-            if task_groups:
-                task_spec = task_groups[0].get("taskSpec", {})
-                env_vars = task_spec.get("environment", {}).get("variables", {})
-                return env_vars.get("EXP_ID", job.get("labels", {}).get("exp_id", ""))
-            return job.get("labels", {}).get("exp_id", "")
-
-        jobs.sort(key=get_job_exp_id)
-
-        return jobs
-
-    except Exception as e:
-        if verbose:
-            warning(f"Failed to fetch batch jobs: {e}")
-        return []
+    all_jobs.sort(key=get_job_exp_id)
+    return all_jobs
 
 
 def fetch_recent_batch_jobs(
     project_id: str,
-    region: str,
+    region: str | Sequence[str],
     exp_id: str | None,
     since: datetime,
     verbose: bool,
@@ -299,12 +527,12 @@ def fetch_recent_batch_jobs(
     ----------
     project_id : str
         GCP project ID
-    region : str
-        GCP region
+    region : str | Sequence[str]
+        One or more Cloud Batch regions
     exp_id : str | None
         Optional experiment ID filter
     since : datetime
-        Cutoff time — only include jobs that ended after this time
+        Cutoff time, only include jobs that ended after this time
     verbose : bool
         Verbose output
 
@@ -313,58 +541,52 @@ def fetch_recent_batch_jobs(
     list[dict[str, Any]]
         List of recently completed batch jobs
     """
-    try:
-        state_filter = "(status.state:SUCCEEDED OR status.state:FAILED)"
+    state_filter = "(status.state:SUCCEEDED OR status.state:FAILED OR status.state:CANCELLED)"
+    if exp_id:
+        from epycloud.lib.validation import sanitize_label_value
 
-        if exp_id:
-            from epycloud.lib.validation import sanitize_label_value
+        exp_id_label = sanitize_label_value(exp_id)
+        filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
+    else:
+        filter_expr = state_filter
 
-            exp_id_label = sanitize_label_value(exp_id)
-            filter_expr = f"{state_filter} AND labels.exp_id={exp_id_label}"
-        else:
-            filter_expr = state_filter
-
+    regions = (region,) if isinstance(region, str) else tuple(region)
+    since_iso = since.isoformat()
+    filtered: list[dict[str, Any]] = []
+    for batch_region in regions:
         cmd = [
             "gcloud",
             "batch",
             "jobs",
             "list",
             f"--project={project_id}",
-            f"--location={region}",
+            f"--location={batch_region}",
             "--format=json",
             f"--filter={filter_expr}",
             "--sort-by=~createTime",
         ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if not result.stdout.strip():
+                continue
+            for job in json.loads(result.stdout):
+                status_events = job.get("status", {}).get("statusEvents", [])
+                update_time = (
+                    status_events[-1].get("eventTime", "")
+                    if status_events
+                    else job.get("updateTime", "")
+                )
+                if not update_time:
+                    update_time = job.get("createTime", "")
+                if update_time and update_time >= since_iso:
+                    job["region"] = batch_region
+                    filtered.append(job)
+        except Exception as e:
+            if verbose:
+                warning(f"Failed to fetch recent batch jobs in {batch_region}: {e}")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        if not result.stdout.strip():
-            return []
-
-        jobs = json.loads(result.stdout)
-
-        # Client-side filter by updateTime >= since
-        since_iso = since.isoformat()
-        filtered = []
-        for job in jobs:
-            update_time = job.get("status", {}).get("statusEvents", [{}])[-1].get("eventTime", "") if job.get("status", {}).get("statusEvents") else job.get("updateTime", "")
-            # Fallback: use createTime if no updateTime available
-            if not update_time:
-                update_time = job.get("createTime", "")
-            if update_time and update_time >= since_iso:
-                filtered.append(job)
-
-        return filtered
-
-    except Exception as e:
-        if verbose:
-            warning(f"Failed to fetch recent batch jobs: {e}")
-        return []
+    filtered.sort(key=lambda job: job.get("createTime", ""), reverse=True)
+    return filtered
 
 
 def display_status(
@@ -373,6 +595,7 @@ def display_status(
     exp_id_filter: str | None,
     recent_workflows: list[dict[str, Any]] | None = None,
     recent_jobs: list[dict[str, Any]] | None = None,
+    provisioning_alerts: list[ProvisioningAlert] | None = None,
 ) -> None:
     """Display pipeline status.
 
@@ -388,6 +611,8 @@ def display_status(
         List of recently completed workflow executions
     recent_jobs : list[dict[str, Any]] | None
         List of recently completed batch jobs
+    provisioning_alerts : list[ProvisioningAlert] | None
+        Underfilled active jobs to explain after the active jobs table
     """
     # Display active workflows
     if workflows:
@@ -437,9 +662,12 @@ def display_status(
     if jobs:
         section_header("Active batch jobs")
 
-        print("-" * 135)
-        print(f"{'EXP_ID':<60} {'JOB NAME':<25} {'STAGE':<8} {'IMAGE TAG':<15} {'STATUS':<12} {'TASKS':<7}")
-        print("-" * 135)
+        print("-" * 160)
+        print(
+            f"{'EXP_ID':<60} {'JOB NAME':<25} {'REGION':<13} {'STAGE':<8} {'IMAGE TAG':<15} "
+            f"{'STATUS':<12} {'TASKS':<9} {'SLOTS':<9}"
+        )
+        print("-" * 160)
 
         for job in jobs:
             job_name = job.get("name", "").split("/")[-1]
@@ -452,6 +680,7 @@ def display_status(
             # Get labels
             labels = job.get("labels", {})
             stage = labels.get("stage", "unknown")
+            batch_region = get_job_region(job)
 
             # Get exp_id and image_uri from task spec
             task_groups_list = job.get("taskGroups", [])
@@ -476,36 +705,49 @@ def display_status(
             if len(image_tag) > 15:
                 image_tag = image_tag[:12] + "..."
 
-            # Get task counts
-            task_groups = status.get("taskGroups", {})
-            if task_groups:
-                # Get first task group
-                first_group = list(task_groups.values())[0] if task_groups else {}
-                task_counts = first_group.get("counts", {})
+            task_counts = extract_task_counts(job)
+            completed = task_counts["SUCCEEDED"] + task_counts["FAILED"]
+            task_count = extract_task_count(job)
+            if task_count <= 0:
+                task_count = sum(task_counts.values())
+            tasks_str = f"{completed}/{task_count}" if task_count > 0 else "N/A"
 
-                # Convert counts to integers (API may return strings)
-                succeeded = int(task_counts.get("SUCCEEDED", 0))
-                failed = int(task_counts.get("FAILED", 0))
-                running = int(task_counts.get("RUNNING", 0))
-                pending = int(task_counts.get("PENDING", 0))
-
-                # Calculate total tasks
-                total = succeeded + failed + running + pending
-                completed = succeeded + failed
-
-                if total > 0:
-                    tasks_str = f"{completed}/{total}"
-                else:
-                    tasks_str = f"{running} running" if running > 0 else "pending"
-            else:
-                tasks_str = "N/A"
+            snapshot = _job_snapshot(job)
+            slots_str = (
+                f"{snapshot.occupied}/{snapshot.demand}"
+                if snapshot.demand > 0
+                else "N/A"
+            )
 
             # Color code status (pad before coloring to avoid ANSI escape code width issues)
             status_padded = f"{state:<12}"
             status_display = format_status(status_padded, "batch")
 
-            print(f"{exp_id:<60} {job_name:<25} {stage:<8} {image_tag:<15} {status_display} {tasks_str:<7}")
+            print(
+                f"{exp_id:<60} {job_name:<25} {batch_region:<13} "
+                f"{stage:<8} {image_tag:<15} "
+                f"{status_display} {tasks_str:<9} {slots_str:<9}"
+            )
 
+        print()
+
+    if provisioning_alerts:
+        section_header("Provisioning warnings")
+        for alert in provisioning_alerts:
+            waiting = alert.demand - alert.occupied
+            if alert.duration_seconds is None:
+                detail = "underfilled, duration unknown"
+            else:
+                detail = f"provisioning stalled for {_format_elapsed(alert.duration_seconds)}"
+            exhaustion = (
+                " Batch reported zone resource pool exhaustion."
+                if alert.resource_exhausted
+                else ""
+            )
+            print(
+                f"- {alert.job_name} ({alert.stage}): {alert.occupied}/{alert.demand} slots "
+                f"occupied, {waiting} task(s) waiting; {detail}.{exhaustion}"
+            )
         print()
 
     # Display recent workflows
@@ -552,6 +794,17 @@ def _extract_workflow_exp_id(workflow: dict[str, Any]) -> str:
     if len(exp_id) > 60:
         exp_id = exp_id[:57] + "..."
     return exp_id
+
+
+def _format_elapsed(seconds: float) -> str:
+    """Format a stall duration compactly for the warning block."""
+    minutes = max(int(seconds // 60), 0)
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, remaining_minutes = divmod(minutes, 60)
+    if remaining_minutes:
+        return f"{hours}h {remaining_minutes}m"
+    return f"{hours}h"
 
 
 def display_recent_workflows(workflows: list[dict[str, Any]]) -> None:
@@ -609,9 +862,12 @@ def display_recent_batch_jobs(jobs: list[dict[str, Any]]) -> None:
     """
     section_header("Recently completed batch jobs")
 
-    print("-" * 135)
-    print(f"{'EXP_ID':<50} {'JOB NAME':<25} {'STAGE':<8} {'STATUS':<14} {'DURATION':<12} {'TASKS':<7}")
-    print("-" * 135)
+    print("-" * 149)
+    print(
+        f"{'EXP_ID':<50} {'JOB NAME':<25} {'REGION':<13} {'STAGE':<8} "
+        f"{'STATUS':<14} {'DURATION':<12} {'TASKS':<7}"
+    )
+    print("-" * 149)
 
     for job in jobs:
         job_name = job.get("name", "").split("/")[-1]
@@ -623,6 +879,7 @@ def display_recent_batch_jobs(jobs: list[dict[str, Any]]) -> None:
 
         labels = job.get("labels", {})
         stage = labels.get("stage", "unknown")
+        batch_region = get_job_region(job)
 
         # Get exp_id from task spec or labels
         task_groups_list = job.get("taskGroups", [])
@@ -646,21 +903,19 @@ def display_recent_batch_jobs(jobs: list[dict[str, Any]]) -> None:
             end_time = job.get("updateTime", "")
         duration_str = format_duration(create_time, end_time) if create_time and end_time else "unknown"
 
-        # Task counts
-        task_groups = status.get("taskGroups", {})
-        if task_groups:
-            first_group = list(task_groups.values())[0] if task_groups else {}
-            task_counts = first_group.get("counts", {})
-            succeeded = int(task_counts.get("SUCCEEDED", 0))
-            failed = int(task_counts.get("FAILED", 0))
-            total = succeeded + failed
-            tasks_str = f"{succeeded}/{total}" if total > 0 else "N/A"
-        else:
-            tasks_str = "N/A"
+        task_counts = extract_task_counts(job)
+        succeeded = task_counts["SUCCEEDED"]
+        failed = task_counts["FAILED"]
+        completed = succeeded + failed
+        total = extract_task_count(job) or completed
+        tasks_str = f"{completed}/{total}" if total > 0 else "N/A"
 
         status_padded = f"{state:<14}"
         status_display = format_status(status_padded, "batch")
 
-        print(f"{exp_id:<50} {job_name:<25} {stage:<8} {status_display} {duration_str:<12} {tasks_str:<7}")
+        print(
+            f"{exp_id:<50} {job_name:<25} {batch_region:<13} {stage:<8} "
+            f"{status_display} {duration_str:<12} {tasks_str:<7}"
+        )
 
     print()

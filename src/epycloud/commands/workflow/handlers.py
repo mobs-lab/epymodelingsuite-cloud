@@ -8,14 +8,27 @@ from typing import Any
 import requests
 
 from epycloud.exceptions import ConfigError
+from epycloud.execution import ExecutionAuthenticationError, RunQuery, get_execution_backend
 from epycloud.lib.command_helpers import (
     get_gcloud_access_token,
+    get_workflow_name,
     require_config,
 )
 from epycloud.lib.formatters import parse_since_time
 from epycloud.lib.output import error, info, status, success, warning
 
 from . import api, display, streaming
+
+
+def _get_backend(config: dict[str, Any], verbose: bool):
+    """Create the configured backend while preserving patchable legacy boundaries."""
+
+    return get_execution_backend(
+        config,
+        verbose=verbose,
+        token_provider=lambda: get_gcloud_access_token(verbose),
+        workflow_api=api,
+    )
 
 
 def handle(ctx: dict[str, Any]) -> int:
@@ -36,6 +49,12 @@ def handle(ctx: dict[str, Any]) -> int:
     # Validate configuration
     try:
         require_config(ctx)
+    except ConfigError as e:
+        error(str(e))
+        return 2
+
+    try:
+        _get_backend(ctx["config"], ctx["verbose"])
     except ConfigError as e:
         error(str(e))
         return 2
@@ -85,58 +104,34 @@ def handle_list(ctx: dict[str, Any]) -> int:
     google_cloud_config = config.get("google_cloud", {})
     project_id = google_cloud_config.get("project_id")
     region = google_cloud_config.get("region", "us-central1")
-
     if not project_id:
         error("google_cloud.project_id not configured")
         return 2
 
-    # Get workflow name (from terraform)
-    workflow_name = "epymodelingsuite-pipeline"
-
-    # Get auth token
-    try:
-        token = get_gcloud_access_token(verbose)
-    except Exception as e:
-        error(f"Failed to get access token: {e}")
-        return 1
-
     # Make API request
     try:
-        executions = api.list_executions(
-            project_id, region, workflow_name, token, args.limit, args.status
+        cutoff_time = parse_since_time(args.since) if args.since else None
+        backend = _get_backend(config, verbose)
+        records = backend.list_runs(
+            RunQuery(
+                limit=args.limit,
+                status=args.status,
+                since=cutoff_time,
+                experiment_id=args.exp_id,
+            )
         )
-
-        # Apply time-based filter first (doesn't need arguments)
-        if args.since:
-            cutoff_time = parse_since_time(args.since)
-            if cutoff_time:
-                executions = [
-                    e for e in executions if _parse_timestamp(e.get("startTime", "")) > cutoff_time
-                ]
-
-        if not executions:
-            status("No workflow executions found")
-            return 0
-
-        # Enrich executions with arguments (list endpoint doesn't include them)
-        executions = api.enrich_executions_with_arguments(executions, token, verbose)
-
-        # Apply exp_id filter after enrichment (needs arguments)
-        if args.exp_id:
-            executions = [
-                e
-                for e in executions
-                if args.exp_id in e.get("argument", e.get("workflowRevisionId", ""))
-            ]
-
-        if not executions:
+        if not records:
             status("No workflow executions found")
             return 0
 
         # Display executions
+        executions = [record.raw for record in records]
         display.display_execution_list(executions, region)
         return 0
 
+    except ExecutionAuthenticationError as e:
+        error(f"Failed to get access token: {e}")
+        return 1
     except requests.HTTPError as e:
         error(f"Failed to list executions: HTTP {e.response.status_code}")
         if verbose and e.response is not None:
@@ -171,30 +166,20 @@ def handle_describe(ctx: dict[str, Any]) -> int:
     # Get config values
     google_cloud_config = config.get("google_cloud", {})
     project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
-
     if not project_id:
         error("google_cloud.project_id not configured")
         return 2
 
-    # Parse execution ID
-    execution_name = api.parse_execution_name(
-        args.execution_id, project_id, region, "epymodelingsuite-pipeline"
-    )
-
-    # Get auth token
-    try:
-        token = get_gcloud_access_token(verbose)
-    except Exception as e:
-        error(f"Failed to get access token: {e}")
-        return 1
-
     # Make API request
     try:
-        execution = api.get_execution(execution_name, token)
-        display.display_execution_details(execution)
+        backend = _get_backend(config, verbose)
+        record = backend.describe_run(args.execution_id)
+        display.display_execution_details(record.raw)
         return 0
 
+    except ExecutionAuthenticationError as e:
+        error(f"Failed to get access token: {e}")
+        return 1
     except requests.HTTPError as e:
         if e.response is not None and e.response.status_code == 404:
             error(f"Execution not found: {args.execution_id}")
@@ -234,7 +219,6 @@ def handle_logs(ctx: dict[str, Any]) -> int:
     google_cloud_config = config.get("google_cloud", {})
     project_id = google_cloud_config.get("project_id")
     region = google_cloud_config.get("region", "us-central1")
-
     if not project_id:
         error("google_cloud.project_id not configured")
         return 2
@@ -247,7 +231,7 @@ def handle_logs(ctx: dict[str, Any]) -> int:
 
     status(f"Fetching logs for execution: {execution_id}")
 
-    workflow_name = "epymodelingsuite-pipeline"
+    workflow_name = get_workflow_name(config)
 
     if args.follow:
         # For follow mode, we need to continuously poll
@@ -292,93 +276,54 @@ def handle_cancel(ctx: dict[str, Any]) -> int:
     # Get config values
     google_cloud_config = config.get("google_cloud", {})
     project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
 
     if not project_id:
         error("google_cloud.project_id not configured")
         return 2
 
-    # Parse execution ID
-    execution_name = api.parse_execution_name(
-        args.execution_id, project_id, region, "epymodelingsuite-pipeline"
-    )
+    backend = _get_backend(config, verbose)
+    run_ref = backend.resolve_run_ref(args.execution_id)
 
     status(f"Cancelling execution: {args.execution_id}")
 
     if dry_run:
-        status(f"Would cancel: {execution_name}")
+        status(f"Would cancel: {run_ref.resource_name}")
         return 0
-
-    # Get auth token
-    try:
-        token = get_gcloud_access_token(verbose)
-    except Exception as e:
-        error(f"Failed to get access token: {e}")
-        return 1
-
-    # Construct batch job names deterministically from execution ID
-    # Job IDs follow pattern: stage-{a,b,c}-{first-8-chars-of-execution-id}
-    batch_job_names = []
-    if not args.only_workflow:
-        execution_id = args.execution_id.split("/")[-1]  # Extract ID from full path
-        execution_prefix = execution_id[:8]
-
-        # Construct full job resource paths
-        for stage in ["a", "b", "c"]:
-            job_name = (
-                f"projects/{project_id}/locations/{region}/jobs/"
-                f"stage-{stage}-{execution_prefix}"
-            )
-            batch_job_names.append(job_name)
 
     # Make API request
     try:
-        api.cancel_execution(execution_name, token)
+        result = backend.cancel_run(args.execution_id, include_jobs=not args.only_workflow)
         success(f"Execution cancelled: {args.execution_id}")
 
-        # Cancel child batch jobs unless --only-workflow flag is set
-        if not args.only_workflow and batch_job_names:
-            cancelled_count = 0
-            not_found_count = 0
-            failed_count = 0
+        cancelled_count = 0
+        failed_count = 0
+        for child in result.children:
+            if child.outcome == "cancelled":
+                status(f"Cancelled job: {child.job_id}")
+                cancelled_count += 1
+            elif child.outcome == "not_found":
+                if verbose:
+                    status(f"Job not found: {child.job_id}")
+            elif child.outcome == "already_complete":
+                status(f"Job already completed: {child.job_id}")
+            else:
+                if child.status_code is not None:
+                    warning(f"Failed to cancel job {child.job_id}: HTTP {child.status_code}")
+                else:
+                    warning(f"Failed to cancel job {child.job_id}: {child.message}")
+                failed_count += 1
 
-            for job_name in batch_job_names:
-                job_id = job_name.split("/")[-1] if job_name else "unknown"
-
-                try:
-                    api.cancel_batch_job(job_name, token)
-                    status(f"Cancelled job: {job_id}")
-                    cancelled_count += 1
-                except requests.HTTPError as e:
-                    if e.response:
-                        status_code = e.response.status_code
-                        if status_code == 404:
-                            # Job doesn't exist (workflow may not have reached this stage)
-                            if verbose:
-                                status(f"Job not found: {job_id}")
-                            not_found_count += 1
-                        elif status_code == 400:
-                            # Job already completed/cancelled
-                            status(f"Job already completed: {job_id}")
-                        else:
-                            # Other errors - log but continue
-                            warning(f"Failed to cancel job {job_id}: HTTP {status_code}")
-                            failed_count += 1
-                    else:
-                        warning(f"Failed to cancel job {job_id}: No response")
-                        failed_count += 1
-                except Exception as e:
-                    warning(f"Failed to cancel job {job_id}: {e}")
-                    failed_count += 1
-
-            # Summary
-            if cancelled_count > 0:
-                success(f"Cancelled {cancelled_count} batch job(s)")
-            if failed_count > 0:
-                warning(f"Failed to cancel {failed_count} batch job(s)")
+        if cancelled_count > 0:
+            success(f"Cancelled {cancelled_count} batch job(s)")
+        if failed_count > 0:
+            warning(f"Failed to cancel {failed_count} batch job(s)")
+            return 1
 
         return 0
 
+    except ExecutionAuthenticationError as e:
+        error(f"Failed to get access token: {e}")
+        return 1
     except requests.HTTPError as e:
         if e.response is not None:
             if e.response.status_code == 404:
@@ -422,35 +367,17 @@ def handle_retry(ctx: dict[str, Any]) -> int:
     # Get config values
     google_cloud_config = config.get("google_cloud", {})
     project_id = google_cloud_config.get("project_id")
-    region = google_cloud_config.get("region", "us-central1")
 
     if not project_id:
         error("google_cloud.project_id not configured")
         return 2
 
-    # Parse execution ID
-    execution_name = api.parse_execution_name(
-        args.execution_id, project_id, region, "epymodelingsuite-pipeline"
-    )
-
     status(f"Fetching execution details: {args.execution_id}")
 
     try:
-        token = get_gcloud_access_token(verbose)
-    except Exception as e:
-        error(f"Failed to get access token: {e}")
-        return 1
-
-    try:
-        # Get original execution details
-        execution = api.get_execution(execution_name, token)
-
-        # Extract original argument
-        argument_str = execution.get("argument", "{}")
-        try:
-            original_arg = json.loads(argument_str)
-        except json.JSONDecodeError:
-            original_arg = {}
+        backend = _get_backend(config, verbose)
+        plan = backend.plan_retry(args.execution_id)
+        original_arg = plan.metadata["arguments"]
 
         status("Retrying execution with same parameters:")
         print(json.dumps(original_arg, indent=2))
@@ -459,17 +386,16 @@ def handle_retry(ctx: dict[str, Any]) -> int:
             status("Would resubmit workflow with above parameters")
             return 0
 
-        # Submit new execution with same arguments
-        result = api.submit_execution(
-            project_id, region, "epymodelingsuite-pipeline", token, original_arg
-        )
-        new_execution_name = result.get("name", "")
-        new_execution_id = new_execution_name.split("/")[-1] if new_execution_name else ""
+        run_ref = backend.submit_pipeline(plan)
+        new_execution_id = run_ref.run_id
 
         success(f"New execution submitted: {new_execution_id}")
         info(f"Monitor with: epycloud workflow describe {new_execution_id}")
         return 0
 
+    except ExecutionAuthenticationError as e:
+        error(f"Failed to get access token: {e}")
+        return 1
     except requests.HTTPError as e:
         if e.response is not None:
             if e.response.status_code == 404:

@@ -125,6 +125,19 @@ gcloud builds log <BUILD_ID> --region=$REGION --stream
 gcloud builds describe <BUILD_ID> --region=$REGION
 ```
 
+For a configured secondary Batch region, copy the already-built image by its
+resolved digest and then verify every regional tag:
+
+```bash
+epycloud build replicate --from us-central1 --to us-east5 --tag dev
+epycloud build verify-replicas --tag dev
+```
+
+Replication does not rebuild the image. The CLI resolves the source tag to a
+SHA-256 digest, submits a no-source Cloud Build using `gcrane`, and copies that
+immutable manifest to the destination tag. Verification fails if any configured
+region is missing the tag or resolves it to a different digest.
+
 ### Local Build and Push
 
 Build locally and push to Artifact Registry:
@@ -359,6 +372,11 @@ epycloud workflow cancel <execution-id>
 # Retry failed workflow
 epycloud workflow retry <execution-id>
 ```
+
+Use `epycloud workflow cancel` when the intent is to stop the entire pipeline.
+If a child Batch job is cancelled directly, workflow v2 stops without starting
+another candidate and reports `CHILD_JOB_CANCELLED`; the workflow execution is
+`FAILED` because it was not itself cancelled through the Workflows API.
 
 ### Batch Jobs
 

@@ -214,7 +214,7 @@ def handle_create(ctx: dict) -> int:
                 "batch": {
                     "stage_b": {
                         "cpu_milli": 2000,
-                        "memory_mib": 8192,
+                        "memory_mib": 7168,
                     },
                     "max_parallelism": 100,
                 },

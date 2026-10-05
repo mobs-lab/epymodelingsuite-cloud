@@ -11,7 +11,7 @@ def build_local(
     image_path: str,
     modeling_suite_repo: str,
     modeling_suite_ref: str,
-    github_pat: str,
+    github_pat: str | None,
     no_cache: bool,
     push: bool,
     verbose: bool,
@@ -110,7 +110,8 @@ def build_local(
     if modeling_suite_repo:
         cmd.append(f"--build-arg=GITHUB_MODELING_SUITE_REPO={modeling_suite_repo}")
         cmd.append(f"--build-arg=GITHUB_MODELING_SUITE_REF={modeling_suite_ref}")
-        cmd.append(f"--build-arg=GITHUB_PAT={github_pat}")
+        if github_pat:
+            cmd.append(f"--build-arg=GITHUB_PAT={github_pat}")
 
     if push:
         cmd.append("--push")

@@ -9,12 +9,26 @@
 storage:
   dir_prefix: "pipeline/{environment}/{profile}"
 
+# Cloud execution backend. Older configs without this key default to gcp.
+execution:
+  provider: gcp
+
 # Google Cloud Platform configuration
 google_cloud:
   project_id: your-gcp-project-id
   region: us-central1
+  batch_regions:
+    us-central1:
+      subnet_cidr: 10.0.0.0/20
+    us-east5:
+      subnet_cidr: 10.1.0.0/20
   bucket_name: your-bucket-name
   billing_project: ""
+
+  # Cloud Workflows workflow to submit to and query.
+  # Leave as-is for the production pipeline. environments/v2pipeline.yaml
+  # points at "epymodelingsuite-pipeline-v2", the blue/green staging workflow.
+  workflow_name: epymodelingsuite-pipeline
 
   # Cloud Batch configuration
   batch:
@@ -23,20 +37,32 @@ google_cloud:
 
     stage_a:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: "c4d-standard-2"
+      memory_mib: 7168
+      machine_types:
+        - c4d-standard-2
+        - c3-highcpu-4
+        - n4d-standard-2
+        - n4-standard-2
       max_run_duration: 3600
 
     stage_b:
       cpu_milli: 2000
-      memory_mib: 8192
-      machine_type: ""
+      memory_mib: 7168
+      machine_types:
+        - c4d-standard-2
+        - c3-highcpu-4
+        - n4d-standard-2
+        - n4-standard-2
       max_run_duration: 36000
 
     stage_c:
       cpu_milli: 4000
       memory_mib: 15360
-      machine_type: "c4d-standard-4"
+      machine_types:
+        - c4d-standard-4
+        - c3-standard-4
+        - n4d-standard-4
+        - n4-standard-4
       max_run_duration: 7200
       run_output_stage: true
 

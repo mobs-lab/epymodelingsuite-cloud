@@ -15,16 +15,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 
 # Clone and install epymodelingsuite package
-# Expects GITHUB_MODELING_SUITE_REPO, GITHUB_MODELING_SUITE_REF, and GITHUB_PAT to be passed as build args
+# Expects GITHUB_MODELING_SUITE_REPO and GITHUB_MODELING_SUITE_REF as build args; GITHUB_PAT is optional (only for private forks)
 ARG GITHUB_MODELING_SUITE_REPO
 ARG GITHUB_MODELING_SUITE_REF=main
 ARG GITHUB_PAT
 
 # Install epymodelingsuite from GitHub source, using uv.lock
 # This creates a virtual environment at /opt/epymodelingsuite/.venv
-RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ] && [ -n "$GITHUB_PAT" ]; then \
+RUN if [ -n "$GITHUB_MODELING_SUITE_REPO" ]; then \
     git clone --branch ${GITHUB_MODELING_SUITE_REF} \
-        https://${GITHUB_PAT}@github.com/${GITHUB_MODELING_SUITE_REPO}.git /opt/epymodelingsuite && \
+        https://${GITHUB_PAT:+${GITHUB_PAT}@}github.com/${GITHUB_MODELING_SUITE_REPO}.git /opt/epymodelingsuite && \
     cd /opt/epymodelingsuite && \
     if [ -f uv.lock ]; then \
         uv sync --frozen; \

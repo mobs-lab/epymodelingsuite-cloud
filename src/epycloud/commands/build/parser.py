@@ -121,6 +121,38 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Build context directory (default: docker/)",
     )
 
+    # epycloud build replicate
+    replicate_parser = build_subparsers.add_parser(
+        "replicate",
+        help="Copy one image digest between regional registries",
+    )
+    replicate_parser.add_argument(
+        "--from",
+        dest="source_region",
+        required=True,
+        help="Source Artifact Registry region",
+    )
+    replicate_parser.add_argument(
+        "--to",
+        dest="destination_region",
+        required=True,
+        help="Destination Artifact Registry region",
+    )
+    replicate_parser.add_argument(
+        "--tag",
+        help="Image tag to resolve and copy (default: from config)",
+    )
+
+    # epycloud build verify-replicas
+    verify_parser = build_subparsers.add_parser(
+        "verify-replicas",
+        help="Verify that configured regional image tags have one digest",
+    )
+    verify_parser.add_argument(
+        "--tag",
+        help="Image tag to verify (default: from config)",
+    )
+
     # epycloud build status
     status_parser = build_subparsers.add_parser(
         "status",

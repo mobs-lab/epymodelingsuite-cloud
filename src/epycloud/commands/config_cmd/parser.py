@@ -50,6 +50,11 @@ def register_parser(subparsers: Any) -> None:
     # config validate
     config_subparsers.add_parser("validate", help="Validate configuration")
 
+    # config migrate
+    config_subparsers.add_parser(
+        "migrate", help="Migrate legacy machine_type values to fallback chains"
+    )
+
     # config path
     config_subparsers.add_parser("path", help="Show config directory path")
 

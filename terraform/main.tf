@@ -46,8 +46,10 @@ resource "google_project_service" "secretmanager" {
 
 # Artifact Registry (Docker)
 resource "google_artifact_registry_repository" "repo" {
+  for_each = var.batch_regions
+
   project       = var.project_id
-  location      = var.region
+  location      = each.key
   repository_id = var.repo_name
   format        = "DOCKER"
   description   = "Docker repository for epymodelingsuite pipeline"
@@ -60,6 +62,11 @@ resource "google_artifact_registry_repository" "repo" {
   }
 
   depends_on = [google_project_service.artifactregistry]
+}
+
+moved {
+  from = google_artifact_registry_repository.repo
+  to   = google_artifact_registry_repository.repo["us-central1"]
 }
 
 # Use existing GCS bucket
@@ -168,6 +175,20 @@ resource "google_storage_bucket_iam_member" "wf_bucket_view" {
   member = "serviceAccount:${google_service_account.workflows_runner.email}"
 }
 
+# Workflows runner: create immutable per-candidate provenance records
+resource "google_storage_bucket_iam_member" "wf_bucket_create" {
+  bucket = data.google_storage_bucket.data.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
+# Workflows runner: resolve image tags before submitting Batch jobs
+resource "google_project_iam_member" "wf_artifact_registry_reader" {
+  project = var.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.workflows_runner.email}"
+}
+
 # Workflows runner: write logs
 resource "google_project_iam_member" "wf_logs_writer" {
   project = var.project_id
@@ -199,37 +220,95 @@ resource "google_service_account_iam_member" "workflows_agent_use_runner" {
 
 # Workflows (deploy from local YAML with variable substitution)
 resource "google_workflows_workflow" "pipeline" {
-  name            = "epymodelingsuite-pipeline"
+  name            = var.workflow_name
   description     = "Stage A (gen) → list GCS → Stage B (array) → Stage C (output)"
   region          = var.region
   service_account = google_service_account.workflows_runner.email
   source_contents = templatefile("${path.module}/workflow.yaml", {
-    repo_name           = var.repo_name
-    image_name          = var.image_name
-    image_tag           = var.image_tag
-    stage_a_cpu_milli   = var.stage_a_cpu_milli
-    stage_a_memory_mib  = var.stage_a_memory_mib
-    stage_a_machine_type = var.stage_a_machine_type
+    repo_name                = var.repo_name
+    image_name               = var.image_name
+    image_tag                = var.image_tag
+    stage_a_cpu_milli        = var.stage_a_cpu_milli
+    stage_a_memory_mib       = var.stage_a_memory_mib
+    stage_a_machine_type     = var.stage_a_machine_type
     stage_a_max_run_duration = var.stage_a_max_run_duration
-    stage_b_cpu_milli   = var.stage_b_cpu_milli
-    stage_b_memory_mib  = var.stage_b_memory_mib
-    stage_b_machine_type = var.stage_b_machine_type
+    stage_b_cpu_milli        = var.stage_b_cpu_milli
+    stage_b_memory_mib       = var.stage_b_memory_mib
+    stage_b_machine_type     = var.stage_b_machine_type
     stage_b_max_run_duration = var.stage_b_max_run_duration
-    stage_c_cpu_milli   = var.stage_c_cpu_milli
-    stage_c_memory_mib  = var.stage_c_memory_mib
-    stage_c_machine_type = var.stage_c_machine_type
+    stage_c_cpu_milli        = var.stage_c_cpu_milli
+    stage_c_memory_mib       = var.stage_c_memory_mib
+    stage_c_machine_type     = var.stage_c_machine_type
     stage_c_max_run_duration = var.stage_c_max_run_duration
-    task_count_per_node = var.task_count_per_node
-    run_output_stage    = var.run_output_stage
-    network_self_link   = google_compute_network.batch_network.self_link
-    subnet_name         = google_compute_subnetwork.batch_subnet.name
-    subnet_self_link    = google_compute_subnetwork.batch_subnet.self_link
+    task_count_per_node      = var.task_count_per_node
+    run_output_stage         = var.run_output_stage
+    network_self_link        = google_compute_network.batch_network.self_link
+    subnet_self_link         = google_compute_subnetwork.batch_subnet[var.region].self_link
+    subnet_self_links        = jsonencode({ for region, subnet in google_compute_subnetwork.batch_subnet : region => subnet.self_link })
+    allowed_batch_regions    = jsonencode(sort(keys(var.batch_regions)))
+    default_batch_region     = var.region
   })
 
   labels = {
     component   = "epymodelingsuite"
     project     = "epymodelingsuite-cloud"
     environment = "production"
+    managed-by  = "terraform"
+  }
+
+  depends_on = [
+    google_project_service.workflows,
+    time_sleep.wait_for_workflows_agent,
+    google_service_account_iam_member.workflows_agent_use_runner
+  ]
+}
+
+# v2 workflow (blue/green staging pipeline). Joins the main workflow and its
+# top-level subworkflows so editing either template cannot touch production.
+# Promotion assembles the same two templates into workflow.yaml before apply.
+# Named v2 rather than dev because "dev" is already taken here by the dev
+# branch, the dev image tag and github.modeling_suite_ref.
+# Shares the network, registry and service accounts with production; isolation
+# comes from the template source and the name, not from separate state.
+resource "google_workflows_workflow" "pipeline_v2" {
+  count = var.enable_v2_workflow ? 1 : 0
+
+  name            = "${var.workflow_name}-v2"
+  description     = "v2 pipeline (blue/green), rendered from workflow-v2.yaml"
+  region          = var.region
+  service_account = google_service_account.workflows_runner.email
+  source_contents = join("\n", [
+    templatefile("${path.module}/workflow-v2.yaml", {
+      repo_name                = var.repo_name
+      image_name               = var.image_name
+      image_tag                = var.image_tag
+      stage_a_cpu_milli        = var.stage_a_cpu_milli
+      stage_a_memory_mib       = var.stage_a_memory_mib
+      stage_a_machine_type     = var.stage_a_machine_type
+      stage_a_max_run_duration = var.stage_a_max_run_duration
+      stage_b_cpu_milli        = var.stage_b_cpu_milli
+      stage_b_memory_mib       = var.stage_b_memory_mib
+      stage_b_machine_type     = var.stage_b_machine_type
+      stage_b_max_run_duration = var.stage_b_max_run_duration
+      stage_c_cpu_milli        = var.stage_c_cpu_milli
+      stage_c_memory_mib       = var.stage_c_memory_mib
+      stage_c_machine_type     = var.stage_c_machine_type
+      stage_c_max_run_duration = var.stage_c_max_run_duration
+      task_count_per_node      = var.task_count_per_node
+      run_output_stage         = var.run_output_stage
+      network_self_link        = google_compute_network.batch_network.self_link
+      subnet_self_link         = google_compute_subnetwork.batch_subnet[var.region].self_link
+      subnet_self_links        = jsonencode({ for region, subnet in google_compute_subnetwork.batch_subnet : region => subnet.self_link })
+      allowed_batch_regions    = jsonencode(sort(keys(var.batch_regions)))
+      default_batch_region     = var.region
+    }),
+    templatefile("${path.module}/workflow-v2-subworkflows.yaml", {})
+  ])
+
+  labels = {
+    component   = "epymodelingsuite"
+    project     = "epymodelingsuite-cloud"
+    environment = "v2pipeline"
     managed-by  = "terraform"
   }
 
