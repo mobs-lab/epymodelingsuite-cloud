@@ -1,5 +1,6 @@
 """Google Cloud implementation of the execution backend."""
 
+import contextlib
 import json
 import os
 import subprocess
@@ -249,10 +250,8 @@ class GcpExecutionBackend:
                     returncode=result.returncode,
                 )
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temp_file)
-            except OSError:
-                pass
 
         return RunRef(
             provider=self.provider,
