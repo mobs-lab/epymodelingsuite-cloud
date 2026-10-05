@@ -456,6 +456,20 @@ epycloud --no-color logs --exp-id experiment-01 > logs.txt
 ```
 
 
+### Checking Machine Capacity
+
+`CODE_GCE_ZONE_RESOURCE_POOL_EXHAUSTED` means Google has no on-demand capacity for that machine type in that zone. `scripts/probe_capacity.sh` checks capacity by creating VMs in each region, zone, and machine type and deleting them right away (about a minute of billing each, a few cents per run):
+
+```bash
+scripts/probe_capacity.sh                                   # default regions and machine types, table output
+scripts/probe_capacity.sh -r "us-central1 us-east5" -m "n4d-standard-2 c3d-standard-4" -n 4
+scripts/probe_capacity.sh -o json > capacity.json           # for automation
+```
+
+`-n` sets how many VMs to create per zone; one VM succeeding does not guarantee a large run will. The JSON has one entry per zone in `results` (`status`: `ok`, `partial`, `stockout`, `quota`, `error`) and one per region and machine type in `summary` (`availability`: `available`, `limited`, `unavailable`). The script exits with code 2 if any probe VM was left behind (`leftover_instances`); they carry the label `purpose=capacity-probe`.
+
+Capacity changes minute to minute, so run it shortly before a large submission. If the preferred machine types are unavailable in `us-central1`, submit with `--batch-region us-east5` after copying the image (`epycloud build replicate --from us-central1 --to us-east5 --tag TAG`).
+
 ### Cloud Console Dashboards
 
 Access monitoring dashboards from [here](https://console.cloud.google.com/monitoring/dashboards).

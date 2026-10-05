@@ -213,6 +213,12 @@ def validate_and_get_machine_specs(
         return None
 
 
+# Memory left for the OS and container runtime when several tasks share a VM.
+# ponytail: fixed reserve matching the existing configs (e.g. 31744 = 32768 - 1024);
+# measure Batch's actual overhead if packed tasks hit OOM.
+RESERVED_MEMORY_MIB = 1024
+
+
 def resolve_stage_candidates(
     stage_config: dict[str, Any],
     override: str | None,
@@ -223,24 +229,29 @@ def resolve_stage_candidates(
     default_cpu_milli: int,
     default_memory_mib: int,
     default_max_run_duration: int,
+    max_task_count_per_node: int | None = None,
 ) -> tuple[tuple[StageResources, ...], bool] | None:
     """Resolve and validate one stage's ordered machine candidates.
 
     A CLI override is an explicit pin. Configured ``machine_types`` form an
     ordered fallback chain, while the legacy singular key remains a one-attempt
-    compatibility path. Each resolved candidate carries its own machine specs.
+    compatibility path.
+
+    ``cpu_milli`` and ``memory_mib`` are per-task requests. Each candidate keeps
+    that request and gets the number of tasks that fit on its machine, capped by
+    ``max_task_count_per_node`` when given.
     """
     if not isinstance(stage_config, dict):
         error(f"{stage_name} configuration must be a mapping")
         return None
 
-    min_cpu_milli = stage_config.get("cpu_milli", default_cpu_milli)
-    min_memory_mib = stage_config.get("memory_mib", default_memory_mib)
+    task_cpu_milli = stage_config.get("cpu_milli", default_cpu_milli)
+    task_memory_mib = stage_config.get("memory_mib", default_memory_mib)
     max_run_duration = stage_config.get("max_run_duration", default_max_run_duration)
 
     for field, value in (
-        ("cpu_milli", min_cpu_milli),
-        ("memory_mib", min_memory_mib),
+        ("cpu_milli", task_cpu_milli),
+        ("memory_mib", task_memory_mib),
         ("max_run_duration", max_run_duration),
     ):
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -279,11 +290,12 @@ def resolve_stage_candidates(
     resources: list[StageResources] = []
     for machine_type in configured:
         if not machine_type:
+            # Google picks the machine, so its capacity is unknown: one task per VM.
             resources.append(
                 StageResources(
                     machine_type="",
-                    cpu_milli=min_cpu_milli,
-                    memory_mib=min_memory_mib,
+                    cpu_milli=task_cpu_milli,
+                    memory_mib=task_memory_mib,
                     max_run_duration=max_run_duration,
                 )
             )
@@ -293,31 +305,34 @@ def resolve_stage_candidates(
         if specs is None:
             return None
         cpu_milli, memory_mib = specs
-        if cpu_milli < min_cpu_milli:
+        if cpu_milli < task_cpu_milli:
             error(
                 f"{stage_name} candidate '{machine_type}' has {cpu_milli} mCPU, "
-                f"below the {min_cpu_milli} mCPU stage minimum"
+                f"below the {task_cpu_milli} mCPU per-task request"
             )
             return None
-        if memory_mib < min_memory_mib:
+        if memory_mib < task_memory_mib:
             error(
                 f"{stage_name} candidate '{machine_type}' has {memory_mib} MiB, "
-                f"below the {min_memory_mib} MiB stage minimum"
+                f"below the {task_memory_mib} MiB per-task request"
             )
             return None
+        # One task may use the whole VM; extra tasks must fit beside the OS reserve.
+        fits = min(
+            cpu_milli // task_cpu_milli,
+            max(1, (memory_mib - RESERVED_MEMORY_MIB) // task_memory_mib),
+        )
+        if max_task_count_per_node:
+            fits = min(fits, max_task_count_per_node)
         resources.append(
             StageResources(
                 machine_type=machine_type,
-                cpu_milli=cpu_milli,
-                memory_mib=memory_mib,
+                cpu_milli=task_cpu_milli,
+                memory_mib=task_memory_mib,
                 max_run_duration=max_run_duration,
+                task_count_per_node=fits,
             )
         )
-
-    memories = [candidate.memory_mib for candidate in resources]
-    if memories != sorted(memories):
-        error(f"{stage_name} machine_types must be non-decreasing in memory")
-        return None
 
     return tuple(resources), pinned
 

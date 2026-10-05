@@ -127,6 +127,7 @@ class GcpExecutionBackend:
                         "machine_type": candidate.machine_type,
                         "cpu_milli": candidate.cpu_milli,
                         "memory_mib": candidate.memory_mib,
+                        "task_count_per_node": candidate.task_count_per_node,
                     }
                     for candidate in candidates
                 ]

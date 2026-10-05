@@ -37,10 +37,10 @@ epycloud run workflow --exp-id EXP_ID [OPTIONS]
 - `--local` - Run locally with Docker Compose
 - `--skip-output` - Skip Stage C (output generation)
 - `--max-parallelism N` - Override max parallel tasks for Stage B
-- `--stage-a-machine-type TYPE` - Override Stage A machine type (auto-sets CPU/memory to machine max)
-- `--stage-b-machine-type TYPE` - Override Stage B machine type (auto-sets CPU/memory to machine max)
-- `--stage-c-machine-type TYPE` - Override Stage C machine type (auto-sets CPU/memory to machine max)
-- `--task-count-per-node N` - Max tasks per VM node (1 = dedicated VM per task)
+- `--stage-a-machine-type TYPE` - Override Stage A machine type (CPU/memory per task still come from config)
+- `--stage-b-machine-type TYPE` - Override Stage B machine type (CPU/memory per task still come from config)
+- `--stage-c-machine-type TYPE` - Override Stage C machine type (CPU/memory per task still come from config)
+- `--task-count-per-node N` - Cap on Stage B tasks per VM (default: as many as fit each machine candidate)
 - `--forecast-repo-ref REF` - Override experiment repo branch/tag/commit
 - `--billing-project NAME` - Override billing project label for cost grouping
 - `--wait` - Wait for completion and stream logs
@@ -73,7 +73,7 @@ epycloud run job --stage STAGE [OPTIONS]
 - `--run-id ID` - Run identifier (required for stages B and C, auto-generated for stage A)
 - `--task-index N` - Task index for Stage B (default: 0)
 - `--num-tasks N` - Number of tasks (required for Stage C)
-- `--machine-type TYPE` - Override machine type for this job (auto-sets CPU/memory to machine max)
+- `--machine-type TYPE` - Override machine type for this job (CPU/memory per task still come from config)
 - `--billing-project NAME` - Override billing project label for cost grouping
 - `--task-count-per-node N` - Max tasks per VM node (1 = dedicated VM per task)
 - `--local` - Run locally with Docker Compose

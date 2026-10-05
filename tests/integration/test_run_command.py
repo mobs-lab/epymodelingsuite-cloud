@@ -108,8 +108,18 @@ class TestRunWorkflowCommand:
         assert parsed_arg["stageCCpuMilli"] == 8000
         assert parsed_arg["stageCMemoryMib"] == 31744
         assert parsed_arg["stageBCandidates"] == [
-            {"machine_type": "c4d-standard-4", "cpu_milli": 4000, "memory_mib": 15360},
-            {"machine_type": "c4-standard-4", "cpu_milli": 4000, "memory_mib": 15360},
+            {
+                "machine_type": "c4d-standard-4",
+                "cpu_milli": 4000,
+                "memory_mib": 15360,
+                "task_count_per_node": 1,
+            },
+            {
+                "machine_type": "c4-standard-4",
+                "cpu_milli": 4000,
+                "memory_mib": 15360,
+                "task_count_per_node": 1,
+            },
         ]
         assert parsed_arg["stageBPinned"] is False
 
@@ -583,8 +593,15 @@ class TestRunWorkflowMachineTypeOverride:
         # CLI override takes precedence over the fixture's profile value
         # (mock_config sets stage_b.machine_type = "c4d-standard-4").
         assert parsed_arg["stageBMachineType"] == "c4-standard-8"
+        # A pinned machine keeps the configured per-task request (4000 mCPU, 15360 MiB);
+        # (30720 - 1024) // 15360 leaves room for one task.
         assert parsed_arg["stageBCandidates"] == [
-            {"machine_type": "c4-standard-8", "cpu_milli": 8000, "memory_mib": 30720}
+            {
+                "machine_type": "c4-standard-8",
+                "cpu_milli": 4000,
+                "memory_mib": 15360,
+                "task_count_per_node": 1,
+            },
         ]
         assert parsed_arg["stageBPinned"] is True
 

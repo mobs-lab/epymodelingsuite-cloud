@@ -41,24 +41,72 @@ def test_empty_cli_override_is_rejected_instead_of_becoming_pinned_auto_select()
 
 
 @patch("epycloud.commands.run.validation.validate_and_get_machine_specs")
-def test_each_candidate_keeps_its_own_resolved_resources(mock_specs):
-    """The workflow must not reuse the head candidate's CPU and memory for replacements."""
-    mock_specs.side_effect = [(4000, 15360), (4000, 16384)]
+def test_each_candidate_keeps_the_per_task_request_and_its_own_packing(mock_specs):
+    """Candidates send the configured per-task request, not their machine's full specs."""
+    mock_specs.side_effect = [(4000, 15360), (8000, 32768)]
 
     candidates, pinned = resolve(
         {
             "cpu_milli": 4000,
             "memory_mib": 15360,
-            "machine_types": ["c4d-standard-4", "n4d-standard-4"],
+            "machine_types": ["c4d-standard-4", "n4d-standard-8"],
         }
     )
 
     assert pinned is False
-    assert [(item.machine_type, item.cpu_milli, item.memory_mib) for item in candidates] == [
-        ("c4d-standard-4", 4000, 15360),
-        ("n4d-standard-4", 4000, 16384),
+    assert [
+        (item.machine_type, item.cpu_milli, item.memory_mib, item.task_count_per_node)
+        for item in candidates
+    ] == [
+        ("c4d-standard-4", 4000, 15360, 1),
+        ("n4d-standard-8", 4000, 15360, 2),
     ]
     assert mock_specs.call_count == 2
+
+
+@pytest.mark.parametrize(
+    ("task_memory_mib", "expected"),
+    [(3072, 4), (6144, 2), (16384, 1)],
+)
+@patch("epycloud.commands.run.validation.validate_and_get_machine_specs")
+def test_task_count_per_node_is_limited_by_cpu_and_memory(
+    mock_specs, task_memory_mib, expected
+):
+    """A 4-vCPU, 16 GiB VM fits 4 single-core tasks unless memory runs out first.
+
+    Extra tasks must fit beside the OS reserve, but one task may use the whole VM.
+    """
+    mock_specs.return_value = (4000, 16384)
+
+    candidates, _ = resolve(
+        {
+            "cpu_milli": 1000,
+            "memory_mib": task_memory_mib,
+            "machine_types": ["c3d-standard-4"],
+        }
+    )
+
+    assert candidates[0].task_count_per_node == expected
+
+
+@patch("epycloud.commands.run.validation.validate_and_get_machine_specs")
+def test_task_count_per_node_respects_the_configured_cap(mock_specs):
+    """An explicit cap limits packing even when more tasks would fit."""
+    mock_specs.return_value = (4000, 16384)
+
+    candidates, _ = resolve_stage_candidates(
+        {"cpu_milli": 1000, "memory_mib": 3072, "machine_types": ["c3d-standard-4"]},
+        None,
+        "Stage B",
+        "test-project",
+        "us-central1",
+        default_cpu_milli=1000,
+        default_memory_mib=3072,
+        default_max_run_duration=36000,
+        max_task_count_per_node=2,
+    )
+
+    assert candidates[0].task_count_per_node == 2
 
 
 @patch("epycloud.commands.run.validation.validate_and_get_machine_specs")
@@ -112,20 +160,20 @@ def test_candidate_below_a_stage_minimum_is_rejected(mock_specs, specs, minimum_
 
 
 @patch("epycloud.commands.run.validation.validate_and_get_machine_specs")
-def test_memory_decrease_is_rejected_even_when_both_candidates_meet_the_minimum(mock_specs):
-    """Fallback must not turn a capacity failure into an avoidable memory downgrade."""
-    mock_specs.side_effect = [(4000, 32768), (8000, 31744)]
+def test_smaller_fallback_machine_only_packs_fewer_tasks(mock_specs):
+    """Every candidate gets the same per-task request, so a smaller fallback is safe."""
+    mock_specs.side_effect = [(8000, 32768), (4000, 16384)]
 
-    assert (
-        resolve(
-            {
-                "cpu_milli": 4000,
-                "memory_mib": 15360,
-                "machine_types": ["larger-memory", "smaller-memory"],
-            }
-        )
-        is None
+    candidates, _ = resolve(
+        {
+            "cpu_milli": 1000,
+            "memory_mib": 3072,
+            "machine_types": ["c3d-standard-8", "c3d-standard-4"],
+        }
     )
+
+    assert [item.task_count_per_node for item in candidates] == [8, 4]
+    assert {(item.cpu_milli, item.memory_mib) for item in candidates} == {(1000, 3072)}
 
 
 @patch("epycloud.commands.run.validation.warning")

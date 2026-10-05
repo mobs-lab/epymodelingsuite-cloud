@@ -19,12 +19,17 @@ class RunState(StrEnum):
 
 @dataclass(frozen=True)
 class StageResources:
-    """Resolved resources for one logical pipeline stage."""
+    """Resolved resources for one logical pipeline stage.
+
+    ``cpu_milli`` and ``memory_mib`` are what one task requests;
+    ``task_count_per_node`` is how many such tasks fit on ``machine_type``.
+    """
 
     machine_type: str
     cpu_milli: int
     memory_mib: int
     max_run_duration: int
+    task_count_per_node: int = 1
 
 
 @dataclass(frozen=True)

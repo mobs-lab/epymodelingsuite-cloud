@@ -73,23 +73,23 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     workflow_parser.add_argument(
         "--stage-a-machine-type",
-        help="Override Stage A machine type (auto-sets CPU/memory to machine max)",
+        help="Override Stage A machine type (CPU/memory per task still come from config)",
     )
 
     workflow_parser.add_argument(
         "--stage-b-machine-type",
-        help="Override Stage B machine type (auto-sets CPU/memory to machine max)",
+        help="Override Stage B machine type (CPU/memory per task still come from config)",
     )
 
     workflow_parser.add_argument(
         "--stage-c-machine-type",
-        help="Override Stage C machine type (auto-sets CPU/memory to machine max)",
+        help="Override Stage C machine type (CPU/memory per task still come from config)",
     )
 
     workflow_parser.add_argument(
         "--task-count-per-node",
         type=int,
-        help="Max tasks per VM node (1 = dedicated VM per task, default: from config)",
+        help="Cap on Stage B tasks per VM (default: as many as fit each machine candidate)",
     )
 
     workflow_parser.add_argument(
@@ -175,7 +175,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     job_parser.add_argument(
         "--machine-type",
-        help="Override machine type for this job (auto-sets CPU/memory to machine max)",
+        help="Override machine type for this job (CPU/memory per task still come from config)",
     )
 
     job_parser.add_argument(

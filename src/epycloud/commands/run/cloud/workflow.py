@@ -73,13 +73,13 @@ def run_workflow_gcp(
     batch_region_override : str | None
         Override the Cloud Batch data-plane region
     task_count_per_node : int | None
-        Max tasks per VM node (1 = dedicated VM per task)
+        Cap on Stage B tasks per VM (default: as many as fit each candidate)
     stage_a_machine_type_override : str | None
-        Override Stage A machine type (auto-sets CPU/memory to machine max)
+        Override Stage A machine type (CPU/memory per task still come from config)
     stage_b_machine_type_override : str | None
-        Override Stage B machine type (auto-sets CPU/memory to machine max)
+        Override Stage B machine type (CPU/memory per task still come from config)
     stage_c_machine_type_override : str | None
-        Override Stage C machine type (auto-sets CPU/memory to machine max)
+        Override Stage C machine type (CPU/memory per task still come from config)
     forecast_repo_ref_override : str | None
         Override forecast repo branch/tag/commit
     billing_project_override : str | None
@@ -133,8 +133,8 @@ def run_workflow_gcp(
     if not max_parallelism:
         max_parallelism = batch_config.get("max_parallelism", 100)
 
-    if not task_count_per_node:
-        task_count_per_node = batch_config.get("task_count_per_node", 1)
+    # Optional cap on Stage B tasks per VM; otherwise as many as fit each candidate.
+    max_task_count_per_node = task_count_per_node or batch_config.get("task_count_per_node")
 
     # Validate required config
     if not project_id:
@@ -182,12 +182,15 @@ def run_workflow_gcp(
             default_cpu_milli=default_cpu,
             default_memory_mib=default_memory,
             default_max_run_duration=default_duration,
+            # Stages A and C run one task, so only Stage B packs tasks per VM.
+            max_task_count_per_node=max_task_count_per_node if stage == "b" else 1,
         )
         if resolved is None:
             return 1
         stage_candidates[stage], stage_pinned[stage] = resolved
 
     stage_resources = {stage: candidates[0] for stage, candidates in stage_candidates.items()}
+    task_count_per_node = stage_resources["b"].task_count_per_node
 
     if not validate_cross_region_preflight(
         config,
@@ -237,6 +240,9 @@ def run_workflow_gcp(
             "stage_b_machine_type": stage_resources["b"].machine_type,
             "stage_b_machine_type_override": stage_b_machine_type_override,
             "stage_b_machine_types": [item.machine_type for item in stage_candidates["b"]],
+            "stage_b_task_counts_per_node": [
+                item.task_count_per_node for item in stage_candidates["b"]
+            ],
             "stage_b_pinned": stage_pinned["b"],
             "stage_b_cpu_milli": stage_resources["b"].cpu_milli,
             "stage_b_memory_mib": stage_resources["b"].memory_mib,
