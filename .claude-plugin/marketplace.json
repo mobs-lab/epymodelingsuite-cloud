@@ -1,0 +1,16 @@
+{
+  "name": "epymodelingsuite-cloud",
+  "owner": {
+    "name": "MOBS Lab"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for epymodelingsuite-cloud"
+  },
+  "plugins": [
+    {
+      "name": "epycloud",
+      "source": "./plugins/epycloud",
+      "description": "Skill for submitting, monitoring, and managing epymodelingsuite cloud runs with the epycloud CLI"
+    }
+  ]
+}
