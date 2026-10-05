@@ -9,9 +9,12 @@ main:
           # Get environment info
           - project: $${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
           - location: $${sys.get_env("GOOGLE_CLOUD_LOCATION")}
+          - allowedBatchRegions: ${allowed_batch_regions}
+          - defaultBatchLocation: "${default_batch_region}"
+          - batchLocation: $${default(map.get(input, "batchLocation"), defaultBatchLocation)}
           # Allow runtime override of image tag (defaults to terraform variable if not provided)
           - imageTag: $${default(map.get(input, "imageTag"), "${image_tag}")}
-          - repoUri: $${location + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}:" + imageTag}
+          - repoUri: $${batchLocation + "-docker.pkg.dev/" + project + "/${repo_name}/${image_name}"}
           - githubForecastRepo: $${default(map.get(input, "githubForecastRepo"), "")}
           - forecastRepoRef: $${default(map.get(input, "forecastRepoRef"), "")}
           - outputConfigFile: $${default(map.get(input, "outputConfigFile"), "")}
@@ -53,11 +56,26 @@ main:
           # Job parameters
           - batchSaEmail: $${input.batchSaEmail}
           - maxParallelism: $${default(map.get(input, "maxParallelism"), 100)}
-          - runOutputStage: ${run_output_stage}
+          - defaultRunOutputStage: ${run_output_stage}
+          - runOutputStage: $${default(map.get(input, "runOutputStage"), defaultRunOutputStage)}
 
           # Network configuration
           - networkSelfLink: "${network_self_link}"
-          - subnetSelfLink: "${subnet_self_link}"
+          - subnetSelfLinks: ${subnet_self_links}
+          - subnetSelfLink: $${map.get(subnetSelfLinks, batchLocation)}
+
+    - validate_batch_location:
+        switch:
+          - condition: $${not(batchLocation in allowedBatchRegions)}
+            steps:
+              - build_unknown_batch_region_error:
+                  assign:
+                    - unknownBatchRegionError:
+                        code: "UNKNOWN_BATCH_REGION"
+                        batchLocation: $${batchLocation}
+                        allowedBatchRegions: $${allowedBatchRegions}
+              - raise_unknown_batch_region:
+                  raise: $${unknownBatchRegionError}
 
     # Stage resource configuration (split to stay under 50 variable limit)
     - initialize_stage_resources:
@@ -89,105 +107,209 @@ main:
           # Task count per node - allow runtime override
           - taskCountPerNodeOverride: $${default(map.get(input, "taskCountPerNode"), 0)}
           - taskCountPerNode: $${if(taskCountPerNodeOverride > 0, taskCountPerNodeOverride, ${task_count_per_node})}
+          # Defaults protect production runs; direct staging executions can
+          # shorten them to exercise watchdog transitions.
+          - watchdogStallSeconds: $${int(default(map.get(input, "watchdogStallSeconds"), 900))}
+          - watchdogZeroFillGraceSeconds: $${int(default(map.get(input, "watchdogZeroFillGraceSeconds"), 1500))}
+
+    # Build default one-candidate chains for legacy submissions. Newer clients
+    # can provide stage{A,B,C}Candidates and an explicit pinned flag.
+    - initialize_candidates:
+        assign:
+          - autoInstances:
+              - policy: {}
+          - defaultCandidatesA:
+              - machine_type: $${machineTypeA}
+                cpu_milli: $${cpuMilliA}
+                memory_mib: $${memoryMibA}
+          - defaultCandidatesB:
+              - machine_type: $${machineTypeB}
+                cpu_milli: $${cpuMilliB}
+                memory_mib: $${memoryMibB}
+          - defaultCandidatesC:
+              - machine_type: $${machineTypeC}
+                cpu_milli: $${cpuMilliC}
+                memory_mib: $${memoryMibC}
+          - candidatesA: $${default(map.get(input, "stageACandidates"), defaultCandidatesA)}
+          - candidatesB: $${default(map.get(input, "stageBCandidates"), defaultCandidatesB)}
+          - candidatesC: $${default(map.get(input, "stageCCandidates"), defaultCandidatesC)}
+          - pinnedA: $${default(map.get(input, "stageAPinned"), true)}
+          - pinnedB: $${default(map.get(input, "stageBPinned"), true)}
+          - pinnedC: $${default(map.get(input, "stageCPinned"), true)}
+          - numCandidatesA: $${len(candidatesA)}
+          - numCandidatesB: $${len(candidatesB)}
+          - numCandidatesC: $${len(candidatesC)}
+
+    - validate_candidates:
+        switch:
+          - condition: $${numCandidatesA <= 0 or numCandidatesB <= 0 or numCandidatesC <= 0}
+            raise: "Each stage requires at least one machine candidate"
+
+    - validate_watchdog_timings:
+        switch:
+          - condition: $${watchdogStallSeconds < 15 or watchdogZeroFillGraceSeconds < 15}
+            raise: "Watchdog timings must be at least 15 seconds"
+
+    # Variables assigned in a loop must exist outside it if later steps read them.
+    - initialize_stage_results:
+        assign:
+          - jobA: null
+          - jobB: null
+          - jobC: null
+          - stageAJobName: null
+          - stageBJobName: null
+          - stageCJobName: null
 
     # ========== STAGE A: Generate Input Files ==========
-    - create_stageA_job:
-        call: http.post
-        args:
-          url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
-          auth:
-            type: OAuth2
-            scopes: https://www.googleapis.com/auth/cloud-platform
-          body:
-            labels:
-              component: epymodelingsuite
-              project: epymodelingsuite-cloud
-              environment: production
-              stage: builder
-              exp_id: $${expIdLabel}
-              run_id: $${runId}
-              managed-by: workflows
-              profile: $${profileLabel}
-              billing_project: $${billingProjectLabel}
-            taskGroups:
-              - taskCount: 1
-                taskSpec:
-                  runnables:
-                    - container:
-                        imageUri: $${repoUri}
-                        entrypoint: "/bin/bash"
-                        commands:
-                          - "/scripts/run_builder.sh"
-                  environment:
-                    variables:
-                      EXECUTION_MODE: "cloud"
-                      GCS_BUCKET: $${bucket}
-                      DIR_PREFIX: $${dirPrefix}
-                      EXP_ID: $${expId}
-                      RUN_ID: $${runId}
-                      GITHUB_FORECAST_REPO: $${githubForecastRepo}
-                      FORECAST_REPO_REF: $${forecastRepoRef}
-                      GCLOUD_PROJECT_ID: $${project}
-                      GITHUB_PAT_SECRET: "github-pat"
-                      FORECAST_REPO_DIR: "/data/forecast/"
-                  computeResource:
-                    cpuMilli: $${cpuMilliA}
-                    memoryMib: $${memoryMibA}
-                  maxRunDuration: $${maxRunDurationA}
-            logsPolicy:
-              destination: "CLOUD_LOGGING"
-            allocationPolicy:
-              location:
-                allowedLocations:
-                  - $${"regions/" + location}
-              serviceAccount:
-                email: $${batchSaEmail}
-              network:
-                networkInterfaces:
-                  - network: $${networkSelfLink}
-                    subnetwork: $${subnetSelfLink}
-                    noExternalIpAddress: true
-              %{~ if stage_a_machine_type != "" ~}
-              instances:
-                - %{~ if length(regexall("^c4d-", stage_a_machine_type)) > 0 ~}
-                  # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
-                  # Disk cannot be smaller than the chosen image (30GB)
-                  installGpuDrivers: false
-                  policy:
-                    machineType: $${machineTypeA}
-                    provisioningModel: STANDARD
-                    bootDisk:
-                      type: hyperdisk-balanced
-                      sizeGb: 30
-                  %{~ else ~}
-                  policy:
-                    machineType: $${machineTypeA}
-                  %{~ endif ~}
-              %{~ else ~}
-              instances:
-                - policy: {}
-              %{~ endif ~}
-              labels:
-                component: epymodelingsuite
-                project: epymodelingsuite-cloud
-                environment: production
-                stage: builder
-                managed-by: workflows
-                profile: $${profileLabel}
-                billing_project: $${billingProjectLabel}
-          query:
-            jobId: $${"stage-a-" + uniqueId}
-        result: jobA
+    - run_stageA_candidates:
+        for:
+          value: candidateA
+          index: ciA
+          in: $${candidatesA}
+          steps:
+            - select_stageA_candidate:
+                assign:
+                  - candidateMachineTypeA: $${default(map.get(candidateA, "machine_type"), "")}
+                  - candidateCpuMilliA: $${int(map.get(candidateA, "cpu_milli"))}
+                  - candidateMemoryMibA: $${int(map.get(candidateA, "memory_mib"))}
+                  - machineLabelA: $${if(candidateMachineTypeA == "", "auto", candidateMachineTypeA)}
+                  - machineSelectionA: $${if(pinnedA, "pinned", "auto")}
+                  - configuredCandidateInstancesA:
+                      - installGpuDrivers: false
+                        policy:
+                          machineType: $${candidateMachineTypeA}
+                          provisioningModel: STANDARD
+                          bootDisk:
+                            type: hyperdisk-balanced
+                            sizeGb: 50
+                  - candidateInstancesA: $${if(candidateMachineTypeA == "", autoInstances, configuredCandidateInstancesA)}
 
-    - wait_for_stageA_creation:
-        call: sys.sleep
-        args:
-          seconds: 5
+            # Resolve inside the fallback loop so each candidate records the
+            # image that it actually submits, even if the tag moves mid-run.
+            - resolve_stageA_image:
+                call: resolveImage
+                args:
+                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                  repoUri: $${repoUri}
+                result: resolvedImageA
 
-    - wait_for_stageA_completion:
-        call: waitJob
-        args:
-          name: $${jobA.body.name}
+            - record_stageA_image:
+                call: recordImageProvenance
+                args:
+                  bucket: $${bucket}
+                  objectName: $${basePath + "run-metadata/image-provenance/stage-a-candidate-" + string(ciA) + ".json"}
+                  executionId: $${executionIdShort}
+                  runId: $${runId}
+                  stage: A
+                  candidateIndex: $${ciA}
+                  machineType: $${machineLabelA}
+                  machineSelection: $${machineSelectionA}
+                  imageTag: $${imageTag}
+                  resolvedImage: $${resolvedImageA}
+
+            - create_stageA_job:
+                call: http.post
+                args:
+                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/jobs"}
+                  auth:
+                    type: OAuth2
+                    scopes: https://www.googleapis.com/auth/cloud-platform
+                  body:
+                    labels:
+                      component: epymodelingsuite
+                      project: epymodelingsuite-cloud
+                      environment: production
+                      stage: builder
+                      exp_id: $${expIdLabel}
+                      run_id: $${runId}
+                      execution_id: $${executionIdShort}
+                      machine_type: $${machineLabelA}
+                      candidate_index: $${string(ciA)}
+                      machine_selection: $${machineSelectionA}
+                      image_digest: $${resolvedImageA.short_digest}
+                      managed-by: workflows
+                      profile: $${profileLabel}
+                      billing_project: $${billingProjectLabel}
+                    taskGroups:
+                      - taskCount: 1
+                        taskSpec:
+                          runnables:
+                            - container:
+                                imageUri: $${resolvedImageA.uri}
+                                entrypoint: "/bin/bash"
+                                commands:
+                                  - "/scripts/run_builder.sh"
+                          environment:
+                            variables:
+                              EXECUTION_MODE: "cloud"
+                              GCS_BUCKET: $${bucket}
+                              DIR_PREFIX: $${dirPrefix}
+                              EXP_ID: $${expId}
+                              RUN_ID: $${runId}
+                              IMAGE_DIGEST: $${resolvedImageA.digest}
+                              GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                              FORECAST_REPO_REF: $${forecastRepoRef}
+                              GCLOUD_PROJECT_ID: $${project}
+                              GITHUB_PAT_SECRET: "github-pat"
+                              FORECAST_REPO_DIR: "/data/forecast/"
+                          computeResource:
+                            cpuMilli: $${candidateCpuMilliA}
+                            memoryMib: $${candidateMemoryMibA}
+                          maxRunDuration: $${maxRunDurationA}
+                    logsPolicy:
+                      destination: "CLOUD_LOGGING"
+                    allocationPolicy:
+                      location:
+                        allowedLocations:
+                          - $${"regions/" + batchLocation}
+                      serviceAccount:
+                        email: $${batchSaEmail}
+                      network:
+                        networkInterfaces:
+                          - network: $${networkSelfLink}
+                            subnetwork: $${subnetSelfLink}
+                            noExternalIpAddress: true
+                      instances: $${candidateInstancesA}
+                      labels:
+                        component: epymodelingsuite
+                        project: epymodelingsuite-cloud
+                        environment: production
+                        stage: builder
+                        execution_id: $${executionIdShort}
+                        machine_type: $${machineLabelA}
+                        candidate_index: $${string(ciA)}
+                        machine_selection: $${machineSelectionA}
+                        image_digest: $${resolvedImageA.short_digest}
+                        managed-by: workflows
+                        profile: $${profileLabel}
+                        billing_project: $${billingProjectLabel}
+                  query:
+                    jobId: $${"stage-a-" + uniqueId + "-" + string(ciA)}
+                result: jobA
+
+            - finalize_stageA_candidate:
+                call: waitAndFinalizeCandidate
+                args:
+                  name: $${jobA.body.name}
+                  stage: A
+                  candidateIndex: $${ciA}
+                  numCandidates: $${numCandidatesA}
+                  expectedParallelism: 1
+                  taskCount: 1
+                  stallSeconds: $${watchdogStallSeconds}
+                  zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
+                  maxRunDurationSeconds: ${stage_a_max_run_duration}
+                result: candidateSucceededA
+
+            - accept_finalized_stageA:
+                switch:
+                  - condition: $${candidateSucceededA}
+                    steps:
+                      - save_stageA_job:
+                          assign:
+                            - stageAJobName: $${jobA.body.name}
+                      - exit_stageA_candidates:
+                          next: break
 
     - wait_for_file_upload:
         call: sys.sleep
@@ -218,212 +340,313 @@ main:
         assign:
           - parallelism: $${if(N > maxParallelism, maxParallelism, N)}
 
-    - create_stageB_job:
-        call: http.post
-        args:
-          url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
-          auth:
-            type: OAuth2
-          body:
-            labels:
-              component: epymodelingsuite
-              project: epymodelingsuite-cloud
-              environment: production
-              stage: runner
-              exp_id: $${expIdLabel}
-              run_id: $${runId}
-              managed-by: workflows
-              profile: $${profileLabel}
-              billing_project: $${billingProjectLabel}
-            taskGroups:
-              - taskCount: $${N}
-                parallelism: $${parallelism}
-                taskCountPerNode: $${taskCountPerNode}
-                taskSpec:
-                  runnables:
-                    - container:
-                        imageUri: $${repoUri}
-                        entrypoint: "/bin/bash"
-                        commands:
-                          - "/scripts/run_runner.sh"
-                  environment:
-                    variables:
-                      EXECUTION_MODE: "cloud"
-                      GCS_BUCKET: $${bucket}
-                      DIR_PREFIX: $${dirPrefix}
-                      EXP_ID: $${expId}
-                      RUN_ID: $${runId}
-                      GITHUB_FORECAST_REPO: $${githubForecastRepo}
-                      FORECAST_REPO_REF: $${forecastRepoRef}
-                      GCLOUD_PROJECT_ID: $${project}
-                      GITHUB_PAT_SECRET: "github-pat"
-                      FORECAST_REPO_DIR: "/data/forecast/"
-                  computeResource:
-                    cpuMilli: $${cpuMilliB}
-                    memoryMib: $${memoryMibB}
-                  maxRunDuration: $${maxRunDurationB}
-            logsPolicy:
-              destination: "CLOUD_LOGGING"
-            allocationPolicy:
-              location:
-                allowedLocations:
-                  - $${"regions/" + location}
-              serviceAccount:
-                email: $${batchSaEmail}
-              network:
-                networkInterfaces:
-                  - network: $${networkSelfLink}
-                    subnetwork: $${subnetSelfLink}
-                    noExternalIpAddress: true
-              %{~ if stage_b_machine_type != "" ~}
-              instances:
-                - %{~ if length(regexall("^c4d-", stage_b_machine_type)) > 0 ~}
-                  # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
-                  # C4D does NOT support regular Persistent Disks (pd-ssd, pd-balanced, etc.)
-                  installGpuDrivers: false
-                  policy:
-                    machineType: $${machineTypeB}
-                    provisioningModel: STANDARD
-                    bootDisk:
-                      type: hyperdisk-balanced
-                      sizeGb: 50
-                  %{~ else ~}
-                  policy:
-                    machineType: $${machineTypeB}
-                  %{~ endif ~}
-              %{~ else ~}
-              instances:
-                - policy: {}
-              %{~ endif ~}
-              labels:
-                component: epymodelingsuite
-                project: epymodelingsuite-cloud
-                environment: production
-                stage: runner
-                managed-by: workflows
-                profile: $${profileLabel}
-                billing_project: $${billingProjectLabel}
-          query:
-            jobId: $${"stage-b-" + uniqueId}
-        result: jobB
+    - run_stageB_candidates:
+        for:
+          value: candidateB
+          index: ciB
+          in: $${candidatesB}
+          steps:
+            - select_stageB_candidate:
+                assign:
+                  - candidateMachineTypeB: $${default(map.get(candidateB, "machine_type"), "")}
+                  - candidateCpuMilliB: $${int(map.get(candidateB, "cpu_milli"))}
+                  - candidateMemoryMibB: $${int(map.get(candidateB, "memory_mib"))}
+                  # Clients compute how many tasks fit each candidate; older clients send none.
+                  - candidateTaskCountPerNodeB: $${int(default(map.get(candidateB, "task_count_per_node"), taskCountPerNode))}
+                  - candidateTaskCountPerNodeB: $${if(candidateTaskCountPerNodeB > N, N, candidateTaskCountPerNodeB)}
+                  - machineLabelB: $${if(candidateMachineTypeB == "", "auto", candidateMachineTypeB)}
+                  - machineSelectionB: $${if(pinnedB, "pinned", "auto")}
+                  - configuredCandidateInstancesB:
+                      - installGpuDrivers: false
+                        policy:
+                          machineType: $${candidateMachineTypeB}
+                          provisioningModel: STANDARD
+                          bootDisk:
+                            type: hyperdisk-balanced
+                            sizeGb: 50
+                  - candidateInstancesB: $${if(candidateMachineTypeB == "", autoInstances, configuredCandidateInstancesB)}
 
-    - wait_for_stageB_creation:
-        call: sys.sleep
-        args:
-          seconds: 5
+            - resolve_stageB_image:
+                call: resolveImage
+                args:
+                  tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                  repoUri: $${repoUri}
+                result: resolvedImageB
 
-    - wait_for_stageB_completion:
-        call: waitJob
-        args:
-          name: $${jobB.body.name}
+            - record_stageB_image:
+                call: recordImageProvenance
+                args:
+                  bucket: $${bucket}
+                  objectName: $${basePath + "run-metadata/image-provenance/stage-b-candidate-" + string(ciB) + ".json"}
+                  executionId: $${executionIdShort}
+                  runId: $${runId}
+                  stage: B
+                  candidateIndex: $${ciB}
+                  machineType: $${machineLabelB}
+                  machineSelection: $${machineSelectionB}
+                  imageTag: $${imageTag}
+                  resolvedImage: $${resolvedImageB}
+
+            - create_stageB_job:
+                call: http.post
+                args:
+                  url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/jobs"}
+                  auth:
+                    type: OAuth2
+                  body:
+                    labels:
+                      component: epymodelingsuite
+                      project: epymodelingsuite-cloud
+                      environment: production
+                      stage: runner
+                      exp_id: $${expIdLabel}
+                      run_id: $${runId}
+                      execution_id: $${executionIdShort}
+                      machine_type: $${machineLabelB}
+                      candidate_index: $${string(ciB)}
+                      machine_selection: $${machineSelectionB}
+                      image_digest: $${resolvedImageB.short_digest}
+                      managed-by: workflows
+                      profile: $${profileLabel}
+                      billing_project: $${billingProjectLabel}
+                    taskGroups:
+                      - taskCount: $${N}
+                        parallelism: $${parallelism}
+                        taskCountPerNode: $${candidateTaskCountPerNodeB}
+                        taskSpec:
+                          runnables:
+                            - container:
+                                imageUri: $${resolvedImageB.uri}
+                                entrypoint: "/bin/bash"
+                                commands:
+                                  - "/scripts/run_runner.sh"
+                          environment:
+                            variables:
+                              EXECUTION_MODE: "cloud"
+                              GCS_BUCKET: $${bucket}
+                              DIR_PREFIX: $${dirPrefix}
+                              EXP_ID: $${expId}
+                              RUN_ID: $${runId}
+                              IMAGE_DIGEST: $${resolvedImageB.digest}
+                              SKIP_EXISTING: $${if(ciB > 0, "true", "false")}
+                              GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                              FORECAST_REPO_REF: $${forecastRepoRef}
+                              GCLOUD_PROJECT_ID: $${project}
+                              GITHUB_PAT_SECRET: "github-pat"
+                              FORECAST_REPO_DIR: "/data/forecast/"
+                          computeResource:
+                            cpuMilli: $${candidateCpuMilliB}
+                            memoryMib: $${candidateMemoryMibB}
+                          maxRunDuration: $${maxRunDurationB}
+                    logsPolicy:
+                      destination: "CLOUD_LOGGING"
+                    allocationPolicy:
+                      location:
+                        allowedLocations:
+                          - $${"regions/" + batchLocation}
+                      serviceAccount:
+                        email: $${batchSaEmail}
+                      network:
+                        networkInterfaces:
+                          - network: $${networkSelfLink}
+                            subnetwork: $${subnetSelfLink}
+                            noExternalIpAddress: true
+                      instances: $${candidateInstancesB}
+                      labels:
+                        component: epymodelingsuite
+                        project: epymodelingsuite-cloud
+                        environment: production
+                        stage: runner
+                        execution_id: $${executionIdShort}
+                        machine_type: $${machineLabelB}
+                        candidate_index: $${string(ciB)}
+                        machine_selection: $${machineSelectionB}
+                        image_digest: $${resolvedImageB.short_digest}
+                        managed-by: workflows
+                        profile: $${profileLabel}
+                        billing_project: $${billingProjectLabel}
+                  query:
+                    jobId: $${"stage-b-" + uniqueId + "-" + string(ciB)}
+                result: jobB
+
+            - finalize_stageB_candidate:
+                call: waitAndFinalizeCandidate
+                args:
+                  name: $${jobB.body.name}
+                  stage: B
+                  candidateIndex: $${ciB}
+                  numCandidates: $${numCandidatesB}
+                  expectedParallelism: $${parallelism}
+                  taskCount: $${N}
+                  stallSeconds: $${watchdogStallSeconds}
+                  zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
+                  maxRunDurationSeconds: ${stage_b_max_run_duration}
+                result: candidateSucceededB
+
+            - accept_finalized_stageB:
+                switch:
+                  - condition: $${candidateSucceededB}
+                    steps:
+                      - save_stageB_job:
+                          assign:
+                            - stageBJobName: $${jobB.body.name}
+                      - exit_stageB_candidates:
+                          next: break
 
     # ========== STAGE C: Generate Outputs (Conditional) ==========
     - check_run_output_stage:
         switch:
           - condition: $${runOutputStage == true}
             steps:
-              - create_stageC_job:
-                  call: http.post
-                  args:
-                    url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + location + "/jobs"}
-                    auth:
-                      type: OAuth2
-                      scopes: https://www.googleapis.com/auth/cloud-platform
-                    body:
-                      labels:
-                        component: epymodelingsuite
-                        project: epymodelingsuite-cloud
-                        environment: production
-                        stage: output
-                        exp_id: $${expIdLabel}
-                        run_id: $${runId}
-                        managed-by: workflows
-                        profile: $${profileLabel}
-                        billing_project: $${billingProjectLabel}
-                      taskGroups:
-                        - taskCount: 1
-                          taskSpec:
-                            runnables:
-                              - container:
-                                  imageUri: $${repoUri}
-                                  entrypoint: "/bin/bash"
-                                  commands:
-                                    - "/scripts/run_output.sh"
-                            environment:
-                              variables:
-                                EXECUTION_MODE: "cloud"
-                                GCS_BUCKET: $${bucket}
-                                DIR_PREFIX: $${dirPrefix}
-                                EXP_ID: $${expId}
-                                RUN_ID: $${runId}
-                                NUM_TASKS: $${string(N)}
-                                GITHUB_FORECAST_REPO: $${githubForecastRepo}
-                                FORECAST_REPO_REF: $${forecastRepoRef}
-                                GCLOUD_PROJECT_ID: $${project}
-                                GITHUB_PAT_SECRET: "github-pat"
-                                FORECAST_REPO_DIR: "/data/forecast/"
-                                OUTPUT_CONFIG_FILE: $${outputConfigFile}
-                            computeResource:
-                              cpuMilli: $${cpuMilliC}
-                              memoryMib: $${memoryMibC}
-                            maxRunDuration: $${maxRunDurationC}
-                      logsPolicy:
-                        destination: "CLOUD_LOGGING"
-                      allocationPolicy:
-                        location:
-                          allowedLocations:
-                            - $${"regions/" + location}
-                        serviceAccount:
-                          email: $${batchSaEmail}
-                        network:
-                          networkInterfaces:
-                            - network: $${networkSelfLink}
-                              subnetwork: $${subnetSelfLink}
-                              noExternalIpAddress: true
-                        %{~ if stage_c_machine_type != "" ~}
-                        instances:
-                          - %{~ if length(regexall("^c4d-", stage_c_machine_type)) > 0 ~}
-                            # C4D machine types require Hyperdisk (hyperdisk-balanced or hyperdisk-extreme)
-                            installGpuDrivers: false
-                            policy:
-                              machineType: $${machineTypeC}
-                              provisioningModel: STANDARD
-                              bootDisk:
-                                type: hyperdisk-balanced
-                                sizeGb: 50
-                            %{~ else ~}
-                            policy:
-                              machineType: $${machineTypeC}
-                            %{~ endif ~}
-                        %{~ else ~}
-                        instances:
-                          - policy: {}
-                        %{~ endif ~}
-                        labels:
-                          component: epymodelingsuite
-                          project: epymodelingsuite-cloud
-                          environment: production
-                          stage: output
-                          managed-by: workflows
-                          profile: $${profileLabel}
-                          billing_project: $${billingProjectLabel}
-                    query:
-                      jobId: $${"stage-c-" + uniqueId}
-                  result: jobC
+              - run_stageC_candidates:
+                  for:
+                    value: candidateC
+                    index: ciC
+                    in: $${candidatesC}
+                    steps:
+                      - select_stageC_candidate:
+                          assign:
+                            - candidateMachineTypeC: $${default(map.get(candidateC, "machine_type"), "")}
+                            - candidateCpuMilliC: $${int(map.get(candidateC, "cpu_milli"))}
+                            - candidateMemoryMibC: $${int(map.get(candidateC, "memory_mib"))}
+                            - machineLabelC: $${if(candidateMachineTypeC == "", "auto", candidateMachineTypeC)}
+                            - machineSelectionC: $${if(pinnedC, "pinned", "auto")}
+                            - configuredCandidateInstancesC:
+                                - installGpuDrivers: false
+                                  policy:
+                                    machineType: $${candidateMachineTypeC}
+                                    provisioningModel: STANDARD
+                                    bootDisk:
+                                      type: hyperdisk-balanced
+                                      sizeGb: 50
+                            - candidateInstancesC: $${if(candidateMachineTypeC == "", autoInstances, configuredCandidateInstancesC)}
 
-              - wait_for_stageC_creation:
-                  call: sys.sleep
-                  args:
-                    seconds: 5
+                      - resolve_stageC_image:
+                          call: resolveImage
+                          args:
+                            tagUrl: $${"https://artifactregistry.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/repositories/${repo_name}/packages/${image_name}/tags/" + imageTag}
+                            repoUri: $${repoUri}
+                          result: resolvedImageC
 
-              - wait_for_stageC_completion:
-                  call: waitJob
-                  args:
-                    name: $${jobC.body.name}
+                      - record_stageC_image:
+                          call: recordImageProvenance
+                          args:
+                            bucket: $${bucket}
+                            objectName: $${basePath + "run-metadata/image-provenance/stage-c-candidate-" + string(ciC) + ".json"}
+                            executionId: $${executionIdShort}
+                            runId: $${runId}
+                            stage: C
+                            candidateIndex: $${ciC}
+                            machineType: $${machineLabelC}
+                            machineSelection: $${machineSelectionC}
+                            imageTag: $${imageTag}
+                            resolvedImage: $${resolvedImageC}
 
-              - assign_stageC_job:
-                  assign:
-                    - stageCJobName: $${jobC.body.name}
+                      - create_stageC_job:
+                          call: http.post
+                          args:
+                            url: $${"https://batch.googleapis.com/v1/projects/" + project + "/locations/" + batchLocation + "/jobs"}
+                            auth:
+                              type: OAuth2
+                              scopes: https://www.googleapis.com/auth/cloud-platform
+                            body:
+                              labels:
+                                component: epymodelingsuite
+                                project: epymodelingsuite-cloud
+                                environment: production
+                                stage: output
+                                exp_id: $${expIdLabel}
+                                run_id: $${runId}
+                                execution_id: $${executionIdShort}
+                                machine_type: $${machineLabelC}
+                                candidate_index: $${string(ciC)}
+                                machine_selection: $${machineSelectionC}
+                                image_digest: $${resolvedImageC.short_digest}
+                                managed-by: workflows
+                                profile: $${profileLabel}
+                                billing_project: $${billingProjectLabel}
+                              taskGroups:
+                                - taskCount: 1
+                                  taskSpec:
+                                    runnables:
+                                      - container:
+                                          imageUri: $${resolvedImageC.uri}
+                                          entrypoint: "/bin/bash"
+                                          commands:
+                                            - "/scripts/run_output.sh"
+                                    environment:
+                                      variables:
+                                        EXECUTION_MODE: "cloud"
+                                        GCS_BUCKET: $${bucket}
+                                        DIR_PREFIX: $${dirPrefix}
+                                        EXP_ID: $${expId}
+                                        RUN_ID: $${runId}
+                                        IMAGE_DIGEST: $${resolvedImageC.digest}
+                                        NUM_TASKS: $${string(N)}
+                                        GITHUB_FORECAST_REPO: $${githubForecastRepo}
+                                        FORECAST_REPO_REF: $${forecastRepoRef}
+                                        GCLOUD_PROJECT_ID: $${project}
+                                        GITHUB_PAT_SECRET: "github-pat"
+                                        FORECAST_REPO_DIR: "/data/forecast/"
+                                        OUTPUT_CONFIG_FILE: $${outputConfigFile}
+                                    computeResource:
+                                      cpuMilli: $${candidateCpuMilliC}
+                                      memoryMib: $${candidateMemoryMibC}
+                                    maxRunDuration: $${maxRunDurationC}
+                              logsPolicy:
+                                destination: "CLOUD_LOGGING"
+                              allocationPolicy:
+                                location:
+                                  allowedLocations:
+                                    - $${"regions/" + batchLocation}
+                                serviceAccount:
+                                  email: $${batchSaEmail}
+                                network:
+                                  networkInterfaces:
+                                    - network: $${networkSelfLink}
+                                      subnetwork: $${subnetSelfLink}
+                                      noExternalIpAddress: true
+                                instances: $${candidateInstancesC}
+                                labels:
+                                  component: epymodelingsuite
+                                  project: epymodelingsuite-cloud
+                                  environment: production
+                                  stage: output
+                                  execution_id: $${executionIdShort}
+                                  machine_type: $${machineLabelC}
+                                  candidate_index: $${string(ciC)}
+                                  machine_selection: $${machineSelectionC}
+                                  image_digest: $${resolvedImageC.short_digest}
+                                  managed-by: workflows
+                                  profile: $${profileLabel}
+                                  billing_project: $${billingProjectLabel}
+                            query:
+                              jobId: $${"stage-c-" + uniqueId + "-" + string(ciC)}
+                          result: jobC
+
+                      - finalize_stageC_candidate:
+                          call: waitAndFinalizeCandidate
+                          args:
+                            name: $${jobC.body.name}
+                            stage: C
+                            candidateIndex: $${ciC}
+                            numCandidates: $${numCandidatesC}
+                            expectedParallelism: 1
+                            taskCount: 1
+                            stallSeconds: $${watchdogStallSeconds}
+                            zeroFillGraceSeconds: $${watchdogZeroFillGraceSeconds}
+                            maxRunDurationSeconds: ${stage_c_max_run_duration}
+                          result: candidateSucceededC
+
+                      - accept_finalized_stageC:
+                          switch:
+                            - condition: $${candidateSucceededC}
+                              steps:
+                                - save_stageC_job:
+                                    assign:
+                                      - stageCJobName: $${jobC.body.name}
+                                - exit_stageC_candidates:
+                                    next: break
           - condition: $${runOutputStage == false}
             steps:
               - log_output_skipped:
@@ -439,23 +662,92 @@ main:
     - return_results:
         return:
           N: $${N}
-          stageA_job: $${jobA.body.name}
-          stageB_job: $${jobB.body.name}
+          stageA_job: $${stageAJobName}
+          stageB_job: $${stageBJobName}
           stageC_job: $${stageCJobName}
+
+# ========== SUBWORKFLOW: Resolve an Artifact Registry Tag ==========
+resolveImage:
+  params: [tagUrl, repoUri]
+  steps:
+    - get_tag:
+        call: http.get
+        args:
+          url: $${tagUrl}
+          auth:
+            type: OAuth2
+            scopes: https://www.googleapis.com/auth/cloud-platform.read-only
+        result: tag
+
+    - extract_digest:
+        assign:
+          - versionParts: $${text.split(tag.body.version, "/")}
+          - digest: $${versionParts[len(versionParts) - 1]}
+
+    - validate_digest:
+        switch:
+          - condition: $${len(digest) != 71 or text.substring(digest, 0, 7) != "sha256:"}
+            raise: '$${"Artifact Registry returned an invalid image digest: " + digest}'
+
+    - return_resolved_image:
+        return:
+          digest: $${digest}
+          short_digest: $${text.substring(digest, 7, 19)}
+          uri: $${repoUri + "@" + digest}
+
+# ========== SUBWORKFLOW: Persist Image Provenance ==========
+recordImageProvenance:
+  params: [bucket, objectName, executionId, runId, stage, candidateIndex, machineType, machineSelection, imageTag, resolvedImage]
+  steps:
+    - upload_provenance:
+        call: http.post
+        args:
+          url: $${"https://storage.googleapis.com/upload/storage/v1/b/" + bucket + "/o"}
+          auth:
+            type: OAuth2
+            scopes: https://www.googleapis.com/auth/cloud-platform
+          headers:
+            Content-Type: application/json
+          query:
+            uploadType: media
+            name: $${objectName}
+          body:
+            execution_id: $${executionId}
+            run_id: $${runId}
+            stage: $${stage}
+            candidate_index: $${candidateIndex}
+            machine_type: $${machineType}
+            machine_selection: $${machineSelection}
+            image_tag: $${imageTag}
+            image_digest: $${resolvedImage.digest}
+            image_uri: $${resolvedImage.uri}
+            recorded_at: $${time.format(sys.now())}
 
 # ========== SUBWORKFLOW: Wait for Batch Job Completion ==========
 waitJob:
-  params: [name]
+  params: [name, expectedParallelism, taskCount, stallSeconds, zeroFillGraceSeconds, maxRunDurationSeconds]
   steps:
     - init_wait:
         assign:
+          - pollSeconds: 15
+          - provisioningMarginSeconds: 1800
+          - safeParallelism: $${if(expectedParallelism > 0, expectedParallelism, 1)}
+          - waves: $${int((taskCount + safeParallelism - 1) / safeParallelism)}
+          - maxWaitSeconds: $${waves * maxRunDurationSeconds + provisioningMarginSeconds}
+          - maxPolls: $${int((maxWaitSeconds + pollSeconds - 1) / pollSeconds)}
           - waitCount: 0
+          - flatPolls: 0
+          - lastEverStarted: 0
+          - emptyCounts: {}
+          - lastCounts: $${emptyCounts}
           - finalStatus: null
+          - currentState: "NO_STATUS"
+          - outcome: null
 
     - poll_loop:
         for:
           value: i
-          range: $${[0, 2999]}
+          range: $${[1, maxPolls]}
           steps:
             - get_job_status:
                 try:
@@ -483,7 +775,28 @@ waitJob:
             - extract_state:
                 assign:
                   - currentState: $${if("status" in j.body and "state" in j.body.status, j.body.status.state, "NO_STATUS")}
+                  - lastCounts: $${default(map.get(j.body, ["status", "taskGroups", "group0", "counts"]), emptyCounts)}
+                  - cRunning: $${int(default(map.get(lastCounts, "RUNNING"), 0))}
+                  - cAssigned: $${int(default(map.get(lastCounts, "ASSIGNED"), 0))}
+                  - cSucceeded: $${int(default(map.get(lastCounts, "SUCCEEDED"), 0))}
+                  - cFailed: $${int(default(map.get(lastCounts, "FAILED"), 0))}
+                  - everStarted: $${cRunning + cAssigned + cSucceeded + cFailed}
+                  - remaining: $${taskCount - cSucceeded - cFailed}
+                  - remaining: $${if(remaining > 0, remaining, 0)}
+                  - targetSlots: $${if(safeParallelism < remaining, safeParallelism, remaining)}
+                  # Workflows evaluates both if() branches, so the division
+                  # needs a nonzero denominator even when all tasks finished.
+                  - fillDenominator: $${if(targetSlots > 0, targetSlots, 1)}
+                  - occupied: $${cRunning + cAssigned}
+                  - filled: $${if(targetSlots <= 0, 1, occupied / fillDenominator)}
+                  # Time only continuous underfill. A full earlier wave must not
+                  # consume the grace period needed to provision the next wave.
+                  - madeProgress: $${everStarted != lastEverStarted}
+                  - flatPolls: $${if(filled >= 0.9 or madeProgress, 0, flatPolls + 1)}
+                  - lastEverStarted: $${everStarted}
                   - waitCount: $${waitCount + 1}
+                  - flatSeconds: $${flatPolls * pollSeconds}
+                  - zeroFillSeconds: $${(waitCount - 1) * pollSeconds}
 
             - log_status:
                 call: sys.log
@@ -503,21 +816,225 @@ waitJob:
                       - save_status:
                           assign:
                             - finalStatus: $${j.body.status}
+                            - outcome: "SUCCEEDED"
                       - exit_loop:
+                          next: break
+
+            - check_if_child_cancelled:
+                switch:
+                  - condition: $${currentState in ["CANCELLED", "DELETION_IN_PROGRESS"]}
+                    steps:
+                      - save_child_cancelled:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "CHILD_JOB_CANCELLED"
+                      - exit_cancelled_job:
                           next: break
 
             - check_if_failed:
                 switch:
-                  - condition: $${currentState in ["FAILED", "DELETION_IN_PROGRESS"]}
-                    raise: '$${currentState}'
+                  - condition: $${currentState == "FAILED"}
+                    steps:
+                      - save_job_failure:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "FAILED"
+                      - exit_failed_job:
+                          next: break
+
+            - check_if_stalled:
+                switch:
+                  # A never-started job gets extra time so Batch can report a
+                  # hard VM configuration error before capacity fallback acts.
+                  - condition: $${everStarted == 0 and zeroFillSeconds >= zeroFillGraceSeconds}
+                    steps:
+                      - save_zero_fill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_zero_fill_stall:
+                          next: break
+                  - condition: $${everStarted > 0 and filled < 0.5 and flatSeconds >= stallSeconds}
+                    steps:
+                      - save_severe_underfill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_severe_underfill_stall:
+                          next: break
+                  - condition: $${everStarted > 0 and filled < 0.9 and flatSeconds >= stallSeconds * 6}
+                    steps:
+                      - save_mild_underfill_stall:
+                          assign:
+                            - finalStatus: $${j.body.status}
+                            - outcome: "STALLED"
+                      - exit_mild_underfill_stall:
+                          next: break
 
             - sleep_before_retry:
                 call: sys.sleep
                 args:
-                  seconds: 15
+                  seconds: $${pollSeconds}
+
+    - check_wait_timeout:
+        switch:
+          - condition: $${outcome == null}
+            steps:
+              - save_wait_timeout:
+                  assign:
+                    - outcome: "WAIT_TIMEOUT"
 
     - return_status:
-        return: $${finalStatus}
+        return:
+          outcome: $${outcome}
+          status: $${finalStatus}
+          counts: $${lastCounts}
+
+# ========== SUBWORKFLOW: Cancel and Drain a Batch Job ==========
+cancelJob:
+  params: [name]
+  steps:
+    - initialize_cancel:
+        assign:
+          - lastState: "NO_STATUS"
+          - drained: false
+
+    - request_cancel:
+        try:
+          call: http.post
+          args:
+            url: $${"https://batch.googleapis.com/v1/" + name + ":cancel"}
+            auth:
+              type: OAuth2
+            body: {}
+        except:
+          as: e
+          steps:
+            # Batch returns 400 when the job reached a terminal state first.
+            # Polling below distinguishes that race from an incomplete cancel.
+            - log_cancel_response:
+                call: sys.log
+                args:
+                  text: $${"Cancel request did not return success for " + name + "; checking job state."}
+                  severity: WARNING
+
+    - drain_job:
+        for:
+          value: attempt
+          range: $${[1, 40]}
+          steps:
+            - get_cancelled_job:
+                call: http.get
+                args:
+                  url: $${"https://batch.googleapis.com/v1/" + name}
+                  auth:
+                    type: OAuth2
+                result: cancelledJob
+
+            - read_cancelled_job_state:
+                assign:
+                  - lastState: $${default(map.get(cancelledJob.body, ["status", "state"]), "NO_STATUS")}
+
+            - check_job_drained:
+                switch:
+                  - condition: $${lastState in ["CANCELLED", "SUCCEEDED", "FAILED"]}
+                    steps:
+                      - mark_job_drained:
+                          assign:
+                            - drained: true
+                      - exit_drain_loop:
+                          next: break
+
+            - sleep_before_drain_retry:
+                call: sys.sleep
+                args:
+                  seconds: 15
+
+    - require_drained_job:
+        switch:
+          - condition: $${drained == false}
+            steps:
+              - build_drain_timeout:
+                  assign:
+                    - drainTimeout:
+                        code: CANCEL_DRAIN_TIMEOUT
+                        job: $${name}
+                        state: $${lastState}
+              - raise_drain_timeout:
+                  raise: $${drainTimeout}
+
+    - return_cancelled_state:
+        return: $${lastState}
+
+# ========== SUBWORKFLOW: Finalize One Fallback Candidate ==========
+waitAndFinalizeCandidate:
+  params: [name, stage, candidateIndex, numCandidates, expectedParallelism, taskCount, stallSeconds, zeroFillGraceSeconds, maxRunDurationSeconds]
+  steps:
+    - wait_for_job_creation:
+        call: sys.sleep
+        args:
+          seconds: 5
+
+    - wait_for_job_completion:
+        call: waitJob
+        args:
+          name: $${name}
+          expectedParallelism: $${expectedParallelism}
+          taskCount: $${taskCount}
+          stallSeconds: $${stallSeconds}
+          zeroFillGraceSeconds: $${zeroFillGraceSeconds}
+          maxRunDurationSeconds: $${maxRunDurationSeconds}
+        result: waitResult
+
+    - return_successful_candidate:
+        switch:
+          - condition: $${waitResult.outcome == "SUCCEEDED"}
+            return: true
+
+    - stop_on_cancelled_child:
+        switch:
+          - condition: $${waitResult.outcome == "CHILD_JOB_CANCELLED"}
+            steps:
+              - build_child_cancelled_error:
+                  assign:
+                    - childCancelled:
+                        code: CHILD_JOB_CANCELLED
+                        stage: $${stage}
+                        job: $${name}
+                        status: $${waitResult.status}
+                        counts: $${waitResult.counts}
+              - raise_child_cancelled:
+                  raise: $${childCancelled}
+
+    - cancel_unsuccessful_candidate:
+        call: cancelJob
+        args:
+          name: $${name}
+        result: cancelState
+
+    - return_successful_cancel_race:
+        switch:
+          - condition: $${cancelState == "SUCCEEDED"}
+            return: true
+
+    - raise_if_candidates_exhausted:
+        switch:
+          - condition: $${candidateIndex == numCandidates - 1}
+            steps:
+              - build_candidates_exhausted_error:
+                  assign:
+                    - candidatesExhausted:
+                        code: ALL_CANDIDATES_EXHAUSTED
+                        stage: $${stage}
+                        job: $${name}
+                        outcome: $${waitResult.outcome}
+                        status: $${waitResult.status}
+                        counts: $${waitResult.counts}
+              - raise_candidates_exhausted:
+                  raise: $${candidatesExhausted}
+
+    - continue_to_next_candidate:
+        return: false
 
 # ========== SUBWORKFLOW: Wait for Files in GCS ==========
 waitForFiles:
