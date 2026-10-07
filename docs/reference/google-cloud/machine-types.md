@@ -34,7 +34,7 @@ For details on each machine families and pricing, see:
 
 ### How it works
 
-When Cloud Batch runs a job, it provisions VMs to execute tasks. The workflow accepts an ordered candidate chain per stage. If a candidate cannot obtain enough capacity, the workflow cancels and drains that Batch job before trying the next candidate.
+When Cloud Batch runs a job, it provisions VMs to execute tasks. The workflow accepts an ordered candidate chain per stage. If a candidate cannot obtain enough capacity, the workflow cancels and drains that Batch job before trying the next candidate. A task that fails with a container exit code (for example `1`, or `137` for out-of-memory) stops the workflow with `TASK_FAILED` instead, since another machine would fail the same way; only Batch VM errors (reserved `500xx` codes) and capacity stalls fall back.
 
 **Automatic fallback**: Configure `machine_types` in preferred order. Every candidate is validated against the stage's CPU and memory minimums before submission.
 
