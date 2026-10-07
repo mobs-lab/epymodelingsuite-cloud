@@ -1006,6 +1006,31 @@ waitAndFinalizeCandidate:
               - raise_child_cancelled:
                   raise: $${childCancelled}
 
+    # A container exit code (1-9999, including OOM 137) is an application
+    # failure that another machine would repeat. Batch reports VM problems
+    # (preemption, unresponsive VM) with reserved 500xx codes, which fall back.
+    - stop_on_task_failure:
+        switch:
+          - condition: $${waitResult.outcome == "FAILED"}
+            steps:
+              - detect_task_exit_code:
+                  assign:
+                    - taskFailed: $${text.match_regex(json.encode_to_string(default(map.get(waitResult.status, "statusEvents"), [])), "with exit code [0-9]{1,4}\\.")}
+              - raise_task_failure:
+                  switch:
+                    - condition: $${taskFailed}
+                      steps:
+                        - build_task_failed_error:
+                            assign:
+                              - taskFailure:
+                                  code: TASK_FAILED
+                                  stage: $${stage}
+                                  job: $${name}
+                                  status: $${waitResult.status}
+                                  counts: $${waitResult.counts}
+                        - raise_task_failed:
+                            raise: $${taskFailure}
+
     - cancel_unsuccessful_candidate:
         call: cancelJob
         args:
