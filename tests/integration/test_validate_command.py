@@ -736,6 +736,25 @@ class TestValidateOperations:
             assert "epymodelingsuite" in result["error"]
 
     @patch("epycloud.commands.validate.operations.requests.get")
+    def test_fetch_config_files_reports_error_status(self, mock_get):
+        """A 4xx Response is falsy, so the status must not fall back to unknown."""
+        from epycloud.commands.validate.operations import fetch_config_files
+        import requests
+
+        response = requests.Response()
+        response.status_code = 401
+        mock_get.return_value = response
+
+        with pytest.raises(Exception, match="GitHub API error 401"):
+            fetch_config_files(
+                forecast_repo="test-org/test-repo",
+                exp_id="test-exp",
+                github_token="test-token",
+                verbose=False,
+                quiet=True,
+            )
+
+    @patch("epycloud.commands.validate.operations.requests.get")
     def test_fetch_config_files_404(self, mock_get):
         """Test fetch_config_files with 404 error."""
         from epycloud.commands.validate.operations import fetch_config_files
