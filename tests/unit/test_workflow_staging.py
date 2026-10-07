@@ -466,6 +466,26 @@ def test_stage_b_packs_each_candidate_by_its_own_task_count(workflow_source):
     assert "taskCountPerNode: $${candidateTaskCountPerNodeB}" in workflow_source
     assert "taskCountPerNode: $${taskCountPerNode}" not in workflow_source
 
+
+def test_stage_b_tries_evenly_packed_candidates_first(workflow_source):
+    """Stage B lowers packing to an even divisor and orders even candidates first."""
+    pack_source = workflow_source.split("- initialize_stageB_packing:", maxsplit=1)[1].split(
+        "- run_stageB_candidates:", maxsplit=1
+    )[0]
+
+    assert workflow_source.index("- calculate_parallelism:") < workflow_source.index(
+        "- initialize_stageB_packing:"
+    )
+    assert "range: $${[1, maxPackB]}" in pack_source
+    assert "condition: $${parallelism % d == 0 and d * 4 >= maxPackB * 3}" in pack_source
+    assert "task_count_per_node: $${if(evenPackB > 0, evenPackB, maxPackB)}" in pack_source
+    assert "$${map.merge(candidateB, packOverrideB)}" in pack_source
+    # Uneven candidates are appended after every even one, then replace the chain.
+    assert pack_source.index("in: $${candidatesB}") < pack_source.index(
+        "in: $${unevenCandidatesB}"
+    )
+    assert "- candidatesB: $${evenCandidatesB}" in pack_source
+
 def test_child_cancellation_stops_before_candidate_fallback(candidate_finalizer_source):
     """Manual child cancellation must raise before cancellation or replacement."""
     stop_at = candidate_finalizer_source.index("- stop_on_cancelled_child:")
