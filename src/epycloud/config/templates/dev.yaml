@@ -6,7 +6,7 @@
 # against in-development code: a different image tag and a different
 # epymodelingsuite ref, with verbose logging.
 #
-# To test a change to the *workflow* itself, use `--env v2pipeline` instead.
+# To test a change to the *workflow* itself, use `--env staging` instead.
 # That environment points at the second workflow deployed by terraform.
 
 docker:

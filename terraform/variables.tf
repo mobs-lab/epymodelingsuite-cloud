@@ -49,18 +49,18 @@ variable "bucket_name" {
 variable "workflow_name" {
   type        = string
   default     = "epymodelingsuite-pipeline"
-  description = "Name of the production Cloud Workflows workflow. The v2 workflow is always this name suffixed with '-v2'."
+  description = "Name of the production Cloud Workflows workflow. The staging workflow is always this name suffixed with '-staging'."
 
   validation {
-    condition     = !endswith(var.workflow_name, "-v2")
-    error_message = "workflow_name is the PRODUCTION workflow name; the v2 workflow is derived as \"$${var.workflow_name}-v2\". A '-v2' suffix here means terraform was run under the v2pipeline environment (e.g. 'epycloud --env v2pipeline terraform apply'), which would rename the production workflow. Run terraform without --env v2pipeline."
+    condition     = !endswith(var.workflow_name, "-staging")
+    error_message = "workflow_name is the PRODUCTION workflow name; the staging workflow is derived as \"$${var.workflow_name}-staging\". A '-staging' suffix here means terraform was run under the staging environment (e.g. 'epycloud --env staging terraform apply'), which would rename the production workflow. Run terraform without --env staging."
   }
 }
 
-variable "enable_v2_workflow" {
+variable "enable_staging_workflow" {
   type        = bool
   default     = true
-  description = "Deploy the blue/green v2 workflow assembled from its main and subworkflow templates. Set false to tear it down."
+  description = "Deploy the blue/green staging workflow assembled from its main and subworkflow templates. Set false to tear it down."
 }
 
 variable "image_name" {

@@ -49,24 +49,24 @@ Configuration is stored in YAML format with hierarchical structure. Key sections
   - `google_cloud.workflow_name`: Cloud Workflows workflow to deploy and submit to (default: `epymodelingsuite-pipeline`)
 
 See [docs/variable-configuration.md](../docs/variable-configuration.md) for complete configuration reference.
-## Blue/green v2 pipeline
+## Blue/green staging pipeline
 
 Two workflows are deployed from one state:
 
 | Workflow | Rendered from | Selected with |
 |---|---|---|
 | `epymodelingsuite-pipeline` | `workflow.yaml` | default (no `--env`) |
-| `epymodelingsuite-pipeline-v2` | `workflow-v2.yaml` + `workflow-v2-subworkflows.yaml` | `epycloud --env v2pipeline ...` |
+| `epymodelingsuite-pipeline-staging` | `workflow-staging.yaml` + `workflow-staging-subworkflows.yaml` | `epycloud --env staging ...` |
 
-The staging environment is called `v2pipeline`, not `dev`, because "dev" is already
+It is called `staging`, not `dev`, because "dev" is already
 taken in this project by the dev git branch, the `dev` image tag and
 `github.modeling_suite_ref: dev`. Those select which *code* runs; this selects which
 *workflow* runs, which is a separate axis. `--env dev` still exists for the first kind.
 
-The v2 source is split at the top-level subworkflow boundary. `workflow-v2.yaml`
-contains `main`; `workflow-v2-subworkflows.yaml` contains the reusable subworkflows.
+The staging source is split at the top-level subworkflow boundary. `workflow-staging.yaml`
+contains `main`; `workflow-staging-subworkflows.yaml` contains the reusable subworkflows.
 Terraform joins them into one definition. Editing either and applying changes **only**
-the v2 workflow. Everything else (network, subnet, Artifact Registry, both service
+the staging workflow. Everything else (network, subnet, Artifact Registry, both service
 accounts) is shared; a workflow only reads those, and Batch jobs hold no shared state.
 
 The three stage loops keep their stage-specific Batch job bodies explicit. Their shared
@@ -75,23 +75,23 @@ waiting, manual-child-cancellation handling, cancellation and draining, terminal
 races, and candidate exhaustion. Keep those semantics in the subworkflow so the three
 stages cannot drift apart.
 
-Workflow changes therefore go: edit the v2 templates, apply, exercise with
-`--env v2pipeline`, then promote the assembled definition.
+Workflow changes therefore go: edit the staging templates, apply, exercise with
+`--env staging`, then promote the assembled definition.
 
 ```bash
-# Promote a validated v2 workflow to production
-{ cat terraform/workflow-v2.yaml; printf '\n'; cat terraform/workflow-v2-subworkflows.yaml; } > /tmp/workflow-v2-assembled.yaml
-diff terraform/workflow.yaml /tmp/workflow-v2-assembled.yaml
-cp /tmp/workflow-v2-assembled.yaml terraform/workflow.yaml
+# Promote a validated staging workflow to production
+{ cat terraform/workflow-staging.yaml; printf '\n'; cat terraform/workflow-staging-subworkflows.yaml; } > /tmp/workflow-staging-assembled.yaml
+diff terraform/workflow.yaml /tmp/workflow-staging-assembled.yaml
+cp /tmp/workflow-staging-assembled.yaml terraform/workflow.yaml
 epycloud terraform apply
 ```
 
-Set `enable_v2_workflow = false` to tear the v2 workflow down without removing the code.
+Set `enable_staging_workflow = false` to tear the staging workflow down without removing the code.
 
-### Run terraform from the base environment, not `--env v2pipeline`
+### Run terraform from the base environment, not `--env staging`
 
-`var.workflow_name` is the **production** name; the v2 workflow is derived as
-`"${var.workflow_name}-v2"`. Because `epycloud` exports config as `TF_VAR_*`, running
-`epycloud --env v2pipeline terraform apply` would pass the already-suffixed v2 name and
+`var.workflow_name` is the **production** name; the staging workflow is derived as
+`"${var.workflow_name}-staging"`. Because `epycloud` exports config as `TF_VAR_*`, running
+`epycloud --env staging terraform apply` would pass the already-suffixed staging name and
 rename the production workflow. An HCL validation rejects any `workflow_name` ending in
-`-v2`, so this fails fast instead of destroying and recreating the production workflow.
+`-staging`, so this fails fast instead of destroying and recreating the production workflow.

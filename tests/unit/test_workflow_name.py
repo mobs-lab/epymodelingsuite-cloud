@@ -50,9 +50,9 @@ class TestGetWorkflowName:
         assert get_workflow_name(config) == DEFAULT_WORKFLOW_NAME
 
     def test_uses_configured_name(self):
-        config = {"google_cloud": {"workflow_name": "epymodelingsuite-pipeline-v2"}}
+        config = {"google_cloud": {"workflow_name": "epymodelingsuite-pipeline-staging"}}
 
-        assert get_workflow_name(config) == "epymodelingsuite-pipeline-v2"
+        assert get_workflow_name(config) == "epymodelingsuite-pipeline-staging"
 
 
 class TestBackendWorkflowName:
@@ -64,21 +64,21 @@ class TestBackendWorkflowName:
         assert backend.workflow_name == DEFAULT_WORKFLOW_NAME
 
     def test_targets_configured_workflow(self, mock_config):
-        mock_config["google_cloud"]["workflow_name"] = "epymodelingsuite-pipeline-v2"
+        mock_config["google_cloud"]["workflow_name"] = "epymodelingsuite-pipeline-staging"
 
         backend = GcpExecutionBackend(mock_config)
 
-        assert backend.workflow_name == "epymodelingsuite-pipeline-v2"
+        assert backend.workflow_name == "epymodelingsuite-pipeline-staging"
 
     def test_submission_target_follows_configured_workflow(self, mock_config):
-        mock_config["google_cloud"]["workflow_name"] = "epymodelingsuite-pipeline-v2"
+        mock_config["google_cloud"]["workflow_name"] = "epymodelingsuite-pipeline-staging"
         backend = GcpExecutionBackend(mock_config)
 
         plan = backend.plan_pipeline(_pipeline_spec())
 
         assert plan.target == (
             "https://workflowexecutions.googleapis.com/v1/projects/test-project/"
-            "locations/us-central1/workflows/epymodelingsuite-pipeline-v2/executions"
+            "locations/us-central1/workflows/epymodelingsuite-pipeline-staging/executions"
         )
 
 
@@ -102,7 +102,7 @@ class TestStatusQueriesWorkflowName:
         with patch.object(status_operations.requests, "get", return_value=self._response()) as get:
             with patch.object(status_operations, "get_gcloud_access_token", return_value="t"):
                 status_operations.fetch_active_workflows(
-                    "p", "us-central1", None, False, workflow_name="epymodelingsuite-pipeline-v2"
+                    "p", "us-central1", None, False, workflow_name="epymodelingsuite-pipeline-staging"
                 )
 
-        assert "/workflows/epymodelingsuite-pipeline-v2/executions" in get.call_args[0][0]
+        assert "/workflows/epymodelingsuite-pipeline-staging/executions" in get.call_args[0][0]

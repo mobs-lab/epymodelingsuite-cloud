@@ -1,4 +1,4 @@
-"""Regression tests for the v2 workflow's staged rollout features."""
+"""Regression tests for the staging workflow's staged rollout features."""
 
 import json
 import re
@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-WORKFLOW_V2 = Path(__file__).resolve().parents[2] / "terraform" / "workflow-v2.yaml"
-WORKFLOW_V2_SUBWORKFLOWS = (
-    Path(__file__).resolve().parents[2] / "terraform" / "workflow-v2-subworkflows.yaml"
+WORKFLOW_STAGING = Path(__file__).resolve().parents[2] / "terraform" / "workflow-staging.yaml"
+WORKFLOW_STAGING_SUBWORKFLOWS = (
+    Path(__file__).resolve().parents[2] / "terraform" / "workflow-staging-subworkflows.yaml"
 )
 TERRAFORM_MAIN = Path(__file__).resolve().parents[2] / "terraform" / "main.tf"
 
@@ -17,7 +17,7 @@ TERRAFORM_MAIN = Path(__file__).resolve().parents[2] / "terraform" / "main.tf"
 def workflow_source() -> str:
     """Assemble the staging templates for source-level rendering checks."""
     return "\n".join(
-        [WORKFLOW_V2.read_text(), WORKFLOW_V2_SUBWORKFLOWS.read_text()]
+        [WORKFLOW_STAGING.read_text(), WORKFLOW_STAGING_SUBWORKFLOWS.read_text()]
     )
 
 
@@ -44,11 +44,11 @@ def terraform_main_source() -> str:
 
 
 def test_terraform_assembles_the_two_v2_templates(terraform_main_source):
-    """Deployment must append the top-level subworkflows to the v2 main body."""
+    """Deployment must append the top-level subworkflows to the staging main body."""
     assert 'source_contents = join("\\n", [' in terraform_main_source
-    assert 'templatefile("${path.module}/workflow-v2.yaml", {' in terraform_main_source
+    assert 'templatefile("${path.module}/workflow-staging.yaml", {' in terraform_main_source
     assert (
-        'templatefile("${path.module}/workflow-v2-subworkflows.yaml", {})'
+        'templatefile("${path.module}/workflow-staging-subworkflows.yaml", {})'
         in terraform_main_source
     )
 
