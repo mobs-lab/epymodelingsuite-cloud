@@ -36,7 +36,7 @@ from epycloud.lib.output import error, info
 
 # Name of the Cloud Workflows workflow the pipeline is deployed as.
 # Overridable via ``google_cloud.workflow_name`` so the blue/green staging
-# pipeline can be addressed with ``--env v2pipeline`` without touching
+# pipeline can be addressed with ``--env staging`` without touching
 # production defaults.
 DEFAULT_WORKFLOW_NAME = "epymodelingsuite-pipeline"
 
@@ -121,8 +121,8 @@ def get_workflow_name(config: dict[str, Any]) -> str:
     --------
     >>> get_workflow_name({})
     'epymodelingsuite-pipeline'
-    >>> get_workflow_name({"google_cloud": {"workflow_name": "pipeline-v2"}})
-    'pipeline-v2'
+    >>> get_workflow_name({"google_cloud": {"workflow_name": "pipeline-staging"}})
+    'pipeline-staging'
     """
     google_cloud = config.get("google_cloud", {}) or {}
     return google_cloud.get("workflow_name") or DEFAULT_WORKFLOW_NAME

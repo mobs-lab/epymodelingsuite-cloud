@@ -13,9 +13,9 @@ output "workflows_name" {
   description = "Workflows workflow name"
 }
 
-output "workflows_name_v2" {
-  value       = one(google_workflows_workflow.pipeline_v2[*].name)
-  description = "v2 workflow name (null when enable_v2_workflow = false)"
+output "workflows_name_staging" {
+  value       = one(google_workflows_workflow.pipeline_staging[*].name)
+  description = "staging workflow name (null when enable_staging_workflow = false)"
 }
 
 output "workflows_region" {

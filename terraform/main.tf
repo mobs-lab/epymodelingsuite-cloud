@@ -263,22 +263,22 @@ resource "google_workflows_workflow" "pipeline" {
   ]
 }
 
-# v2 workflow (blue/green staging pipeline). Joins the main workflow and its
+# Staging workflow (blue/green). Joins the main workflow and its
 # top-level subworkflows so editing either template cannot touch production.
 # Promotion assembles the same two templates into workflow.yaml before apply.
-# Named v2 rather than dev because "dev" is already taken here by the dev
+# Named staging rather than dev because "dev" is already taken here by the dev
 # branch, the dev image tag and github.modeling_suite_ref.
 # Shares the network, registry and service accounts with production; isolation
 # comes from the template source and the name, not from separate state.
-resource "google_workflows_workflow" "pipeline_v2" {
-  count = var.enable_v2_workflow ? 1 : 0
+resource "google_workflows_workflow" "pipeline_staging" {
+  count = var.enable_staging_workflow ? 1 : 0
 
-  name            = "${var.workflow_name}-v2"
-  description     = "v2 pipeline (blue/green), rendered from workflow-v2.yaml"
+  name            = "${var.workflow_name}-staging"
+  description     = "Staging pipeline (blue/green), rendered from workflow-staging.yaml"
   region          = var.region
   service_account = google_service_account.workflows_runner.email
   source_contents = join("\n", [
-    templatefile("${path.module}/workflow-v2.yaml", {
+    templatefile("${path.module}/workflow-staging.yaml", {
       repo_name                = var.repo_name
       image_name               = var.image_name
       image_tag                = var.image_tag
@@ -302,13 +302,13 @@ resource "google_workflows_workflow" "pipeline_v2" {
       allowed_batch_regions    = jsonencode(sort(keys(var.batch_regions)))
       default_batch_region     = var.region
     }),
-    templatefile("${path.module}/workflow-v2-subworkflows.yaml", {})
+    templatefile("${path.module}/workflow-staging-subworkflows.yaml", {})
   ])
 
   labels = {
     component   = "epymodelingsuite"
     project     = "epymodelingsuite-cloud"
-    environment = "v2pipeline"
+    environment = "staging"
     managed-by  = "terraform"
   }
 

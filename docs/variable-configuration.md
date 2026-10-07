@@ -30,8 +30,8 @@ google_cloud:
   bucket_name: your-bucket-name       # GCS bucket (must exist)
   billing_project: ""                   # Cost grouping label (optional, user-defined)
   workflow_name: epymodelingsuite-pipeline  # Cloud Workflows workflow to submit to and query
-                                            # (environments/v2pipeline.yaml points this at
-                                            #  epymodelingsuite-pipeline-v2)
+                                            # (environments/staging.yaml points this at
+                                            #  epymodelingsuite-pipeline-staging)
 
   # Cloud Batch Configuration
   batch:

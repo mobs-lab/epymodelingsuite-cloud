@@ -39,7 +39,7 @@ def initialize_config_dir() -> int:
     templates = [
         ("config.yaml", config_dir / "config.yaml"),
         ("dev.yaml", config_dir / "environments" / "dev.yaml"),
-        ("v2pipeline.yaml", config_dir / "environments" / "v2pipeline.yaml"),
+        ("staging.yaml", config_dir / "environments" / "staging.yaml"),
         ("prod.yaml", config_dir / "environments" / "prod.yaml"),
         ("local.yaml", config_dir / "environments" / "local.yaml"),
         ("flu.yaml", config_dir / "profiles" / "flu.yaml"),
