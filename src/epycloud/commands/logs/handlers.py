@@ -259,7 +259,7 @@ def fetch_logs(
 
 
 def normalize_stage_name(stage: str) -> str:
-    """Normalize stage name to letter format.
+    """Normalize stage name to the ``stage`` label Batch jobs carry.
 
     Parameters
     ----------
@@ -269,11 +269,11 @@ def normalize_stage_name(stage: str) -> str:
     Returns
     -------
     str
-        Normalized stage name (A/B/C)
+        Stage label (builder/runner/output)
     """
     stage_map = {
-        "builder": "A",
-        "runner": "B",
-        "output": "C",
+        "a": "builder",
+        "b": "runner",
+        "c": "output",
     }
-    return stage_map.get(stage.lower(), stage.upper())
+    return stage_map.get(stage.lower(), stage.lower())

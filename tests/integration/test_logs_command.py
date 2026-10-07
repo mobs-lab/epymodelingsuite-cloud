@@ -95,7 +95,7 @@ class TestLogsCommand:
         assert exit_code == 0
         cmd = mock_subprocess.call_args[0][0]
         filter_arg = cmd[3]
-        assert 'labels.stage="B"' in filter_arg
+        assert 'labels.stage="runner"' in filter_arg
 
     @patch("epycloud.commands.logs.handlers.subprocess.run")
     def test_logs_fetch_by_run_id(self, mock_subprocess, mock_config):
@@ -599,42 +599,22 @@ class TestLogsCommand:
 
 
 class TestLogsNormalizeStage:
-    """Test stage name normalization."""
+    """Test stage name normalization to the Batch ``stage`` label."""
 
-    def test_normalize_stage_builder_to_a(self):
-        """Test builder -> A conversion."""
-        result = logs.handlers.normalize_stage_name("builder")
-        assert result == "A"
-
-    def test_normalize_stage_runner_to_b(self):
-        """Test runner -> B conversion."""
-        result = logs.handlers.normalize_stage_name("runner")
-        assert result == "B"
-
-    def test_normalize_stage_output_to_c(self):
-        """Test output -> C conversion."""
-        result = logs.handlers.normalize_stage_name("output")
-        assert result == "C"
-
-    def test_normalize_stage_a_unchanged(self):
-        """Test A stays as A."""
-        result = logs.handlers.normalize_stage_name("A")
-        assert result == "A"
-
-    def test_normalize_stage_b_unchanged(self):
-        """Test B stays as B."""
-        result = logs.handlers.normalize_stage_name("B")
-        assert result == "B"
-
-    def test_normalize_stage_c_unchanged(self):
-        """Test C stays as C."""
-        result = logs.handlers.normalize_stage_name("C")
-        assert result == "C"
-
-    def test_normalize_stage_lowercase(self):
-        """Test lowercase a -> A."""
-        result = logs.handlers.normalize_stage_name("a")
-        assert result == "A"
+    @pytest.mark.parametrize(
+        ("stage", "label"),
+        [
+            ("A", "builder"),
+            ("b", "runner"),
+            ("C", "output"),
+            ("builder", "builder"),
+            ("runner", "runner"),
+            ("output", "output"),
+        ],
+    )
+    def test_normalize_stage_to_label(self, stage, label):
+        """Letters and names both map to the label the workflow attaches."""
+        assert logs.handlers.normalize_stage_name(stage) == label
 
 
 class TestLogsParseSinceTime:
