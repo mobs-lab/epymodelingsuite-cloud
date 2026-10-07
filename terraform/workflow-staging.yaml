@@ -340,6 +340,66 @@ main:
         assign:
           - parallelism: $${if(N > maxParallelism, maxParallelism, N)}
 
+    # Batch provisions floor(taskCount / taskCountPerNode) VMs, so a remainder
+    # waits for a free slot. Lower each candidate to the largest divisor of
+    # parallelism that keeps at least 3/4 of each VM busy, then try candidates
+    # that pack evenly first, keeping chain order within each group.
+    - initialize_stageB_packing:
+        assign:
+          - evenCandidatesB: []
+          - unevenCandidatesB: []
+
+    - pack_stageB_candidates:
+        for:
+          value: candidateB
+          in: $${candidatesB}
+          steps:
+            - fit_stageB_candidate:
+                assign:
+                  # Clients compute how many tasks fit each candidate; older clients send none.
+                  - maxPackB: $${int(default(map.get(candidateB, "task_count_per_node"), taskCountPerNode))}
+                  - maxPackB: $${if(maxPackB > N, N, maxPackB)}
+                  - evenPackB: 0
+
+            - find_even_pack:
+                for:
+                  value: d
+                  range: $${[1, maxPackB]}
+                  steps:
+                    - keep_even_divisor:
+                        switch:
+                          - condition: $${parallelism % d == 0 and d * 4 >= maxPackB * 3}
+                            assign:
+                              - evenPackB: $${d}
+
+            - pack_stageB_candidate:
+                assign:
+                  - packOverrideB:
+                      task_count_per_node: $${if(evenPackB > 0, evenPackB, maxPackB)}
+                  - packedCandidateB: $${map.merge(candidateB, packOverrideB)}
+
+            - file_stageB_candidate:
+                switch:
+                  - condition: $${evenPackB > 0}
+                    assign:
+                      - evenCandidatesB: $${list.concat(evenCandidatesB, packedCandidateB)}
+                  - condition: true
+                    assign:
+                      - unevenCandidatesB: $${list.concat(unevenCandidatesB, packedCandidateB)}
+
+    - append_uneven_stageB_candidates:
+        for:
+          value: candidateB
+          in: $${unevenCandidatesB}
+          steps:
+            - append_uneven_candidate:
+                assign:
+                  - evenCandidatesB: $${list.concat(evenCandidatesB, candidateB)}
+
+    - order_stageB_candidates:
+        assign:
+          - candidatesB: $${evenCandidatesB}
+
     - run_stageB_candidates:
         for:
           value: candidateB

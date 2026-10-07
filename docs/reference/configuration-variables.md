@@ -187,6 +187,8 @@ tasks per VM = min(machine vCPUs / cpu_milli, (machine memory - 1024 MiB) / memo
 
 The 1024 MiB is left for the OS and container runtime when tasks share a VM (one task may use the whole VM). The workflow caps the result at the number of Stage B tasks, and `task_count_per_node` (or `--task-count-per-node`) caps it further when set.
 
+**Even packing.** Batch provisions `floor(tasks / tasks per VM)` VMs, so a remainder waits until a slot frees up (51 tasks at 4 per VM get 12 VMs and 3 waiting tasks). Once Stage A has produced the tasks, the workflow lowers each candidate to the largest divisor of the Stage B parallelism that keeps at least 3/4 of its VM busy (51 tasks run at 3 per VM on 17 VMs). It then tries the candidates that pack evenly first, keeping `machine_types` order within each group. A one-task-per-VM candidate always packs evenly, so including a small machine such as `c4d-highcpu-2` in the chain removes the wait for any task count.
+
 **Request one physical core per single-threaded task.** On Compute Engine a vCPU is one hardware thread, and two vCPUs share each physical core. Stage B calibration runs in one thread, so `cpu_milli: 1000` puts two tasks on each physical core. Measured on `c3d-standard-4` with the flu model:
 
 | `cpu_milli` | Tasks per `c3d-standard-4` | Time per task | Cost per task |
