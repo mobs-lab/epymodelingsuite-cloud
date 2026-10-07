@@ -44,6 +44,9 @@ epycloud = "epycloud.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"epycloud.config" = ["templates/*.yaml"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
