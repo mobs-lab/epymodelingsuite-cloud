@@ -174,7 +174,7 @@ def build_log_filter(
     if since:
         since_time = parse_since_time(since)
         if since_time:
-            filter_parts.append(f'timestamp>="{since_time}"')
+            filter_parts.append(f'timestamp>="{since_time.isoformat()}"')
 
     return " AND ".join(filter_parts)
 
