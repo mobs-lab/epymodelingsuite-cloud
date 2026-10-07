@@ -35,4 +35,4 @@ The image installs `epymodelingsuite` with `uv sync --frozen` into `/opt/epymode
 
 ## Machine Types
 
-Each stage uses an ordered fallback chain (`google_cloud.batch.stage_*.machine_types`): the workflow tries candidates in order and cancels/drains a candidate's Batch job before trying the next. Every candidate must meet the stage's `cpu_milli`/`memory_mib` minimums. A `--stage-*-machine-type` CLI flag pins one candidate and disables fallback. Stage C is memory bound: fallback chains must never step down in memory.
+Each stage uses an ordered fallback chain (`google_cloud.batch.stage_*.machine_types`): the workflow tries candidates in order (Stage B first moves candidates that pack the task count evenly to the front) and cancels/drains a candidate's Batch job before trying the next. Every candidate must meet the stage's `cpu_milli`/`memory_mib` minimums. A `--stage-*-machine-type` CLI flag pins one candidate and disables fallback. Stage C is memory bound: fallback chains must never step down in memory.
