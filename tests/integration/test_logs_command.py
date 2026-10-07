@@ -1,6 +1,7 @@
 """Integration tests for logs command."""
 
 import json
+import re
 from subprocess import CalledProcessError
 from unittest.mock import Mock, patch
 
@@ -596,6 +597,40 @@ class TestLogsCommand:
         assert 'labels.job_uid=~"^stage-.-afda7344"' in filter_arg
         # exp_id should not be in filter when not provided
         assert "labels.exp_id" not in filter_arg
+
+
+class TestLogsSinceFilter:
+    """Test the timestamp filter sent to Cloud Logging."""
+
+    @patch("epycloud.commands.logs.handlers.subprocess.run")
+    def test_since_uses_rfc3339_timestamp(self, mock_subprocess, mock_config):
+        """Cloud Logging rejects Python's default space-separated datetime."""
+        mock_subprocess.return_value = Mock(returncode=0, stdout="[]", stderr="")
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": Mock(
+                exp_id="test-exp",
+                run_id=None,
+                stage=None,
+                task_index=None,
+                follow=False,
+                tail=100,
+                since="2h",
+                level=None,
+                job_name=None,
+                execution_id=None,
+            ),
+        }
+
+        assert logs.handle(ctx) == 0
+        filter_arg = mock_subprocess.call_args[0][0][3]
+        timestamp = re.search(r'timestamp>="([^"]+)"', filter_arg).group(1)
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?\+00:00", timestamp)
 
 
 class TestLogsNormalizeStage:
