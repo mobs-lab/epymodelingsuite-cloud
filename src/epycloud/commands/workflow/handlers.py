@@ -184,7 +184,7 @@ def handle_describe(ctx: dict[str, Any]) -> int:
         if e.response is not None and e.response.status_code == 404:
             error(f"Execution not found: {args.execution_id}")
         else:
-            status_code = e.response.status_code if e.response else "unknown"
+            status_code = e.response.status_code if e.response is not None else "unknown"
             error(f"Failed to describe execution: HTTP {status_code}")
         if verbose and e.response is not None:
             print(e.response.text, file=sys.stderr)

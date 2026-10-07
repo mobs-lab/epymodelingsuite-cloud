@@ -320,7 +320,7 @@ def fetch_config_files(
         if e.response is not None and e.response.status_code == 404:
             raise Exception(f"Config directory not found: {config_dir_path}")
         else:
-            status_code = e.response.status_code if e.response else "unknown"
+            status_code = e.response.status_code if e.response is not None else "unknown"
             raise Exception(f"GitHub API error {status_code}")
 
     # Filter for YAML files
@@ -418,7 +418,7 @@ def fetch_github_file(
         if e.response is not None and e.response.status_code == 404:
             raise Exception(f"File not found: {path}")
         else:
-            status_code = e.response.status_code if e.response else "unknown"
+            status_code = e.response.status_code if e.response is not None else "unknown"
             raise Exception(f"GitHub API error {status_code}")
 
 
@@ -485,7 +485,7 @@ def expand_exp_id_pattern(
         if e.response is not None and e.response.status_code == 404:
             raise Exception(f"Experiments directory not found in {forecast_repo}")
         else:
-            status_code = e.response.status_code if e.response else "unknown"
+            status_code = e.response.status_code if e.response is not None else "unknown"
             raise Exception(f"GitHub API error {status_code}")
 
     # Filter directories
