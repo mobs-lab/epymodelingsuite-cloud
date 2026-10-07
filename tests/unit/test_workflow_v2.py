@@ -1,5 +1,7 @@
 """Regression tests for the v2 workflow's staged rollout features."""
 
+import json
+import re
 from pathlib import Path
 
 import pytest
@@ -475,6 +477,32 @@ def test_child_cancellation_stops_before_candidate_fallback(candidate_finalizer_
     assert "code: CHILD_JOB_CANCELLED" in stop_source
     assert "stage: $${stage}" in stop_source
     assert "raise: $${childCancelled}" in stop_source
+
+
+def test_task_exit_code_failure_stops_before_candidate_fallback(candidate_finalizer_source):
+    """An application exit code must raise instead of retrying on another machine."""
+    stop_at = candidate_finalizer_source.index("- stop_on_task_failure:")
+    cancel_at = candidate_finalizer_source.index("- cancel_unsuccessful_candidate:")
+    stop_source = candidate_finalizer_source[stop_at:cancel_at]
+
+    assert stop_at < cancel_at
+    assert 'condition: $${waitResult.outcome == "FAILED"}' in stop_source
+    assert "code: TASK_FAILED" in stop_source
+    assert "raise: $${taskFailure}" in stop_source
+
+    # The Workflows string literal escapes the backslash, so unescape it once.
+    pattern = re.search(r'"(with exit code [^"]+)"\)\}', stop_source).group(1)
+    pattern = pattern.replace("\\\\", "\\")
+    event = (
+        'Job failed due to task failure. Specifically, task with index 0 failed due '
+        'to the following task event: "Task state is updated from RUNNING to FAILED '
+        'on zones/us-central1-c/instances/1 with exit code {}."'
+    )
+    events = json.dumps([{"description": event.format(1)}])
+    assert re.search(pattern, events)
+    assert re.search(pattern, event.format(137))
+    assert not re.search(pattern, event.format(50001))
+    assert not re.search(pattern, "Job state is set from RUNNING to FAILED.")
 
 
 def test_failed_candidate_is_drained_before_exhaustion(candidate_finalizer_source):
