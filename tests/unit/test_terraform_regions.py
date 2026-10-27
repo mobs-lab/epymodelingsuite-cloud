@@ -23,16 +23,13 @@ def main_source() -> str:
 def test_regional_resources_iterate_over_one_configured_map(
     network_source: str, main_source: str
 ) -> None:
-    """Batch regions get networking; shared registries can outlive Batch use."""
+    """Every regional resource must use the shared batch_regions map."""
     assert network_source.count("for_each = var.batch_regions") == 3
     assert 'resource "google_artifact_registry_repository" "repo" {' in main_source
     repository_block = main_source.split(
         'resource "google_artifact_registry_repository" "repo" {', 1
     )[1].split("}\n", 1)[0]
-    assert (
-        "for_each = setunion(toset(keys(var.batch_regions)), var.additional_registry_regions)"
-        in repository_block
-    )
+    assert "for_each = var.batch_regions" in repository_block
 
 
 @pytest.mark.parametrize(

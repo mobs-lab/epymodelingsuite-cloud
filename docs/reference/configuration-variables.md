@@ -101,7 +101,6 @@ Google Cloud Platform project and region settings.
 | `google_cloud.region` | string | `us-central1` | Control-plane region for Cloud Workflows. Also the Batch region when `batch_region` is unset. |
 | `google_cloud.batch_region` | string | `us-east4` in the template | Default Batch region for workflow runs, also passed to Terraform. `--batch-region` overrides it. Does not move Cloud Workflows or change standalone `run job` submissions. |
 | `google_cloud.batch_regions` | mapping | `us-central1`, `us-east4` | Allowed Batch regions mapped to distinct subnet CIDRs. Terraform creates one subnet, router, NAT, and Artifact Registry repository per entry. |
-| `google_cloud.additional_registry_regions` | list | `[]` | Preserve shared Artifact Registry repositories in regions without Batch networking, for example when Cloud Run still uses their images. |
 | `google_cloud.bucket_name` | string | _(required)_ | GCS bucket for pipeline input/output data. Must already exist. |
 | `google_cloud.billing_project` | string | `""` | User-defined label for cost grouping in GCP billing reports. Applied to all Cloud Batch jobs. Can be overridden per run with `--billing-project`. |
 
@@ -121,9 +120,9 @@ google_cloud:
 Before using a new Batch region, apply Terraform to create its resources and update
 the workflows' allowed regions, then replicate the image with
 `epycloud build replicate --from us-central1 --to us-east4 --tag TAG`.
-Removing a region from `batch_regions` deletes its Batch networking. If another
-service still uses its image repository, list the region in
-`additional_registry_regions` before applying the removal.
+Removing a region from `batch_regions` deletes its Batch networking and image
+repository. Services managed outside this Terraform configuration should use
+their own image repositories.
 
 ## google_cloud.batch
 
