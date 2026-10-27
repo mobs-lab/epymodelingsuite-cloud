@@ -102,7 +102,7 @@ def run_workflow_gcp(
     google_cloud = config.get("google_cloud", {})
     project_id = google_cloud.get("project_id")
     region = google_cloud.get("region", "us-central1")
-    compute_region = batch_region_override or region
+    compute_region = batch_region_override or google_cloud.get("batch_region") or region
     configured_regions = google_cloud.get("batch_regions")
     if configured_regions is None:
         configured_region_names = {region}

@@ -68,7 +68,7 @@ def register_parser(subparsers: argparse._SubParsersAction) -> None:
 
     workflow_parser.add_argument(
         "--batch-region",
-        help="Cloud Batch region (default: google_cloud.region)",
+        help="Cloud Batch region (default: google_cloud.batch_region, then google_cloud.region)",
     )
 
     workflow_parser.add_argument(

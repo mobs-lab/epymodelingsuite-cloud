@@ -46,7 +46,7 @@ resource "google_project_service" "secretmanager" {
 
 # Artifact Registry (Docker)
 resource "google_artifact_registry_repository" "repo" {
-  for_each = var.batch_regions
+  for_each = setunion(toset(keys(var.batch_regions)), var.additional_registry_regions)
 
   project       = var.project_id
   location      = each.key
@@ -246,7 +246,7 @@ resource "google_workflows_workflow" "pipeline" {
     subnet_self_link         = google_compute_subnetwork.batch_subnet[var.region].self_link
     subnet_self_links        = jsonencode({ for region, subnet in google_compute_subnetwork.batch_subnet : region => subnet.self_link })
     allowed_batch_regions    = jsonencode(sort(keys(var.batch_regions)))
-    default_batch_region     = var.region
+    default_batch_region     = var.batch_region != "" ? var.batch_region : var.region
   })
 
   labels = {
@@ -300,7 +300,7 @@ resource "google_workflows_workflow" "pipeline_staging" {
       subnet_self_link         = google_compute_subnetwork.batch_subnet[var.region].self_link
       subnet_self_links        = jsonencode({ for region, subnet in google_compute_subnetwork.batch_subnet : region => subnet.self_link })
       allowed_batch_regions    = jsonencode(sort(keys(var.batch_regions)))
-      default_batch_region     = var.region
+      default_batch_region     = var.batch_region != "" ? var.batch_region : var.region
     }),
     templatefile("${path.module}/workflow-staging-subworkflows.yaml", {})
   ])

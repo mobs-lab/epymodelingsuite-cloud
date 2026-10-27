@@ -710,15 +710,20 @@ class TestTerraformEnvVars:
         config = {
             "google_cloud": {
                 "region": "us-central1",
+                "batch_region": "us-east4",
+                "additional_registry_regions": ["us-east5"],
                 "batch_regions": {
                     "us-central1": {"subnet_cidr": "10.0.0.0/20"},
-                    "us-east5": {"subnet_cidr": "10.1.0.0/20"},
+                    "us-east4": {"subnet_cidr": "10.2.0.0/20"},
                 },
             }
         }
 
         env_vars = terraform.operations.get_terraform_env_vars(config)
 
+        assert env_vars["TF_VAR_region"] == "us-central1"
+        assert env_vars["TF_VAR_batch_region"] == "us-east4"
+        assert json.loads(env_vars["TF_VAR_additional_registry_regions"]) == ["us-east5"]
         assert json.loads(env_vars["TF_VAR_batch_regions"]) == config["google_cloud"][
             "batch_regions"
         ]
@@ -738,6 +743,7 @@ class TestTerraformEnvVars:
 
         assert env_vars["TF_VAR_project_id"] == "test-project"
         assert "TF_VAR_region" not in env_vars
+        assert "TF_VAR_batch_region" not in env_vars
         assert "TF_VAR_batch_regions" not in env_vars
         assert "TF_VAR_bucket_name" not in env_vars
 

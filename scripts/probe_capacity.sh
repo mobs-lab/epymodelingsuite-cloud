@@ -6,7 +6,7 @@
 # Capacity changes minute to minute, so treat the result as a snapshot.
 #
 # Usage:
-#   scripts/probe_capacity.sh [-r "us-central1 us-east5"] [-m "n4d-standard-2 c3d-standard-4"] \
+#   scripts/probe_capacity.sh [-r "us-central1 us-east4"] [-m "c4d-standard-8 c3d-standard-8"] \
 #       [-n COUNT] [-p PARALLEL] [-P PROJECT] [-N NETWORK] [-o table|json]
 #
 #   -n COUNT     VMs to create per zone and machine type (default 1)
@@ -19,8 +19,8 @@
 
 set -uo pipefail
 
-REGIONS="us-central1 us-east5"
-MACHINES="n4d-standard-2 c4d-standard-2 n4-standard-2 c3d-standard-4 c3-standard-4"
+REGIONS="us-central1 us-east4"
+MACHINES="c4d-standard-8 c3d-standard-8 n4d-standard-8 n4-standard-8 c3-standard-8"
 COUNT=1
 PARALLEL=8
 PROJECT=$(gcloud config get-value project 2>/dev/null)

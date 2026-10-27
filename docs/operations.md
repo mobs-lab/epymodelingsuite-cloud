@@ -129,7 +129,7 @@ For a configured secondary Batch region, copy the already-built image by its
 resolved digest and then verify every regional tag:
 
 ```bash
-epycloud build replicate --from us-central1 --to us-east5 --tag dev
+epycloud build replicate --from us-central1 --to us-east4 --tag dev
 epycloud build verify-replicas --tag dev
 ```
 
@@ -462,13 +462,13 @@ epycloud --no-color logs --exp-id experiment-01 > logs.txt
 
 ```bash
 scripts/probe_capacity.sh                                   # default regions and machine types, table output
-scripts/probe_capacity.sh -r "us-central1 us-east5" -m "n4d-standard-2 c3d-standard-4" -n 4
+scripts/probe_capacity.sh -r "us-central1 us-east4" -m "c4d-standard-8 c3d-standard-8" -n 4
 scripts/probe_capacity.sh -o json > capacity.json           # for automation
 ```
 
 `-n` sets how many VMs to create per zone; one VM succeeding does not guarantee a large run will. The JSON has one entry per zone in `results` (`status`: `ok`, `partial`, `stockout`, `quota`, `error`) and one per region and machine type in `summary` (`availability`: `available`, `limited`, `unavailable`). The script exits with code 2 if any probe VM was left behind (`leftover_instances`); they carry the label `purpose=capacity-probe`.
 
-Capacity changes minute to minute, so run it shortly before a large submission. If the preferred machine types are unavailable in `us-central1`, submit with `--batch-region us-east5` after copying the image (`epycloud build replicate --from us-central1 --to us-east5 --tag TAG`).
+Capacity changes minute to minute, so run it shortly before a large submission. The config template uses `us-east4` for Batch while Cloud Workflows stays in `us-central1`. To select a different configured Batch region, pass `--batch-region REGION` after copying the image (`epycloud build replicate --from us-central1 --to REGION --tag TAG`).
 
 ### Cloud Console Dashboards
 

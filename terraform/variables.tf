@@ -16,7 +16,7 @@ variable "batch_regions" {
   description = "Data-plane regions and their Cloud Batch subnet CIDR ranges"
   default = {
     us-central1 = { subnet_cidr = "10.0.0.0/20" }
-    us-east5    = { subnet_cidr = "10.1.0.0/20" }
+    us-east4    = { subnet_cidr = "10.2.0.0/20" }
   }
 
   validation {
@@ -33,6 +33,18 @@ variable "batch_regions" {
     ])) == length(var.batch_regions)
     error_message = "Each batch region must use a distinct subnet_cidr."
   }
+}
+
+variable "batch_region" {
+  type        = string
+  default     = ""
+  description = "Default Cloud Batch region; empty uses the control-plane region"
+}
+
+variable "additional_registry_regions" {
+  type        = set(string)
+  default     = []
+  description = "Regions whose shared image repositories must remain without Batch networking"
 }
 
 variable "repo_name" {
