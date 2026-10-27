@@ -48,9 +48,17 @@ def get_terraform_env_vars(config: dict[str, Any]) -> dict[str, str]:
     if "region" in google_cloud_config:
         env_vars["TF_VAR_region"] = google_cloud_config["region"]
 
+    if google_cloud_config.get("batch_region"):
+        env_vars["TF_VAR_batch_region"] = google_cloud_config["batch_region"]
+
     if "batch_regions" in google_cloud_config:
         env_vars["TF_VAR_batch_regions"] = json.dumps(
             google_cloud_config["batch_regions"], sort_keys=True
+        )
+
+    if "additional_registry_regions" in google_cloud_config:
+        env_vars["TF_VAR_additional_registry_regions"] = json.dumps(
+            google_cloud_config["additional_registry_regions"]
         )
 
     if "bucket_name" in google_cloud_config:

@@ -74,9 +74,10 @@ MACHINE_CHAINS_BY_REQUIREMENT: dict[tuple[int, int], tuple[str, ...]] = {
     ),
     (8000, 32768): (
         "c4d-standard-8",
-        "c3-standard-8",
         "c3d-standard-8",
         "n4d-standard-8",
+        "n4-standard-8",
+        "c3-standard-8",
     ),
 }
 
@@ -85,7 +86,7 @@ MACHINE_CHAINS_BY_REQUIREMENT: dict[tuple[int, int], tuple[str, ...]] = {
 # CPU or memory requirement.
 STAGE_MACHINE_CHAINS: dict[str, tuple[str, ...]] = {
     "a": MACHINE_CHAINS_BY_REQUIREMENT[(2000, 8192)],
-    "b": MACHINE_CHAINS_BY_REQUIREMENT[(2000, 8192)],
+    "b": MACHINE_CHAINS_BY_REQUIREMENT[(8000, 32768)],
     "c": MACHINE_CHAINS_BY_REQUIREMENT[(4000, 16384)],
 }
 

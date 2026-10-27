@@ -17,11 +17,12 @@ execution:
 google_cloud:
   project_id: your-gcp-project-id
   region: us-central1
+  batch_region: us-east4
   batch_regions:
     us-central1:
       subnet_cidr: 10.0.0.0/20
-    us-east5:
-      subnet_cidr: 10.1.0.0/20
+    us-east4:
+      subnet_cidr: 10.2.0.0/20
   bucket_name: your-bucket-name
   billing_project: ""
 
@@ -33,7 +34,7 @@ google_cloud:
   # Cloud Batch configuration
   batch:
     max_parallelism: 100
-    task_count_per_node: 1
+    # Omit task_count_per_node to pack Stage B tasks by CPU and memory.
 
     stage_a:
       cpu_milli: 2000
@@ -49,10 +50,11 @@ google_cloud:
       cpu_milli: 2000
       memory_mib: 7168
       machine_types:
-        - c4d-standard-2
-        - c3-highcpu-4
-        - n4d-standard-2
-        - n4-standard-2
+        - c4d-standard-8
+        - c3d-standard-8
+        - n4d-standard-8
+        - n4-standard-8
+        - c3-standard-8
       max_run_duration: 36000
 
     stage_c:

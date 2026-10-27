@@ -98,8 +98,10 @@ Google Cloud Platform project and region settings.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `google_cloud.project_id` | string | _(required)_ | Google Cloud project ID (e.g., `my-gcp-project`). |
-| `google_cloud.region` | string | `us-central1` | Control-plane region for Cloud Workflows and the default Batch region. |
-| `google_cloud.batch_regions` | mapping | `us-central1`, `us-east5` | Allowed Batch regions mapped to distinct subnet CIDRs. Terraform creates one subnet, router, NAT, and Artifact Registry repository per entry. |
+| `google_cloud.region` | string | `us-central1` | Control-plane region for Cloud Workflows. Also the Batch region when `batch_region` is unset. |
+| `google_cloud.batch_region` | string | `us-east4` in the template | Default Batch region for workflow runs, also passed to Terraform. `--batch-region` overrides it. Does not move Cloud Workflows or change standalone `run job` submissions. |
+| `google_cloud.batch_regions` | mapping | `us-central1`, `us-east4` | Allowed Batch regions mapped to distinct subnet CIDRs. Terraform creates one subnet, router, NAT, and Artifact Registry repository per entry. |
+| `google_cloud.additional_registry_regions` | list | `[]` | Preserve shared Artifact Registry repositories in regions without Batch networking, for example when Cloud Run still uses their images. |
 | `google_cloud.bucket_name` | string | _(required)_ | GCS bucket for pipeline input/output data. Must already exist. |
 | `google_cloud.billing_project` | string | `""` | User-defined label for cost grouping in GCP billing reports. Applied to all Cloud Batch jobs. Can be overridden per run with `--billing-project`. |
 
@@ -108,12 +110,20 @@ Each data-plane region needs a non-overlapping subnet range:
 ```yaml
 google_cloud:
   region: us-central1
+  batch_region: us-east4
   batch_regions:
     us-central1:
       subnet_cidr: 10.0.0.0/20
-    us-east5:
-      subnet_cidr: 10.1.0.0/20
+    us-east4:
+      subnet_cidr: 10.2.0.0/20
 ```
+
+Before using a new Batch region, apply Terraform to create its resources and update
+the workflows' allowed regions, then replicate the image with
+`epycloud build replicate --from us-central1 --to us-east4 --tag TAG`.
+Removing a region from `batch_regions` deletes its Batch networking. If another
+service still uses its image repository, list the region in
+`additional_registry_regions` before applying the removal.
 
 ## google_cloud.batch
 
@@ -143,7 +153,7 @@ Compute resources for Stage B (Runner). Parallel tasks, each processing one inpu
 |-----|------|---------|-------------|
 | `google_cloud.batch.stage_b.cpu_milli` | integer | `2000` | CPU requested by each task, in millicores (1000 = 1 vCPU). Also decides how many tasks fit on each machine candidate. |
 | `google_cloud.batch.stage_b.memory_mib` | integer | `7168` | Memory requested by each task, in MiB. Also decides how many tasks fit on each machine candidate. |
-| `google_cloud.batch.stage_b.machine_types` | list | C4D, C4, N4D, N4 standard-2 | Ordered fallback candidates. |
+| `google_cloud.batch.stage_b.machine_types` | list | C4D, C3D, N4D, N4, C3 standard-8 | Ordered fallback candidates. CPU and memory requests remain per task; packing is automatic unless capped. |
 | `google_cloud.batch.stage_b.max_run_duration` | integer | `36000` | Maximum execution time in seconds (36000 = 10 hours). See [sizing guidelines](#sizing-guidelines) below. |
 
 ### google_cloud.batch.stage_c

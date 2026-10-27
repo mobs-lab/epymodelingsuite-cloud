@@ -149,7 +149,7 @@ Each stage is submitted as a Cloud Batch job via the Batch REST API.
 
 All configured Batch regions currently share the single `google_cloud.bucket_name`.
 The deployed `gs_mobs_jessica` bucket is a `US` multi-region bucket, so both
-`us-central1` and `us-east5` can use it without cross-continent transfer. A
+`us-central1` and `us-east4` can use it without cross-continent transfer. A
 future regional bucket must be validated against every allowed Batch region
 before it replaces this dependency.
 

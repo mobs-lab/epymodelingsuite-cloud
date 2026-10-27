@@ -65,6 +65,10 @@ check "default_batch_region_configured" {
     condition     = contains(keys(var.batch_regions), var.region)
     error_message = "batch_regions must contain the control-plane region from var.region."
   }
+  assert {
+    condition     = var.batch_region == "" || contains(keys(var.batch_regions), var.batch_region)
+    error_message = "batch_regions must contain the default Batch region from var.batch_region."
+  }
 }
 
 moved {

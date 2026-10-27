@@ -103,7 +103,7 @@ class TestValidateHyperdiskFamily:
         # The message must explain what goes wrong, or it reads as a spurious lint.
         assert "1080s" in message
         # ...and offer the stage's own chain as the way out.
-        assert "c4d-standard-2, c3-highcpu-4, n4d-standard-2, n4-standard-2" in message
+        assert ", ".join(STAGE_MACHINE_CHAINS["b"]) in message
 
     def test_arm_family_gets_a_distinct_message(self):
         with pytest.raises(ValidationError) as exc:
@@ -124,10 +124,12 @@ class TestValidateHyperdiskFamily:
 class TestStageChains:
     """Fallback chains must preserve each stage's resource requirements."""
 
-    def test_stage_a_and_b_share_the_small_workload_chain(self):
+    def test_stage_a_uses_the_small_workload_chain(self):
         expected = ("c4d-standard-2", "c3-highcpu-4", "n4d-standard-2", "n4-standard-2")
         assert STAGE_MACHINE_CHAINS["a"] == expected
-        assert STAGE_MACHINE_CHAINS["b"] == expected
+
+    def test_stage_b_uses_eight_vcpu_candidates_for_packing(self):
+        assert STAGE_MACHINE_CHAINS["b"] == MACHINE_CHAINS_BY_REQUIREMENT[(8000, 32768)]
 
     def test_stage_c_chain_meets_its_4000_mcpu_minimum(self):
         assert STAGE_MACHINE_CHAINS["c"] == (
@@ -184,9 +186,10 @@ class TestStageChains:
         """The 8-vCPU chain must not include memory-lowering c4-standard-8."""
         assert MACHINE_CHAINS_BY_REQUIREMENT[(8000, 32768)] == (
             "c4d-standard-8",
-            "c3-standard-8",
             "c3d-standard-8",
             "n4d-standard-8",
+            "n4-standard-8",
+            "c3-standard-8",
         )
         assert "c4-standard-8" not in MACHINE_CHAINS_BY_REQUIREMENT[(8000, 32768)]
 
@@ -228,9 +231,10 @@ class TestGetCandidateChain:
         """An actual 8000 mCPU minimum cannot be served by highmem-4."""
         assert get_candidate_chain(8000, 31744) == (
             "c4d-standard-8",
-            "c3-standard-8",
             "c3d-standard-8",
             "n4d-standard-8",
+            "n4-standard-8",
+            "c3-standard-8",
         )
 
     def test_candidates_below_the_memory_minimum_are_filtered(self):

@@ -41,7 +41,7 @@ When Cloud Batch runs a job, it provisions VMs to execute tasks. The workflow ac
 **Explicit CLI pin**: Pass a `--stage-*-machine-type` option to use exactly one machine type and disable fallback for that stage. This is useful for controlled benchmarks and debugging.
 
 !!! tip
-    Use `machine_types` with `task_count_per_node: 1` for production. Run `epycloud config migrate` once after upgrading a config that still uses singular `machine_type` keys.
+    Use `machine_types` and omit `task_count_per_node` to pack Stage B tasks automatically. Run `epycloud config migrate` once after upgrading a config that still uses singular `machine_type` keys.
 
 For details on how Batch automatically creates and deltes resources that meet specification, see:
 
@@ -64,17 +64,18 @@ In the pipeline, machine type selection is configured per stage:
           cpu_milli: 2000
           memory_mib: 7168
           machine_types:
-            - c4d-standard-2
-            - c4-standard-2
-            - n4d-standard-2
-            - n4-standard-2
+            - c4d-standard-8
+            - c3d-standard-8
+            - n4d-standard-8
+            - n4-standard-8
+            - c3-standard-8
     ```
 
 === "Explicit CLI pin"
 
     ```bash
     epycloud run workflow --exp-id EXAMPLE \
-      --stage-b-machine-type c4d-standard-2
+      --stage-b-machine-type c4d-standard-8
     ```
 
 See [Configuration Variables](../configuration-variables.md#google_cloudbatch) for all per-stage resource settings.

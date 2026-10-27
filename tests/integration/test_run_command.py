@@ -38,6 +38,64 @@ def machine_metadata_without_gcloud(monkeypatch):
 class TestRunWorkflowCommand:
     """Test run workflow command integration."""
 
+    @pytest.mark.parametrize(
+        ("configured_region", "override", "expected"),
+        [
+            (None, None, "us-central1"),
+            ("us-east4", None, "us-east4"),
+            ("us-east4", "us-east5", "us-east5"),
+        ],
+    )
+    @patch(
+        "epycloud.commands.run.cloud.workflow.validate_cross_region_preflight", return_value=True
+    )
+    @patch("epycloud.lib.command_helpers.subprocess.run")
+    @patch("epycloud.commands.run.cloud.workflow.requests.post")
+    def test_batch_region_default_and_override(
+        self,
+        mock_post,
+        mock_subprocess,
+        mock_preflight,
+        mock_config,
+        configured_region,
+        override,
+        expected,
+    ):
+        import json
+
+        cloud = mock_config["google_cloud"]
+        cloud["batch_region"] = configured_region
+        cloud["batch_regions"] = {
+            "us-central1": {"subnet_cidr": "10.0.0.0/20"},
+            "us-east5": {"subnet_cidr": "10.1.0.0/20"},
+            "us-east4": {"subnet_cidr": "10.2.0.0/20"},
+        }
+        mock_subprocess.return_value = Mock(returncode=0, stdout="token\n", stderr="")
+        mock_post.return_value.json.return_value = {
+            "name": "projects/test-project/locations/us-central1/"
+            "workflows/epymodelingsuite-pipeline/executions/abc123",
+            "state": "ACTIVE",
+        }
+        arguments = ["run", "workflow", "--exp-id", "test-sim", "--yes"]
+        if override:
+            arguments.extend(["--batch-region", override])
+        ctx = {
+            "config": mock_config,
+            "environment": "dev",
+            "profile": None,
+            "verbose": False,
+            "quiet": False,
+            "dry_run": False,
+            "args": create_parser().parse_args(arguments),
+        }
+
+        assert run.handle(ctx) == 0
+
+        assert "/locations/us-central1/workflows/" in mock_post.call_args.args[0]
+        payload = json.loads(mock_post.call_args.kwargs["json"]["argument"])
+        assert payload.get("batchLocation", "us-central1") == expected
+        assert mock_preflight.call_args.args[2:4] == ("us-central1", expected)
+
     @patch("epycloud.lib.command_helpers.subprocess.run")
     @patch("epycloud.commands.run.cloud.workflow.requests.post")
     def test_run_workflow_cloud_success(self, mock_post, mock_subprocess, mock_config):
