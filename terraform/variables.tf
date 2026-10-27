@@ -41,12 +41,6 @@ variable "batch_region" {
   description = "Default Cloud Batch region; empty uses the control-plane region"
 }
 
-variable "additional_registry_regions" {
-  type        = set(string)
-  default     = []
-  description = "Regions whose shared image repositories must remain without Batch networking"
-}
-
 variable "repo_name" {
   type        = string
   default     = "epymodelingsuite-repo"

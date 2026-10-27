@@ -711,7 +711,6 @@ class TestTerraformEnvVars:
             "google_cloud": {
                 "region": "us-central1",
                 "batch_region": "us-east4",
-                "additional_registry_regions": ["us-east5"],
                 "batch_regions": {
                     "us-central1": {"subnet_cidr": "10.0.0.0/20"},
                     "us-east4": {"subnet_cidr": "10.2.0.0/20"},
@@ -723,7 +722,6 @@ class TestTerraformEnvVars:
 
         assert env_vars["TF_VAR_region"] == "us-central1"
         assert env_vars["TF_VAR_batch_region"] == "us-east4"
-        assert json.loads(env_vars["TF_VAR_additional_registry_regions"]) == ["us-east5"]
         assert json.loads(env_vars["TF_VAR_batch_regions"]) == config["google_cloud"][
             "batch_regions"
         ]

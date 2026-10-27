@@ -46,7 +46,7 @@ resource "google_project_service" "secretmanager" {
 
 # Artifact Registry (Docker)
 resource "google_artifact_registry_repository" "repo" {
-  for_each = setunion(toset(keys(var.batch_regions)), var.additional_registry_regions)
+  for_each = var.batch_regions
 
   project       = var.project_id
   location      = each.key
