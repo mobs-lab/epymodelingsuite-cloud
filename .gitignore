@@ -50,3 +50,9 @@ downloads/
 # MkDocs
 site/
 .cache/
+
+# Local documentation
+/local-docs/
+
+# Local environment settings
+/.env.local
