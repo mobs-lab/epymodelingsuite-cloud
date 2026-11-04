@@ -1,7 +1,9 @@
 """Status command handlers."""
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from threading import Lock
 from typing import Any
 
 from epycloud.commands.status.operations import (
@@ -16,6 +18,7 @@ from epycloud.commands.status.operations import (
 from epycloud.exceptions import ConfigError
 from epycloud.lib.command_helpers import (
     DEFAULT_WORKFLOW_NAME,
+    get_gcloud_access_token,
     get_google_cloud_config,
     get_workflow_name,
     require_config,
@@ -100,6 +103,42 @@ def handle(ctx: dict[str, Any]) -> int:
     )
 
 
+
+def _fetch_status(project_id, region, batch_regions, exp_id, verbose, since, workflow_name):
+    """Fetch independent sources concurrently, preserving their display order."""
+    token = None
+    token_lock = Lock()
+
+    def get_token():
+        nonlocal token
+        with token_lock:
+            if token is None:
+                token = get_gcloud_access_token(verbose)
+            return token
+
+    common = dict(project_id=project_id, exp_id=exp_id, verbose=verbose)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        workflows = pool.submit(
+            fetch_active_workflows, **common, region=region, workflow_name=workflow_name,
+            token_provider=get_token
+        )
+        jobs = pool.submit(fetch_active_batch_jobs, **common, region=batch_regions)
+        recent_workflows = recent_jobs = None
+        if since is not None:
+            recent_workflows = pool.submit(
+                fetch_recent_workflows, **common, region=region,
+                workflow_name=workflow_name, since=since, token_provider=get_token,
+            )
+            recent_jobs = pool.submit(
+                fetch_recent_batch_jobs, **common, region=batch_regions, since=since
+            )
+        return (
+            workflows.result(), jobs.result(),
+            recent_workflows.result() if recent_workflows else None,
+            recent_jobs.result() if recent_jobs else None,
+        )
+
+
 def _show_status(
     project_id: str,
     region: str,
@@ -137,42 +176,9 @@ def _show_status(
         Exit code
     """
     try:
-        # Fetch active workflows
-        workflows = fetch_active_workflows(
-            project_id=project_id,
-            region=region,
-            exp_id=exp_id,
-            verbose=verbose,
-            workflow_name=workflow_name,
+        workflows, jobs, recent_workflows, recent_jobs = _fetch_status(
+            project_id, region, batch_regions, exp_id, verbose, since, workflow_name
         )
-
-        # Fetch active batch jobs
-        jobs = fetch_active_batch_jobs(
-            project_id=project_id,
-            region=batch_regions,
-            exp_id=exp_id,
-            verbose=verbose,
-        )
-
-        # Fetch recent items if requested
-        recent_workflows = None
-        recent_jobs = None
-        if since is not None:
-            recent_workflows = fetch_recent_workflows(
-                project_id=project_id,
-                region=region,
-                exp_id=exp_id,
-                since=since,
-                verbose=verbose,
-                workflow_name=workflow_name,
-            )
-            recent_jobs = fetch_recent_batch_jobs(
-                project_id=project_id,
-                region=batch_regions,
-                exp_id=exp_id,
-                since=since,
-                verbose=verbose,
-            )
 
         provisioning_alerts = detect_one_shot_provisioning_alerts(
             jobs,
@@ -238,55 +244,21 @@ def _watch_status(
     int
         Exit code
     """
-    status(f"Watching pipeline status (refreshing every {interval}s, Ctrl+C to stop)...")
+    status("Fetching pipeline status...")
     status("")
     stall_tracker = ProvisioningStallTracker(stall_threshold)
 
     try:
         while True:
-            # Clear screen
-            print("\033[2J\033[H", end="")
-
             # Fetch and display status
             try:
-                workflows = fetch_active_workflows(
-                    project_id=project_id,
-                    region=region,
-                    exp_id=exp_id,
-                    verbose=verbose,
-                    workflow_name=workflow_name,
+                since = parse_since_time(recent) if recent is not None else None
+                workflows, jobs, recent_workflows, recent_jobs = _fetch_status(
+                    project_id, region, batch_regions, exp_id, verbose, since, workflow_name
                 )
-
-                jobs = fetch_active_batch_jobs(
-                    project_id=project_id,
-                    region=batch_regions,
-                    exp_id=exp_id,
-                    verbose=verbose,
-                )
-
-                # Fetch recent items if requested (re-parse each refresh)
-                recent_workflows = None
-                recent_jobs = None
-                if recent is not None:
-                    since = parse_since_time(recent)
-                    if since is not None:
-                        recent_workflows = fetch_recent_workflows(
-                            project_id=project_id,
-                            region=region,
-                            exp_id=exp_id,
-                            since=since,
-                            verbose=verbose,
-                            workflow_name=workflow_name,
-                        )
-                        recent_jobs = fetch_recent_batch_jobs(
-                            project_id=project_id,
-                            region=batch_regions,
-                            exp_id=exp_id,
-                            since=since,
-                            verbose=verbose,
-                        )
 
                 provisioning_alerts = stall_tracker.observe(jobs)
+                print("\033[2J\033[H", end="")
                 display_status(
                     workflows,
                     jobs,
@@ -298,7 +270,7 @@ def _watch_status(
 
                 # Show refresh time
                 now = format_timestamp_local(datetime.now(UTC).isoformat())
-                print(f"Last updated: {now} (refreshing every {interval}s)")
+                print(f"Last updated: {now} (refreshing every {interval}s, Ctrl+C to stop)")
 
             except Exception as e:
                 warning(f"Failed to refresh: {e}")

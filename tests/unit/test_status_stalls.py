@@ -275,7 +275,8 @@ def test_display_separates_completed_tasks_slots_and_warnings(capsys):
 
     output = capsys.readouterr().out
     assert "TASKS" in output
-    assert "SLOTS" in output
+    assert "SLOTS" not in output
+    assert "MACHINE" in output
     assert "0/10" in output
     assert "Provisioning warnings" in output
     assert "provisioning stalled for 20m" in output

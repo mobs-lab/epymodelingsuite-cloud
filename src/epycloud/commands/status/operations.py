@@ -1,5 +1,7 @@
 """Status operations and utilities."""
 
+from concurrent.futures import ThreadPoolExecutor
+
 import json
 import subprocess
 from collections.abc import Sequence
@@ -278,6 +280,7 @@ def fetch_active_workflows(
     exp_id: str | None,
     verbose: bool,
     workflow_name: str = DEFAULT_WORKFLOW_NAME,
+    token_provider=None,
 ) -> list[dict[str, Any]]:
     """Fetch active workflow executions.
 
@@ -306,7 +309,7 @@ def fetch_active_workflows(
 
     try:
         # Get auth token
-        token = get_gcloud_access_token(verbose)
+        token = token_provider() if token_provider else get_gcloud_access_token(verbose)
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -326,7 +329,7 @@ def fetch_active_workflows(
             if page_token:
                 params["pageToken"] = page_token
 
-            response = requests.get(base_url, params=params, headers=headers)
+            response = requests.get(base_url, params=params, headers=headers, timeout=30)
             response.raise_for_status()
             result = response.json()
 
@@ -369,6 +372,7 @@ def fetch_recent_workflows(
     since: datetime,
     verbose: bool,
     workflow_name: str = DEFAULT_WORKFLOW_NAME,
+    token_provider=None,
 ) -> list[dict[str, Any]]:
     """Fetch recently completed workflow executions.
 
@@ -398,7 +402,7 @@ def fetch_recent_workflows(
     )
 
     try:
-        token = get_gcloud_access_token(verbose)
+        token = token_provider() if token_provider else get_gcloud_access_token(verbose)
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -406,32 +410,41 @@ def fetch_recent_workflows(
 
         all_executions: list[dict[str, Any]] = []
 
-        # Fetch SUCCEEDED, FAILED, CANCELLED executions
-        for state in ("SUCCEEDED", "FAILED", "CANCELLED"):
-            params: dict[str, Any] = {
-                "pageSize": 20,
-                "filter": f'state="{state}"',
-                "view": "FULL",
-            }
-            response = requests.get(base_url, params=params, headers=headers)
+        since_iso = since.astimezone(UTC).isoformat()
+        params: dict[str, Any] = {
+            "pageSize": 100,
+            "filter": (
+                '(state="SUCCEEDED" OR state="FAILED" OR state="CANCELLED") '
+                f'AND endTime>="{since_iso}"'
+            ),
+            "view": "FULL",
+            "orderBy": "endTime desc",
+        }
+        while True:
+            response = requests.get(base_url, params=params.copy(), headers=headers, timeout=30)
             response.raise_for_status()
             result = response.json()
             all_executions.extend(result.get("executions", []))
+            page_token = result.get("nextPageToken")
+            if not page_token:
+                break
+            params["pageToken"] = page_token
 
-        # Filter by endTime >= since
-        since_iso = since.isoformat()
-        filtered: list[dict[str, Any]] = []
-        for e in all_executions:
-            end_time = e.get("endTime", "")
-            if end_time and end_time >= since_iso:
-                filtered.append(e)
+        filtered = [
+            execution for execution in all_executions
+            if execution.get("endTime")
+            and datetime.fromisoformat(execution["endTime"].replace("Z", "+00:00")) >= since
+        ]
 
         # Filter by exp_id if provided
         if exp_id:
             filtered = [e for e in filtered if exp_id in e.get("argument", "")]
 
         # Sort by endTime descending
-        filtered.sort(key=lambda e: e.get("endTime", ""), reverse=True)
+        filtered.sort(
+            key=lambda e: datetime.fromisoformat(e["endTime"].replace("Z", "+00:00")),
+            reverse=True,
+        )
 
         return filtered
 
@@ -476,6 +489,13 @@ def fetch_active_batch_jobs(
 
     regions = (region,) if isinstance(region, str) else tuple(region)
     all_jobs: list[dict[str, Any]] = []
+    if len(regions) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(regions))) as pool:
+            results = pool.map(
+                lambda r: fetch_active_batch_jobs(project_id, r, exp_id, verbose), regions
+            )
+            all_jobs = [job for jobs in results for job in jobs]
+        regions = ()
     for batch_region in regions:
         cmd = [
             "gcloud",
@@ -488,7 +508,7 @@ def fetch_active_batch_jobs(
             f"--filter={filter_expr}",
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
             if not result.stdout.strip():
                 continue
             jobs = json.loads(result.stdout)
@@ -551,8 +571,16 @@ def fetch_recent_batch_jobs(
         filter_expr = state_filter
 
     regions = (region,) if isinstance(region, str) else tuple(region)
-    since_iso = since.isoformat()
+    since_iso = since.astimezone(UTC).isoformat()
+    filter_expr += f' AND updateTime>="{since_iso}"'
     filtered: list[dict[str, Any]] = []
+    if len(regions) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(regions))) as pool:
+            results = pool.map(
+                lambda r: fetch_recent_batch_jobs(project_id, r, exp_id, since, verbose), regions
+            )
+            filtered = [job for jobs in results for job in jobs]
+        regions = ()
     for batch_region in regions:
         cmd = [
             "gcloud",
@@ -566,7 +594,7 @@ def fetch_recent_batch_jobs(
             "--sort-by=~createTime",
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
             if not result.stdout.strip():
                 continue
             for job in json.loads(result.stdout):
@@ -578,7 +606,7 @@ def fetch_recent_batch_jobs(
                 )
                 if not update_time:
                     update_time = job.get("createTime", "")
-                if update_time and update_time >= since_iso:
+                if update_time and datetime.fromisoformat(update_time.replace("Z", "+00:00")) >= since:
                     job["region"] = batch_region
                     filtered.append(job)
         except Exception as e:
@@ -662,12 +690,13 @@ def display_status(
     if jobs:
         section_header("Active batch jobs")
 
-        print("-" * 160)
-        print(
-            f"{'EXP_ID':<60} {'JOB NAME':<25} {'REGION':<13} {'STAGE':<8} {'IMAGE TAG':<15} "
-            f"{'STATUS':<12} {'TASKS':<9} {'SLOTS':<9}"
+        header = (
+            f"{'EXP_ID':<60} {'JOB NAME':<25} {'REGION':<13} {'MACHINE':<20} "
+            f"{'IMAGE TAG':<15} {'STAGE':<8} {'STATUS':<12} {'TASKS':<9}"
         )
-        print("-" * 160)
+        print("-" * len(header))
+        print(header)
+        print("-" * len(header))
 
         for job in jobs:
             job_name = job.get("name", "").split("/")[-1]
@@ -712,21 +741,19 @@ def display_status(
                 task_count = sum(task_counts.values())
             tasks_str = f"{completed}/{task_count}" if task_count > 0 else "N/A"
 
-            snapshot = _job_snapshot(job)
-            slots_str = (
-                f"{snapshot.occupied}/{snapshot.demand}"
-                if snapshot.demand > 0
-                else "N/A"
-            )
+            machine = ", ".join(
+                instance.get("policy", {}).get("machineType") or "auto"
+                for instance in job.get("allocationPolicy", {}).get("instances", [])
+            ) or "auto"
 
             # Color code status (pad before coloring to avoid ANSI escape code width issues)
             status_padded = f"{state:<12}"
             status_display = format_status(status_padded, "batch")
 
             print(
-                f"{exp_id:<60} {job_name:<25} {batch_region:<13} "
-                f"{stage:<8} {image_tag:<15} "
-                f"{status_display} {tasks_str:<9} {slots_str:<9}"
+                f"{exp_id:<60} {job_name:<25} {batch_region:<13} {machine:<20} "
+                f"{image_tag:<15} {stage:<8} "
+                f"{status_display} {tasks_str:<9}"
             )
 
         print()

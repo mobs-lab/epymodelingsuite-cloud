@@ -882,9 +882,9 @@ class TestFetchRecentFunctions:
             verbose=False,
         )
 
-        # 3 API calls (SUCCEEDED, FAILED, CANCELLED), each returns 1 result
-        assert mock_get.call_count == 3
-        assert len(workflows) == 3  # 1 per state call
+        # One query covers all terminal states
+        assert mock_get.call_count == 1
+        assert len(workflows) == 1
 
     @patch("epycloud.commands.status.operations.get_gcloud_access_token")
     @patch("epycloud.commands.status.operations.requests.get")
@@ -1106,3 +1106,27 @@ class TestDisplayRecentFunctions:
         """Test display_status works without recent data (backwards compatible)."""
         # Should not raise any errors
         display_status([], [], None)
+
+
+@pytest.mark.parametrize("machine_type", ["c4d-standard-8", None])
+def test_active_jobs_machine_after_region(capsys, machine_type):
+    job = {
+        "name": "projects/p/locations/us-east4/jobs/job",
+        "region": "us-east4",
+        "status": {"state": "RUNNING"},
+        "allocationPolicy": {
+            "instances": [{"policy": {"machineType": machine_type}}]
+        },
+    }
+    display_status([], [job], None)
+    output = capsys.readouterr().out
+    header = next(line for line in output.splitlines() if "JOB NAME" in line)
+    lines = output.splitlines()
+    index = lines.index(header)
+    assert lines[index - 1] == lines[index + 1] == "-" * len(header)
+    assert header.split() == [
+        "EXP_ID", "JOB", "NAME", "REGION", "MACHINE", "IMAGE", "TAG",
+        "STAGE", "STATUS", "TASKS",
+    ]
+    assert (machine_type or "auto") in output
+    assert "SLOTS" not in output
