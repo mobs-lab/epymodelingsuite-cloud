@@ -123,6 +123,7 @@ def handle_cloud(ctx: dict[str, Any]) -> int:
     return cloud.build_cloud(
         project_id=project_id,
         region=region,
+        replica_regions=[r for r in _get_batch_regions(config) if r != region],
         repo_name=docker_config["repo_name"],
         image_name=docker_config["image_name"],
         image_tag=image_tag,

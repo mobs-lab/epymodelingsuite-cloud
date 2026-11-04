@@ -7,7 +7,6 @@ from pathlib import Path
 
 from epycloud.lib.output import Colors, ask_confirmation, colorize, error, info, success, warning
 
-
 IMAGE_DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
 
 
@@ -26,6 +25,7 @@ def build_cloud(
     dry_run: bool,
     dockerfile_path: Path,
     context_path: Path,
+    replica_regions: list[str] | None = None,
 ) -> int:
     """Build with Cloud Build (async by default).
 
@@ -65,6 +65,11 @@ def build_cloud(
     int
         Exit code
     """
+    replica_regions = replica_regions or []
+    if any(not re.fullmatch(r"[a-z]+-[a-z]+[0-9]+", r) for r in replica_regions):
+        error("Invalid region in google_cloud.batch_regions")
+        return 2
+
     # Validate required files exist before attempting build
     cloudbuild_yaml = context_path / "cloudbuild.yaml"
     missing_files = []
@@ -120,7 +125,8 @@ def build_cloud(
         f"_IMAGE_TAG={image_tag},"
         f"_GITHUB_MODELING_SUITE_REPO={modeling_suite_repo},"
         f"_GITHUB_MODELING_SUITE_REF={modeling_suite_ref},"
-        f"_NO_CACHE={no_cache_str}"
+        f"_NO_CACHE={no_cache_str},"
+        f"_REPLICA_REGIONS={' '.join(replica_regions)}"
     )
 
     # Build gcloud command with absolute context path

@@ -31,6 +31,10 @@ class TestBuildCloudCommand:
             stderr="",
         )
 
+        mock_config["google_cloud"]["batch_regions"] = {
+            "us-central1": {}, "us-east4": {}
+        }
+
         ctx = {
             "config": mock_config,
             "environment": "dev",
@@ -52,6 +56,10 @@ class TestBuildCloudCommand:
 
         assert exit_code == 0
         assert mock_subprocess.called
+        command = mock_subprocess.call_args.args[0]
+        substitutions = next(x for x in command if x.startswith("--substitutions="))
+        assert "_REPLICA_REGIONS=us-east4" in substitutions
+        assert "--async" in command
 
     @patch("epycloud.commands.build.cloud.ask_confirmation")
     @patch("epycloud.lib.command_helpers.get_project_root")

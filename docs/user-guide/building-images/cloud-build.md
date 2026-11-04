@@ -2,6 +2,8 @@
 
 Build and push Docker images using Google Cloud Build. This is the **recommended method for production**. The command returns immediately while the build runs asynchronously on Google's infrastructure.
 
+Cloud Build pushes the tested image to every other region in `google_cloud.batch_regions`. The regional repositories and Cloud Build write permissions must already exist. Replication runs on the server even in async mode; a failed push fails the build. Tags can temporarily differ between regions during publication.
+
 ## Quick Reference
 
 ```bash

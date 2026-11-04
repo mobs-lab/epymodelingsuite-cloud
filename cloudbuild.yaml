@@ -37,6 +37,14 @@ steps:
       - '--config'
       - 'docker/container-structure-test.yaml'
 
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    env:
+      - 'SOURCE_IMAGE=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+      - 'REPLICA_REGIONS=${_REPLICA_REGIONS}'
+      - 'IMAGE_PATH=${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
+    args: ['docker/replicate-built-image.sh']
+
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_IMAGE_NAME}:${_IMAGE_TAG}'
 
@@ -47,6 +55,7 @@ substitutions:
   _IMAGE_TAG: 'latest'  # Override with --substitutions flag
   _GITHUB_MODELING_SUITE_REPO: ''  # Override with --substitutions flag (optional)
   _GITHUB_MODELING_SUITE_REF: 'main'  # Override with --substitutions flag (optional)
+  _REPLICA_REGIONS: ''  # Space-separated destinations supplied by the CLI
   _NO_CACHE: 'true'  # Default: no cache (use 'false' to enable cache)
 
 availableSecrets:
