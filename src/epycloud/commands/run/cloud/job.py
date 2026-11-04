@@ -130,18 +130,21 @@ def run_job_gcp(
         # repair/debug choice.
         job_stage_config = {**stage_config, "machine_types": [configured_chain[0]]}
 
+    status("Checking machine candidates...")
     resolved = resolve_stage_candidates(
         job_stage_config,
         machine_type_override,
         f"Stage {stage}",
         project_id,
         region,
+        verbose=verbose,
         default_cpu_milli=default_cpu,
         default_memory_mib=default_memory,
         default_max_run_duration=default_duration,
     )
     if resolved is None:
         return 1
+    success("Machine checks passed")
     candidates, _ = resolved
     resources = candidates[0]
     cpu_milli = resources.cpu_milli

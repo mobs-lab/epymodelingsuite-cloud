@@ -28,7 +28,8 @@ def validate_cross_region_preflight(
 
     source_image = get_image_uri(config, tag=image_tag, region=source_region)
     destination_image = get_image_uri(config, tag=image_tag, region=compute_region)
-    status(f"Checking image replica in {compute_region}...")
+    if verbose:
+        status(f"Checking image replica in {compute_region}...")
     source_digest = build_cloud.resolve_image_digest(
         project_id=project_id,
         image_uri=source_image,
@@ -48,11 +49,10 @@ def validate_cross_region_preflight(
         )
         return False
 
-    subnet_base_name = config.get("google_cloud", {}).get(
-        "subnet_name", "epymodelingsuite-subnet"
-    )
+    subnet_base_name = config.get("google_cloud", {}).get("subnet_name", "epymodelingsuite-subnet")
     subnet_name = f"{subnet_base_name}-{compute_region}"
-    status(f"Checking Batch subnet '{subnet_name}'...")
+    if verbose:
+        status(f"Checking Batch subnet '{subnet_name}'...")
     try:
         result = subprocess.run(
             [
@@ -81,7 +81,8 @@ def validate_cross_region_preflight(
             print(result.stderr.strip(), file=sys.stderr)
         return False
 
-    success(f"Cross-region preflight passed for image and subnet in {compute_region}")
+    if verbose:
+        success(f"Cross-region preflight passed for image and subnet in {compute_region}")
     return True
 
 
@@ -178,6 +179,7 @@ def validate_and_get_machine_specs(
     stage_name: str,
     project_id: str,
     region: str,
+    verbose: bool = False,
 ) -> tuple[int, int] | None:
     """Validate machine type and get CPU/memory specs.
 
@@ -197,16 +199,16 @@ def validate_and_get_machine_specs(
     tuple[int, int] | None
         (cpu_milli, memory_mib) if valid, None if invalid
     """
-    status(f"Validating {stage_name} machine type '{machine_type}'...")
     try:
         # Cheap local check first, so a wrong family is rejected without a
         # gcloud round-trip, and before validate_machine_type rejects "".
         validate_hyperdisk_family(machine_type, stage_name)
         validate_machine_type(machine_type, project_id, region)
-        success(f"{stage_name} machine type '{machine_type}' is valid")
-        status("Querying machine type specs...")
         cpu_milli, memory_mib = get_machine_type_specs(machine_type, project_id, region)
-        status(f"{stage_name}: CPU={cpu_milli} milliCPU, Memory={memory_mib} MiB")
+        if verbose:
+            status(
+                f"{stage_name}: {machine_type}, CPU={cpu_milli} milliCPU, Memory={memory_mib} MiB"
+            )
         return cpu_milli, memory_mib
     except ValidationError as e:
         error(str(e))
@@ -230,6 +232,7 @@ def resolve_stage_candidates(
     default_memory_mib: int,
     default_max_run_duration: int,
     max_task_count_per_node: int | None = None,
+    verbose: bool = False,
 ) -> tuple[tuple[StageResources, ...], bool] | None:
     """Resolve and validate one stage's ordered machine candidates.
 
@@ -301,7 +304,9 @@ def resolve_stage_candidates(
             )
             continue
 
-        specs = validate_and_get_machine_specs(machine_type, stage_name, project_id, region)
+        specs = validate_and_get_machine_specs(
+            machine_type, stage_name, project_id, region, verbose=verbose
+        )
         if specs is None:
             return None
         cpu_milli, memory_mib = specs

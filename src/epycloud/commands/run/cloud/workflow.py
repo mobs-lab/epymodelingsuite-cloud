@@ -171,6 +171,7 @@ def run_workflow_gcp(
     }
     stage_candidates: dict[str, tuple[StageResources, ...]] = {}
     stage_pinned: dict[str, bool] = {}
+    status("Checking machine candidates, image and network...")
     for stage in ("a", "b", "c"):
         default_cpu, default_memory, default_duration = stage_defaults[stage]
         resolved = resolve_stage_candidates(
@@ -179,6 +180,7 @@ def run_workflow_gcp(
             f"Stage {stage.upper()}",
             project_id,
             compute_region,
+            verbose=verbose,
             default_cpu_milli=default_cpu,
             default_memory_mib=default_memory,
             default_max_run_duration=default_duration,
@@ -201,6 +203,8 @@ def run_workflow_gcp(
         verbose,
     ):
         return 1
+
+    success("Preflight checks passed")
 
     # Extract labels
     profile_meta = config.get("_meta", {}).get("profile") or {}

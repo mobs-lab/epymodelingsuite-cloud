@@ -69,9 +69,7 @@ def test_each_candidate_keeps_the_per_task_request_and_its_own_packing(mock_spec
     [(3072, 4), (6144, 2), (16384, 1)],
 )
 @patch("epycloud.commands.run.validation.validate_and_get_machine_specs")
-def test_task_count_per_node_is_limited_by_cpu_and_memory(
-    mock_specs, task_memory_mib, expected
-):
+def test_task_count_per_node_is_limited_by_cpu_and_memory(mock_specs, task_memory_mib, expected):
     """A 4-vCPU, 16 GiB VM fits 4 single-core tasks unless memory runs out first.
 
     Extra tasks must fit beside the OS reserve, but one task may use the whole VM.
@@ -121,7 +119,9 @@ def test_cli_override_is_one_pinned_candidate(mock_specs):
 
     assert pinned is True
     assert [item.machine_type for item in candidates] == ["n4d-standard-8"]
-    mock_specs.assert_called_once_with("n4d-standard-8", "Stage C", "test-project", "us-central1")
+    mock_specs.assert_called_once_with(
+        "n4d-standard-8", "Stage C", "test-project", "us-central1", verbose=False
+    )
 
 
 @patch("epycloud.commands.run.validation.validate_and_get_machine_specs")
@@ -192,3 +192,21 @@ def test_plural_key_wins_and_names_the_ignored_legacy_key(mock_specs, mock_warni
     assert [item.machine_type for item in candidates] == ["c4-standard-4"]
     mock_warning.assert_called_once()
     assert "legacy machine_type" in mock_warning.call_args.args[0]
+
+
+@pytest.mark.parametrize("verbose", [False, True])
+def test_machine_details_only_in_verbose(verbose):
+    from epycloud.commands.run.validation import validate_and_get_machine_specs
+
+    with (
+        patch("epycloud.commands.run.validation.validate_machine_type"),
+        patch("epycloud.commands.run.validation.get_machine_type_specs", return_value=(4000, 8192)),
+        patch("epycloud.commands.run.validation.status") as status,
+    ):
+        assert validate_and_get_machine_specs(
+            "c3-highcpu-4", "Stage A", "project", "us-east4", verbose=verbose
+        ) == (4000, 8192)
+    if verbose:
+        status.assert_called_once_with("Stage A: c3-highcpu-4, CPU=4000 milliCPU, Memory=8192 MiB")
+    else:
+        status.assert_not_called()
