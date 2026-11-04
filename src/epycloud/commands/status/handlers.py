@@ -6,10 +6,14 @@ from datetime import UTC, datetime
 from threading import Lock
 from typing import Any
 
+from epycloud.commands.status.display import (
+    display_status,
+)
 from epycloud.commands.status.operations import (
     ProvisioningStallTracker,
     detect_one_shot_provisioning_alerts,
-    display_status,
+)
+from epycloud.commands.status.query import (
     fetch_active_batch_jobs,
     fetch_active_workflows,
     fetch_recent_batch_jobs,

@@ -6,7 +6,9 @@ from threading import Barrier
 from unittest.mock import patch
 
 from epycloud.commands.status.handlers import _fetch_status
-from epycloud.commands.status.operations import fetch_active_batch_jobs
+from epycloud.commands.status.query import (
+    fetch_active_batch_jobs,
+)
 
 
 def test_status_sources_run_concurrently():
@@ -35,7 +37,7 @@ def test_batch_regions_run_concurrently():
         assert kwargs["timeout"] == 30
         return subprocess.CompletedProcess(command, 0, stdout='[{"name": "job"}]')
 
-    with patch("epycloud.commands.status.operations.subprocess.run", run):
+    with patch("epycloud.commands.status.query.subprocess.run", run):
         jobs = fetch_active_batch_jobs("p", ("us-east4", "us-central1"), None, False)
     assert [job["region"] for job in jobs] == ["us-central1", "us-east4"]
 
@@ -61,14 +63,14 @@ def test_workflows_share_one_token_per_refresh():
 def test_recent_workflows_pagination_and_timezone():
     from unittest.mock import Mock
 
-    from epycloud.commands.status.operations import fetch_recent_workflows
+    from epycloud.commands.status.query import fetch_recent_workflows
 
     pages = [
         {"executions": [{"name": "first", "endTime": "2026-11-04T11:00:00-05:00"}],
          "nextPageToken": "next"},
         {"executions": [{"name": "second", "endTime": "2026-11-04T16:01:00Z"}]},
     ]
-    with patch("epycloud.commands.status.operations.requests.get",
+    with patch("epycloud.commands.status.query.requests.get",
                side_effect=[Mock(json=Mock(return_value=p)) for p in pages]) as get:
         jobs = fetch_recent_workflows(
             "p", "r", None, datetime(2026, 11, 4, 16, tzinfo=UTC), False,

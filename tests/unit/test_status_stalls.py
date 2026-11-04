@@ -3,11 +3,13 @@
 from datetime import UTC, datetime, timedelta
 
 from epycloud.cli import create_parser
+from epycloud.commands.status.display import (
+    display_status,
+)
 from epycloud.commands.status.operations import (
     ProvisioningAlert,
     ProvisioningStallTracker,
     detect_one_shot_provisioning_alerts,
-    display_status,
     extract_requested_parallelism,
     extract_task_count,
     extract_task_counts,

@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from epycloud.commands.status import operations as status_operations
+from epycloud.commands.status import query as status_query
 from epycloud.execution import PipelineRunSpec, StageResources
 from epycloud.execution.gcp import GcpExecutionBackend
 from epycloud.lib.command_helpers import DEFAULT_WORKFLOW_NAME, get_workflow_name
@@ -92,16 +92,16 @@ class TestStatusQueriesWorkflowName:
         return response
 
     def test_active_defaults_to_production_workflow(self):
-        with patch.object(status_operations.requests, "get", return_value=self._response()) as get:
-            with patch.object(status_operations, "get_gcloud_access_token", return_value="t"):
-                status_operations.fetch_active_workflows("p", "us-central1", None, False)
+        with patch.object(status_query.requests, "get", return_value=self._response()) as get:
+            with patch.object(status_query, "get_gcloud_access_token", return_value="t"):
+                status_query.fetch_active_workflows("p", "us-central1", None, False)
 
         assert f"/workflows/{DEFAULT_WORKFLOW_NAME}/executions" in get.call_args[0][0]
 
     def test_active_uses_supplied_workflow(self):
-        with patch.object(status_operations.requests, "get", return_value=self._response()) as get:
-            with patch.object(status_operations, "get_gcloud_access_token", return_value="t"):
-                status_operations.fetch_active_workflows(
+        with patch.object(status_query.requests, "get", return_value=self._response()) as get:
+            with patch.object(status_query, "get_gcloud_access_token", return_value="t"):
+                status_query.fetch_active_workflows(
                     "p", "us-central1", None, False, workflow_name="epymodelingsuite-pipeline-staging"
                 )
 

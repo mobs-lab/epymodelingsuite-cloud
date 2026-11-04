@@ -2,20 +2,24 @@
 
 import json
 from datetime import UTC, datetime, timedelta
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
 
 import pytest
 
 from epycloud.commands import status
-from epycloud.commands.status.operations import (
-    fetch_active_workflows,
-    fetch_active_batch_jobs,
-    fetch_recent_workflows,
-    fetch_recent_batch_jobs,
-    display_status,
-    display_recent_workflows,
+from epycloud.commands.status.display import (
     display_recent_batch_jobs,
+    display_recent_workflows,
+    display_status,
+)
+from epycloud.commands.status.operations import (
     extract_image_tag,
+)
+from epycloud.commands.status.query import (
+    fetch_active_batch_jobs,
+    fetch_active_workflows,
+    fetch_recent_batch_jobs,
+    fetch_recent_workflows,
 )
 
 
@@ -243,8 +247,8 @@ class TestStatusShowCommand:
 class TestStatusFetchFunctions:
     """Test status fetch helper functions."""
 
-    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
-    @patch("epycloud.commands.status.operations.requests.get")
+    @patch("epycloud.commands.status.query.get_gcloud_access_token")
+    @patch("epycloud.commands.status.query.requests.get")
     def test_fetch_active_workflows_success(self, mock_get, mock_token):
         """Test fetching active workflows from API."""
         mock_token.return_value = "test-token"
@@ -277,8 +281,8 @@ class TestStatusFetchFunctions:
         assert len(workflows) == 2
         mock_get.assert_called_once()
 
-    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
-    @patch("epycloud.commands.status.operations.requests.get")
+    @patch("epycloud.commands.status.query.get_gcloud_access_token")
+    @patch("epycloud.commands.status.query.requests.get")
     def test_fetch_active_workflows_filter_by_exp_id(self, mock_get, mock_token):
         """Test filtering workflows by exp_id."""
         mock_token.return_value = "test-token"
@@ -309,8 +313,8 @@ class TestStatusFetchFunctions:
         assert len(workflows) == 1
         assert "test-flu" in workflows[0]["argument"]
 
-    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
-    @patch("epycloud.commands.status.operations.requests.get")
+    @patch("epycloud.commands.status.query.get_gcloud_access_token")
+    @patch("epycloud.commands.status.query.requests.get")
     def test_fetch_active_workflows_empty(self, mock_get, mock_token):
         """Test empty workflow list."""
         mock_token.return_value = "test-token"
@@ -329,8 +333,8 @@ class TestStatusFetchFunctions:
 
         assert len(workflows) == 0
 
-    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
-    @patch("epycloud.commands.status.operations.requests.get")
+    @patch("epycloud.commands.status.query.get_gcloud_access_token")
+    @patch("epycloud.commands.status.query.requests.get")
     def test_fetch_active_workflows_api_error(self, mock_get, mock_token):
         """Test API error resilience."""
         mock_token.return_value = "test-token"
@@ -346,7 +350,7 @@ class TestStatusFetchFunctions:
         # Should return empty list on error
         assert workflows == []
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_active_batch_jobs_success(self, mock_subprocess):
         """Test fetching active batch jobs."""
         mock_subprocess.return_value = Mock(
@@ -373,7 +377,7 @@ class TestStatusFetchFunctions:
         assert len(jobs) == 1
         assert jobs[0]["labels"]["stage"] == "runner"
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_active_batch_jobs_queries_and_annotates_every_region(self, mock_subprocess):
         """Multi-region status must retain where each returned Batch job runs."""
 
@@ -405,7 +409,7 @@ class TestStatusFetchFunctions:
         assert {job["region"] for job in jobs} == {"us-central1", "us-east5"}
         assert mock_subprocess.call_count == 2
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_active_batch_jobs_empty(self, mock_subprocess):
         """Test empty batch jobs list."""
         mock_subprocess.return_value = Mock(
@@ -423,7 +427,7 @@ class TestStatusFetchFunctions:
 
         assert len(jobs) == 0
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_active_batch_jobs_with_exp_id_filter(self, mock_subprocess):
         """Test batch jobs with exp_id filter."""
         mock_subprocess.return_value = Mock(
@@ -443,7 +447,7 @@ class TestStatusFetchFunctions:
         call_args = mock_subprocess.call_args[0][0]
         assert any("labels.exp_id=test-flu" in arg for arg in call_args)
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_active_batch_jobs_gcloud_error(self, mock_subprocess):
         """Test gcloud error resilience."""
         mock_subprocess.side_effect = Exception("gcloud error")
@@ -847,8 +851,8 @@ class TestStatusRecentFlag:
 class TestFetchRecentFunctions:
     """Test recent fetch helper functions."""
 
-    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
-    @patch("epycloud.commands.status.operations.requests.get")
+    @patch("epycloud.commands.status.query.get_gcloud_access_token")
+    @patch("epycloud.commands.status.query.requests.get")
     def test_fetch_recent_workflows_success(self, mock_get, mock_token):
         """Test fetching recently completed workflows."""
         mock_token.return_value = "test-token"
@@ -886,8 +890,8 @@ class TestFetchRecentFunctions:
         assert mock_get.call_count == 1
         assert len(workflows) == 1
 
-    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
-    @patch("epycloud.commands.status.operations.requests.get")
+    @patch("epycloud.commands.status.query.get_gcloud_access_token")
+    @patch("epycloud.commands.status.query.requests.get")
     def test_fetch_recent_workflows_filter_by_exp_id(self, mock_get, mock_token):
         """Test filtering recent workflows by exp_id."""
         mock_token.return_value = "test-token"
@@ -929,8 +933,8 @@ class TestFetchRecentFunctions:
         for w in workflows:
             assert "test-flu" in w["argument"]
 
-    @patch("epycloud.commands.status.operations.get_gcloud_access_token")
-    @patch("epycloud.commands.status.operations.requests.get")
+    @patch("epycloud.commands.status.query.get_gcloud_access_token")
+    @patch("epycloud.commands.status.query.requests.get")
     def test_fetch_recent_workflows_api_error(self, mock_get, mock_token):
         """Test API error resilience for recent workflows."""
         mock_token.return_value = "test-token"
@@ -947,7 +951,7 @@ class TestFetchRecentFunctions:
 
         assert workflows == []
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_recent_batch_jobs_success(self, mock_subprocess):
         """Test fetching recently completed batch jobs."""
         update_time = datetime.now(UTC).isoformat()
@@ -980,7 +984,7 @@ class TestFetchRecentFunctions:
         assert len(jobs) == 1
         assert jobs[0]["status"]["state"] == "SUCCEEDED"
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_recent_batch_jobs_filters_old(self, mock_subprocess):
         """Test that old batch jobs are filtered out."""
         # Job from 2 days ago
@@ -1013,7 +1017,7 @@ class TestFetchRecentFunctions:
 
         assert len(jobs) == 0
 
-    @patch("epycloud.commands.status.operations.subprocess.run")
+    @patch("epycloud.commands.status.query.subprocess.run")
     def test_fetch_recent_batch_jobs_with_exp_id_filter(self, mock_subprocess):
         """The recent-job query combines the experiment and all terminal states."""
         mock_subprocess.return_value = Mock(
